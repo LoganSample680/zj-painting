@@ -1318,6 +1318,7 @@ input:checked+.dm-slider:before{transform:translateX(22px)}</style>
   </div>
   <div class="brow">
     <button class="btn btn-p" onclick="saveSettings()">Save all settings</button>
+    <button class="btn" onclick="if(supaEnabled())supaSignOut()" style="font-size:12px;color:var(--text3)">Sign out of cloud sync</button>
     <button class="btn" onclick="resetSettings()">Reset defaults</button>
   </div>
   <div id="set-saved" style="display:none;margin-top:8px" class="tip tip-s">Settings saved!</div>
@@ -1527,7 +1528,7 @@ let STD_DED={single:14600,mfj:29200,mfs:14600,hoh:21900};
 let KS_BRACKETS={single:[],mfj:[],mfs:[],hoh:[]};
 let KS_STD={single:3500,mfj:8000,mfs:4000,hoh:6000};
 
-function saveAll(){try{const lp=(k,d)=>localStorage.setItem(k,JSON.stringify(d));lp('zp3_clients',clients);lp('zp3_bids',bids);lp('zp3_jobs',jobs);lp('zp3_inc',income);lp('zp3_exp',expenses);lp('zp3_mil',mileage);lp('zp3_chk',checksState);lp('zp3_S',S);lp('zp3_pay',payments);lp('zp3_lien',liens);}catch(e){}}
+function saveAll(){try{const lp=(k,d)=>localStorage.setItem(k,JSON.stringify(d));lp('zp3_clients',clients);lp('zp3_bids',bids);lp('zp3_jobs',jobs);lp('zp3_inc',income);lp('zp3_exp',expenses);lp('zp3_mil',mileage);lp('zp3_chk',checksState);lp('zp3_S',S);lp('zp3_pay',payments);lp('zp3_lien',liens);}catch(e){}supaSaveDebounced();}
 function loadAll(){try{const lp=(k,d)=>{const s=localStorage.getItem(k);return s?JSON.parse(s):d;};clients=lp('zp3_clients',[]);bids=lp('zp3_bids',[]);jobs=lp('zp3_jobs',[]);income=lp('zp3_inc',[]);expenses=lp('zp3_exp',[]);mileage=lp('zp3_mil',[]);checksState=lp('zp3_chk',{});payments=lp('zp3_pay',[]);liens=lp('zp3_lien',[]);const ss=lp('zp3_S',null);if(ss)S={...S,...ss};}catch(e){}}
 
 const fmt=n=>'$'+Math.round(n||0).toLocaleString();
@@ -9021,7 +9022,135 @@ function renderHittersList(){
 
 
 
+
+// ── Supabase cloud sync ───────────────────────────────────────────────
+const SUPA_URL = '';
+const SUPA_KEY = '';
+let _supa=null,_supaUser=null,_syncTimer=null,_syncStatus='local';
+function supaEnabled(){return !!(SUPA_URL&&SUPA_KEY);}
+
+async function supaInit(){
+  if(!supaEnabled())return;
+  try{
+    _supa=supabase.createClient(SUPA_URL,SUPA_KEY);
+    const{data:{session}}=await _supa.auth.getSession();
+    if(session){_supaUser=session.user;await supaLoadFromCloud();}
+    else{supaShowLogin();}
+    _supa.auth.onAuthStateChange(async(event,session)=>{
+      if(event==='SIGNED_IN'){_supaUser=session.user;document.getElementById('supa-login-overlay')?.remove();await supaLoadFromCloud();renderDash();}
+      else if(event==='SIGNED_OUT'){_supaUser=null;supaShowLogin();}
+    });
+  }catch(e){console.warn('Supabase init failed:',e);}
+}
+
+function supaShowLogin(){
+  if(!supaEnabled())return;
+  if(document.getElementById('supa-login-overlay'))return;
+  const overlay=document.createElement('div');
+  overlay.id='supa-login-overlay';
+  overlay.style.cssText='position:fixed;inset:0;z-index:9999;background:var(--bg);display:flex;flex-direction:column;align-items:center;justify-content:center;padding:24px';
+  overlay.innerHTML=
+    '<div style="max-width:360px;width:100%">'+
+    '<div style="font-size:24px;font-weight:800;margin-bottom:4px">ZJ\'s Painting</div>'+
+    '<div style="font-size:13px;color:var(--text3);margin-bottom:28px">Sign in to sync your data across devices</div>'+
+    '<div class="f" style="margin-bottom:12px"><label>Email</label>'+
+    '<input type="email" id="supa-email" placeholder="zach@zjspainting.com" style="font-size:16px;padding:12px;border-radius:var(--r);border:1px solid var(--border2);background:var(--bg2);color:var(--text);width:100%;box-sizing:border-box"></div>'+
+    '<div class="f" style="margin-bottom:20px"><label>Password</label>'+
+    '<input type="password" id="supa-pass" placeholder="Password" style="font-size:16px;padding:12px;border-radius:var(--r);border:1px solid var(--border2);background:var(--bg2);color:var(--text);width:100%;box-sizing:border-box"></div>'+
+    '<button onclick="supaSignIn()" style="width:100%;padding:14px;border-radius:var(--r);border:none;background:var(--blue);color:#fff;font-size:15px;font-weight:700;cursor:pointer;font-family:inherit;margin-bottom:10px">Sign in</button>'+
+    '<button onclick="supaSignUp()" style="width:100%;padding:12px;border-radius:var(--r);border:1px solid var(--border2);background:var(--bg2);color:var(--text);font-size:14px;font-weight:600;cursor:pointer;font-family:inherit;margin-bottom:16px">Create account</button>'+
+    '<button onclick="document.getElementById(\'supa-login-overlay\').remove()" style="width:100%;padding:10px;border:none;background:none;color:var(--text3);font-size:13px;cursor:pointer;font-family:inherit">Use offline (data stays on this device only)</button>'+
+    '<div id="supa-login-err" style="font-size:12px;color:#A32D2D;margin-top:10px;text-align:center;min-height:16px"></div>'+
+    '</div>';
+  document.body.appendChild(overlay);
+  setTimeout(()=>document.getElementById('supa-email')?.focus(),100);
+}
+
+async function supaSignIn(){
+  const email=document.getElementById('supa-email')?.value?.trim();
+  const pass=document.getElementById('supa-pass')?.value;
+  const err=document.getElementById('supa-login-err');
+  if(!email||!pass){if(err)err.textContent='Enter email and password.';return;}
+  if(err)err.textContent='Signing in...';
+  const{error}=await _supa.auth.signInWithPassword({email,password:pass});
+  if(error&&err)err.textContent=error.message;
+}
+
+async function supaSignUp(){
+  const email=document.getElementById('supa-email')?.value?.trim();
+  const pass=document.getElementById('supa-pass')?.value;
+  const err=document.getElementById('supa-login-err');
+  if(!email||!pass){if(err)err.textContent='Enter email and password.';return;}
+  if(pass.length<6){if(err)err.textContent='Password must be at least 6 characters.';return;}
+  if(err)err.textContent='Creating account...';
+  const{error}=await _supa.auth.signUp({email,password:pass});
+  if(error){if(err)err.textContent=error.message;}
+  else{if(err)err.textContent='Check your email to confirm, then sign in.';}
+}
+
+async function supaSignOut(){if(_supa)await _supa.auth.signOut();}
+
+function supaSaveDebounced(){
+  if(!supaEnabled()||!_supaUser)return;
+  clearTimeout(_syncTimer);
+  _syncTimer=setTimeout(()=>supaSaveToCloud(),2000);
+  supaSetStatus('syncing');
+}
+
+async function supaSaveToCloud(){
+  if(!_supa||!_supaUser)return;
+  try{
+    const payload={
+      user_id:_supaUser.id,
+      clients:JSON.stringify(clients),
+      bids:JSON.stringify(bids),
+      jobs:JSON.stringify(jobs),
+      payments:JSON.stringify(payments),
+      income:JSON.stringify(income),
+      expenses:JSON.stringify(expenses),
+      mileage:JSON.stringify(mileage),
+      liens:JSON.stringify(liens),
+      settings:JSON.stringify(S),
+      updated_at:new Date().toISOString()
+    };
+    const{error}=await _supa.from('zj_data').upsert(payload,{onConflict:'user_id'});
+    if(error)throw error;
+    supaSetStatus('synced');
+  }catch(e){console.warn('Cloud save failed:',e);supaSetStatus('error');}
+}
+
+async function supaLoadFromCloud(){
+  if(!_supa||!_supaUser)return;
+  try{
+    const{data,error}=await _supa.from('zj_data').select('*').eq('user_id',_supaUser.id).single();
+    if(error||!data)return;
+    const parse=(s,fb)=>{try{return s?JSON.parse(s):fb}catch{return fb}};
+    if(data.clients)clients=parse(data.clients,clients);
+    if(data.bids)bids=parse(data.bids,bids);
+    if(data.jobs)jobs=parse(data.jobs,jobs);
+    if(data.payments)payments=parse(data.payments,payments);
+    if(data.income)income=parse(data.income,income);
+    if(data.expenses)expenses=parse(data.expenses,expenses);
+    if(data.mileage)mileage=parse(data.mileage,mileage);
+    if(data.liens)liens=parse(data.liens,liens);
+    if(data.settings){const ss=parse(data.settings,null);if(ss)S={...S,...ss};}
+    saveAll();
+    supaSetStatus('synced');
+  }catch(e){console.warn('Cloud load failed:',e);}
+}
+
+function supaSetStatus(s){
+  _syncStatus=s;
+  const el=document.getElementById('supa-status');
+  if(!el)return;
+  const labels={local:'',syncing:'🔄 Saving...',synced:'✅ Synced',error:'⚠️ Sync error'};
+  const colors={local:'var(--text3)',syncing:'var(--amber)',synced:'var(--green-mid)',error:'#A32D2D'};
+  el.textContent=labels[s]||'';
+  el.style.color=colors[s]||'var(--text3)';
+}
+
 loadAll();applySettings();
+if(supaEnabled())supaInit();
 
 (function seedTestData(){
   if(localStorage.getItem('zp3_seeded_v3'))return;

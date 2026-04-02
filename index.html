@@ -6104,6 +6104,41 @@ function calcEst(){
   return{lines,laborTotal,matTotal,flatAdd,scopeFlats,colorAdd:0,travel:0,base,bid:final,adj,final,
     profit:0,margin:0,paintLines,totalPaintSqFt,coats,totalLaborHours,laborRate:R.walls,paintCostPerGal,R};
 }
+function renderEstRunning(){
+  const el=document.getElementById('est-running');if(!el)return;
+  const{lines,bid}=calcEst();
+  if(!lines.length){el.innerHTML='<div class="empty">Add surfaces to see pricing.</div>';return;}
+  let html='<div style="display:grid;grid-template-columns:1fr auto auto;gap:4px 12px;font-size:12px">';
+  lines.forEach(l=>{
+    html+='<span>'+l.label+'</span><span style="color:var(--text3)">'+l.qty.toLocaleString()+' '+l.unit+'</span><span style="font-weight:700;text-align:right">'+fmt(l.sub)+'</span>';
+  });
+  html+='</div><hr><div style="display:flex;justify-content:space-between;font-size:15px;font-weight:700"><span>Estimated bid</span><span style="color:var(--blue)">'+fmt(bid)+'</span></div>';
+  el.innerHTML=html;
+}
+function renderEstReview(){
+  const{lines,base,adj,final,laborTotal,matTotal,totalLaborHours,laborRate,paintCostPerGal,paintLines}=calcEst();
+  const el=document.getElementById('est-review');if(!el)return;
+  if(!estSurfaces.length&&!lines.length){el.innerHTML='<div class="empty">No surfaces added yet.</div>';return;}
+  let html='<div class="mets" style="margin-bottom:12px">'+
+    '<div class="met"><div class="met-l">Labor hours</div><div class="met-v">'+totalLaborHours.toFixed(1)+'h</div><div class="met-s">@ '+fmt(laborRate)+'/hr</div></div>'+
+    '<div class="met"><div class="met-l">Labor cost</div><div class="met-v" style="color:var(--blue)">'+fmt(laborTotal)+'</div></div>'+
+    '<div class="met"><div class="met-l">Materials</div><div class="met-v" style="color:var(--blue)">'+fmt(matTotal)+'</div><div class="met-s">@ '+fmt(paintCostPerGal)+'/gal</div></div>'+
+    '<div class="met"><div class="met-l">Total</div><div class="met-v" style="color:var(--green-mid);font-size:18px">'+fmt(final)+'</div></div>'+
+  '</div>';
+  if(lines.length){
+    html+='<div style="font-size:10px;font-weight:800;text-transform:uppercase;color:var(--text3);margin-bottom:6px">Labor breakdown</div>';
+    html+=lines.map(l=>'<div style="display:flex;justify-content:space-between;font-size:12px;padding:5px 0;border-bottom:1px solid var(--border)">'+
+      '<span>'+l.label+'</span><span style="font-weight:700">'+fmt(l.sub)+'</span></div>').join('');
+  }
+  if(paintLines&&paintLines.length){
+    html+='<div style="font-size:10px;font-weight:800;text-transform:uppercase;color:var(--text3);margin:10px 0 6px">Paint &amp; materials</div>';
+    html+=paintLines.map(p=>'<div style="display:flex;justify-content:space-between;font-size:12px;padding:5px 0;border-bottom:1px solid var(--border)">'+
+      '<span>'+p.color+' <span style="color:var(--text3)">('+p.gals+' gal)</span></span>'+
+      '<span style="font-weight:700">'+fmt(p.cost)+'</span></div>').join('');
+  }
+  el.innerHTML=html;
+  const fd=document.getElementById('est-final-disp');if(fd)fd.textContent=fmt(final);
+}
 function downloadProposalPDF(){
   const proposal=document.getElementById('est-proposal');
   if(!proposal||!proposal.innerHTML.trim()){

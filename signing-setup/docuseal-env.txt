@@ -1,0 +1,32 @@
+# docuseal-env.txt
+# Paste these into Railway → Your DocuSeal project → Variables
+# Replace values marked with YOUR_... before deploying
+
+# Required
+SECRET_KEY_BASE=YOUR_RANDOM_64_CHAR_STRING
+# Generate one at: https://generate-secret.vercel.app/64
+
+# Email sending (so DocuSeal can email clients)
+# Option A — Gmail (easiest)
+SMTP_ADDRESS=smtp.gmail.com
+SMTP_PORT=587
+SMTP_USERNAME=YOUR_GMAIL_ADDRESS@gmail.com
+SMTP_PASSWORD=YOUR_GMAIL_APP_PASSWORD
+# Gmail app password: myaccount.google.com → Security → 2-Step Verification → App passwords
+
+# Option B — Resend (better deliverability, free 3000 emails/month)
+# SMTP_ADDRESS=smtp.resend.com
+# SMTP_PORT=465
+# SMTP_USERNAME=resend
+# SMTP_PASSWORD=YOUR_RESEND_API_KEY
+# Sign up free at resend.com
+
+# Sender name and address shown to clients
+SMTP_FROM_EMAIL=zach@zjspainting.com
+SMTP_FROM_NAME=ZJ's Painting & Special Coatings
+
+# App URL (Railway gives you this after first deploy)
+APP_URL=https://YOUR_RAILWAY_APP_URL.up.railway.app
+
+# Database (Railway auto-provisions this — leave blank, Railway sets it)
+# DATABASE_URL=  (set automatically by Railway Postgres addon)

@@ -4639,9 +4639,9 @@ function buildScopeGrid(){
       '<input type="checkbox" id="est-sc-'+s.id+'" style="display:none">'+
       '<div class="sdot"></div>'+
       '<div style="flex:1;min-width:0">'+
-        '<div style="display:flex;justify-content:space-between;align-items:center">'+
+        '<div style="display:flex;justify-content:space-between;align-items:flex-start">'+
           '<span class="slabel">'+s.label+'</span>'+
-          '<span id="scope-hrs-badge-'+s.id+'" style="font-size:11px;font-weight:800;color:var(--blue-dk);background:var(--blue-lt);padding:2px 7px;border-radius:10px;display:none"></span>'+
+          '<span id="scope-hrs-badge-'+s.id+'" style="font-size:10px;font-weight:800;color:var(--blue-dk);background:var(--blue-lt);padding:2px 6px;border-radius:8px;display:none;text-align:right;line-height:1.5;flex-shrink:0;margin-left:4px"></span>'+
         '</div>'+
         '<span class="sprice" style="display:block;font-size:10px;color:var(--text3);font-weight:400">'+s.desc+' — tap to enter hours</span>'+
       '</div></div>';
@@ -4723,7 +4723,7 @@ function _saveScopeHours(id){
   if(hrs>0){
     scopeHrsStore[id]={hrs,rate,cost};
     const badge=document.getElementById('scope-hrs-badge-'+id);
-    if(badge){badge.textContent=hrs+'h · $'+rate+'/hr';badge.style.display='';}
+    if(badge){badge.innerHTML=hrs+'h<br>$'+rate+'/hr';badge.style.display='';}
   } else {
     delete scopeHrsStore[id];
     const cb=document.getElementById('est-sc-'+id);const tog=document.getElementById('est-st-'+id);
@@ -6036,7 +6036,7 @@ function restoreEstFullDraft(d){
         const entry=d.scopeHrs[s.id];
         const hrs=typeof entry==='object'?entry.hrs:entry;
         const rate=typeof entry==='object'?entry.rate:null;
-        badge.textContent=(hrs?hrs+'h':'')+(hrs&&rate?' · $'+rate+'/hr':'');
+        badge.innerHTML=(hrs?hrs+'h':'')+'<br>'+(rate?'$'+rate+'/hr':'');
         badge.style.display='';
       }
     });

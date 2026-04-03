@@ -23,20 +23,100 @@
 }
 html{font-size:15px;-webkit-text-size-adjust:100%}
 body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:var(--bg3);color:var(--text);min-height:100vh;overflow-x:hidden}
-#nav{position:fixed;bottom:0;left:0;right:0;background:var(--bg);border-top:1px solid var(--border);display:grid;z-index:200;padding-bottom:env(safe-area-inset-bottom,0px)}
-.nb{flex:1;padding:7px 2px 5px;display:flex;flex-direction:column;align-items:center;gap:2px;border:none;background:none;cursor:pointer;color:var(--text3);font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;font-family:inherit}
-.nb svg{width:20px;height:20px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
-.nb.active{color:var(--blue)}
-.nb .bx{position:relative;display:inline-flex}
-.nbadge{position:absolute;top:-3px;right:-5px;background:#E24B4A;color:#fff;font-size:10px;width:14px;height:14px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:700;display:none}
-#app{padding-bottom:80px}
-.pg{display:none;padding:8px 14px 14px}.drive-active .pg{padding-top:60px}
+/* ── Sidebar nav — always left, dark navy ── */
+:root{
+  --nav-w:220px;
+  --nav-bg:#0D1117;
+  --nav-text:rgba(255,255,255,0.55);
+  --nav-text-active:#fff;
+  --nav-accent:#185FA5;
+  --nav-hover:rgba(255,255,255,0.06);
+  --nav-active-bg:rgba(24,95,165,0.25);
+  --nav-border:rgba(255,255,255,0.08);
+}
+#nav{
+  position:fixed;top:0;left:0;bottom:0;width:var(--nav-w);
+  background:var(--nav-bg);
+  display:flex;flex-direction:column;
+  z-index:200;overflow-y:auto;overflow-x:hidden;
+  border-right:1px solid var(--nav-border);
+  box-shadow:2px 0 20px rgba(0,0,0,0.15);
+}
+#nav-logo{
+  display:flex;align-items:center;gap:10px;
+  padding:22px 20px 20px;
+  border-bottom:1px solid var(--nav-border);
+  flex-shrink:0;
+}
+#nav-logo-icon{
+  width:32px;height:32px;border-radius:8px;
+  background:var(--nav-accent);
+  display:flex;align-items:center;justify-content:center;flex-shrink:0;
+}
+#nav-logo-text{font-weight:800;font-size:16px;color:#fff;letter-spacing:-.3px}
+#nav-section-label{
+  font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;
+  color:rgba(255,255,255,0.25);padding:18px 20px 6px;flex-shrink:0;
+}
+.nb{
+  width:100%;padding:9px 14px 9px 16px;
+  display:flex;flex-direction:row;align-items:center;
+  gap:11px;border:none;background:none;cursor:pointer;
+  color:var(--nav-text);font-size:13px;font-weight:500;
+  text-align:left;font-family:inherit;letter-spacing:-.1px;
+  border-radius:8px;margin:1px 8px;width:calc(100% - 16px);
+  transition:background .15s,color .15s;position:relative;
+}
+.nb:hover{background:var(--nav-hover);color:rgba(255,255,255,0.85);}
+.nb.active{background:var(--nav-active-bg);color:var(--nav-text-active);font-weight:600;}
+.nb.active::before{
+  content:'';position:absolute;left:-8px;top:50%;transform:translateY(-50%);
+  width:3px;height:20px;background:var(--nav-accent);border-radius:0 3px 3px 0;
+}
+.nb svg{width:18px;height:18px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0;opacity:.8;}
+.nb.active svg{opacity:1;}
+.nb .bx{position:relative;display:inline-flex;flex-shrink:0}
+.nbadge{
+  position:absolute;top:-4px;right:-6px;
+  background:#E24B4A;color:#fff;font-size:9px;
+  min-width:16px;height:16px;padding:0 3px;
+  border-radius:8px;display:none;
+  align-items:center;justify-content:center;font-weight:700;
+}
+#nav-spacer{flex:1;min-height:20px}
+#nav-user{
+  padding:14px 16px;border-top:1px solid var(--nav-border);
+  display:flex;align-items:center;gap:10px;flex-shrink:0;
+}
+#nav-user-avatar{
+  width:32px;height:32px;border-radius:50%;
+  background:var(--nav-accent);display:flex;align-items:center;justify-content:center;
+  font-size:13px;font-weight:700;color:#fff;flex-shrink:0;
+}
+#nav-user-name{font-size:12px;font-weight:600;color:rgba(255,255,255,.7);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+#nav-user-role{font-size:10px;color:rgba(255,255,255,.35);margin-top:1px;}
+/* ── App layout ── */
+#app{padding-left:var(--nav-w);padding-bottom:0;min-height:100vh}
+#supa-status{left:var(--nav-w)}
+.drive-banner{left:var(--nav-w)}
+/* ── Mobile: collapse sidebar to icons ── */
+@media(max-width:767px){
+  :root{--nav-w:60px}
+  #nav-logo-text,#nav-section-label,#nav-user-name,#nav-user-role{display:none}
+  #nav-logo{padding:16px 14px;justify-content:center}
+  .nb{padding:10px;justify-content:center;gap:0;margin:1px 4px;width:calc(100% - 8px);border-radius:6px}
+  .nb span:not(.nbadge){display:none}
+  .nb.active::before{display:none}
+  #nav-user{justify-content:center;padding:12px 8px}
+  #app{padding-left:60px;padding-bottom:0}
+}
+.pg{display:none;padding:20px 24px 24px}.drive-active .pg{padding-top:70px}
 #pg-leads,#pg-jobs,#pg-money{padding-top:4px}
 .pg.active{display:block}
 .tbar{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;gap:8px;flex-wrap:wrap}
 .tbar-title{font-size:20px;font-weight:700;color:var(--text)}
 .tbar-sub{font-size:11px;color:var(--text3);margin-top:1px}
-.card{background:var(--bg);border:1px solid var(--border);border-radius:var(--rl);padding:14px;margin-bottom:10px}
+.card{background:var(--bg);border:1px solid var(--border);border-radius:var(--rl);padding:16px;margin-bottom:12px;box-shadow:0 1px 3px rgba(0,0,0,.04)}
 .card-hd{font-size:13px;font-weight:700;margin-bottom:10px;padding-bottom:8px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;color:var(--text)}
 .card-hd span{font-size:10px;font-weight:400;color:var(--text3)}
 .mets{display:grid;grid-template-columns:repeat(auto-fit,minmax(85px,1fr));gap:7px;margin-bottom:12px}
@@ -1422,33 +1502,39 @@ input:checked+.dm-slider:before{transform:translateX(22px)}</style>
     <button onclick="notesExpandCanvas()" style="font-size:11px;color:var(--blue-dk);background:var(--blue-lt);border:1px solid var(--blue);border-radius:var(--r);padding:3px 8px;cursor:pointer;font-family:inherit">+ More space</button>
   </div>
 </div>
-<div id="nav" style="grid-template-columns:repeat(9,1fr)">
+<div id="nav">
+  <div id="nav-logo">
+  <div id="nav-logo-icon"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="#fff" stroke-width="2.5"><path d="M14.7 6.3a1 1 0 000 1.4l1.6 1.6a1 1 0 001.4 0l3.77-3.77a6 6 0 01-7.94 7.94l-6.91 6.91a2.12 2.12 0 01-3-3l6.91-6.91a6 6 0 017.94-7.94l-3.76 3.76z"/></svg></div>
+  <span id="nav-logo-text">TradeDesk</span>
+</div>
+<div id="nav-section-label">Menu</div>
   <button class="nb active" id="nb-dash" onclick="goPg('pg-dash')">
-    <div class="bx"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg></div>Home
+    <div class="bx"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg></div><span>Home</span>
   </button>
   <button class="nb" id="nb-leads" onclick="goPg('pg-leads')">
-    <div class="bx"><svg viewBox="0 0 24 24"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg><span class="nbadge" id="nb-leads-badge"></span></div>Leads
+    <div class="bx"><svg viewBox="0 0 24 24"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg><span class="nbadge" id="nb-leads-badge"></span></div><span>Leads</span>
   </button>
   <button class="nb" id="nb-clients" onclick="goPg('pg-clients')">
-    <div class="bx"><svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/></svg></div>Clients
+    <div class="bx"><svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/></svg></div><span>Clients</span>
   </button>
   <button class="nb" id="nb-jobs" onclick="goPg('pg-jobs')">
-    <div class="bx"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg><span class="nbadge" id="nb-jobs-badge"></span></div>Jobs
+    <div class="bx"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg><span class="nbadge" id="nb-jobs-badge"></span></div><span>Jobs</span>
   </button>
   <button class="nb" id="nb-cal" onclick="goPg('pg-cal')">
-    <div class="bx"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/><circle cx="8" cy="16" r="1" fill="currentColor"/><circle cx="12" cy="16" r="1" fill="currentColor"/></svg></div>Cal
+    <div class="bx"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/><circle cx="8" cy="16" r="1" fill="currentColor"/><circle cx="12" cy="16" r="1" fill="currentColor"/></svg></div><span>Cal</span>
   </button>
   <button class="nb" id="nb-money" onclick="goPg('pg-money')">
-    <div class="bx"><svg viewBox="0 0 24 24"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg><span class="nbadge" id="nb-money-badge"></span></div>Collect
+    <div class="bx"><svg viewBox="0 0 24 24"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg><span class="nbadge" id="nb-money-badge"></span></div><span>Collect</span>
   </button>
   <button class="nb" id="nb-taxes" onclick="goPg('pg-taxes')">
-    <div class="bx"><svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg></div>Taxes
+    <div class="bx"><svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg></div><span>Taxes</span>
   </button>
   <button class="nb" id="nb-tracker" onclick="goPg('pg-tracker')">
-    <div class="bx"><svg viewBox="0 0 24 24"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg></div>Tracker
+    <div class="bx"><svg viewBox="0 0 24 24"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg></div><span>Tracker</span>
   </button>
+  <div id="nav-spacer"></div>
   <button class="nb" id="nb-settings" onclick="goPg('pg-settings')">
-    <div class="bx"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg></div>Settings
+    <div class="bx"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg></div><span>Settings</span>
   </button>
 <script>
 // ── Submit guard — prevents double-tap on any button ─────────────────────
@@ -1525,6 +1611,33 @@ const CHECKS=[
 const CAT_CFG={urgent:{label:'Do right away',color:'#A32D2D'},biz:{label:'Business setup in Kansas',color:'#185FA5'},tax:{label:'Tax & accounting',color:'#854F0B'},ks:{label:'Kansas market & marketing',color:'#27500A'}};
 
 let S={goalMonthly:0,laborRate:45,irsRate:.670,taxYear:2024,fedSingle:14600,fedMFJ:29200,fedMFS:14600,fedHOH:21900,b10:11600,b12:47150,b22:100525,b24:191950,b32:243725,b35:609350,ksLow:3.1,ksTop:33000,ksHigh:5.7,ksStdS:3500,ksStdM:8000,bname:"ZJ's Painting & Special Coatings",bphone:'',blic:'Licensed & Insured',veh:'',margin:40,cov:350,p1:38,p2:62,p3:88,mm:15,rWalls:1.00,rCeil:0.85,rTrim:1.50,rDoor:95,rWin:50,rExt:1.10,rDeck:1.00};
+
+// ── Account / User / Config global state ─────────────────────────────
+let _account=null;   // accounts row
+let _user=null;      // users row
+let _config=null;    // account_config row
+let _accountUsers=[]; // account_users rows
+let _vehicles=[];    // vehicles rows
+
+// Default configs by business type
+const BUSINESS_CONFIGS={
+  painting:{default_job_type:'estimate',require_estimate:true,require_deposit:true,allow_full_payment:false,show_schedule:true},
+  plumbing:{default_job_type:'service',require_estimate:false,require_deposit:false,allow_full_payment:true,show_schedule:false},
+  general:{default_job_type:'estimate',require_estimate:true,require_deposit:true,allow_full_payment:true,show_schedule:true},
+  roofing:{default_job_type:'estimate',require_estimate:true,require_deposit:true,allow_full_payment:false,show_schedule:true},
+  electrical:{default_job_type:'service',require_estimate:false,require_deposit:false,allow_full_payment:true,show_schedule:false},
+  hvac:{default_job_type:'service',require_estimate:false,require_deposit:false,allow_full_payment:true,show_schedule:false},
+  landscaping:{default_job_type:'estimate',require_estimate:true,require_deposit:true,allow_full_payment:false,show_schedule:true},
+  other:{default_job_type:'estimate',require_estimate:true,require_deposit:false,allow_full_payment:true,show_schedule:true},
+};
+
+function getRole(){return _user?.role||'owner';}
+function isOwner(){return getRole()==='owner';}
+function canSeePricing(){return getRole()==='owner'||getRole()==='estimator';}
+function canSeeTaxes(){return isOwner();}
+function getConfig(){return _config||BUSINESS_CONFIGS.painting;}
+function getBusinessName(){return _account?.business_name||S.bname||"TradeDesk";}
+function getUserName(){return _user?.name||'';}
 let FED_BRACKETS={single:[],mfj:[],mfs:[],hoh:[]};
 let STD_DED={single:14600,mfj:29200,mfs:14600,hoh:21900};
 let KS_BRACKETS={single:[],mfj:[],mfs:[],hoh:[]};
@@ -1887,7 +2000,7 @@ function renderDash(){
   _renderDashRunning=true;
   try{
   const hr=new Date().getHours();
-  document.getElementById('dash-greet').textContent=(hr<12?'Good Morning':hr<17?'Good Afternoon':'Good Evening')+', Zach';
+  document.getElementById('dash-greet').textContent=getDashGreeting();
   document.getElementById('dash-date').textContent=new Date().toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric',year:'numeric'});
   const tk=todayKey();
 
@@ -9079,6 +9192,428 @@ function renderHittersList(){
 
 
 
+// ── Account + User loader ─────────────────────────────────────────────
+async function loadAccountData(){
+  if(!_supa||!_supaUser)return false;
+  try{
+    const{data:u}=await _supa.from('users').select('*').eq('id',_supaUser.id).single();
+    if(!u||!u.account_id)return false;
+    _user=u;
+    const{data:a}=await _supa.from('accounts').select('*').eq('id',u.account_id).single();
+    _account=a;
+    const{data:cfg}=await _supa.from('account_config').select('*').eq('account_id',u.account_id).single();
+    _config=cfg;
+    const{data:vehs}=await _supa.from('vehicles').select('*').eq('account_id',u.account_id);
+    _vehicles=vehs||[];
+    if(_account?.business_name)S.bname=_account.business_name;
+    if(_account?.phone)S.bphone=_account.phone;
+    if(_account?.license_info)S.blic=_account.license_info;
+    applyPermissions();
+    return true;
+  }catch(e){console.warn('loadAccountData failed:',e);return false;}
+}
+
+function applyPermissions(){
+  const taxNav=document.getElementById('nb-taxes');
+  if(taxNav)taxNav.style.display=canSeeTaxes()?'':'none';
+  // Update nav user section
+  const nameEl=document.getElementById('nav-user-name');
+  const roleEl=document.getElementById('nav-user-role');
+  const avatarEl=document.getElementById('nav-user-avatar');
+  const name=getUserName()||_supaUser?.email?.split('@')[0]||'You';
+  if(nameEl)nameEl.textContent=name;
+  if(roleEl)roleEl.textContent=getRole().charAt(0).toUpperCase()+getRole().slice(1);
+  if(avatarEl)avatarEl.textContent=name.charAt(0).toUpperCase();
+}
+
+// ── Onboarding ────────────────────────────────────────────────────────
+let _ob={step:1,name:'',email:'',password:'',businessType:'',businessName:'',phone:'',address:'',licenseInfo:'',role:'owner',vehicles:[],team:[]};
+
+async function showOnboarding(){
+  document.getElementById('supa-boot-overlay')?.remove();
+  const ov=document.createElement('div');
+  ov.id='onboarding-overlay';
+  ov.style.cssText='position:fixed;inset:0;z-index:9999;background:var(--bg);overflow-y:auto;padding:0';
+  document.body.appendChild(ov);
+  renderObStep();
+}
+
+function renderObStep(){
+  const ov=document.getElementById('onboarding-overlay');if(!ov)return;
+  const steps=[
+    {icon:'🔨',title:'Welcome',sub:'Get set up in minutes'},
+    {icon:'👤',title:'Your account',sub:'Name, email and password'},
+    {icon:'🎨',title:'Your trade',sub:'We configure your workflow'},
+    {icon:'🏢',title:'Business info',sub:'Appears on proposals'},
+    {icon:'⚡',title:'Your role',sub:'Controls what you can see'},
+    {icon:'🚗',title:'Vehicles',sub:'For mileage tracking'},
+    {icon:'👥',title:'Your team',sub:'Add crew members'},
+    {icon:'✓',title:'All set',sub:'Review and create'},
+  ];
+  const pct=Math.round((_ob.step/8)*100);
+  const cur=steps[_ob.step-1];
+
+  ov.innerHTML=
+    '<div style="display:flex;min-height:100vh;min-height:100dvh">'+
+    // Left panel — brand + step context
+    '<div id="ob-left" style="width:340px;flex-shrink:0;background:#0D1117;padding:40px 32px;flex-direction:column;justify-content:space-between" id="ob-left">'+
+      '<div>'+
+        '<div style="display:flex;align-items:center;gap:10px;margin-bottom:48px">'+
+          '<div style="width:36px;height:36px;background:rgba(255,255,255,.15);border-radius:9px;display:flex;align-items:center;justify-content:center">'+
+            '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="#fff" stroke-width="2.5"><path d="M14.7 6.3a1 1 0 000 1.4l1.6 1.6a1 1 0 001.4 0l3.77-3.77a6 6 0 01-7.94 7.94l-6.91 6.91a2.12 2.12 0 01-3-3l6.91-6.91a6 6 0 017.94-7.94l-3.76 3.76z"/></svg>'+
+          '</div>'+
+          '<span style="font-size:18px;font-weight:800;color:#fff;letter-spacing:-.02em">TradeDesk</span>'+
+        '</div>'+
+        // Step list
+        '<div style="display:flex;flex-direction:column;gap:4px">'+
+        steps.map((s,i)=>{
+          const done=i+1<_ob.step;
+          const active=i+1===_ob.step;
+          return '<div style="display:flex;align-items:center;gap:12px;padding:10px 12px;border-radius:10px;background:'+(active?'rgba(255,255,255,.15)':done?'rgba(255,255,255,.06)':'transparent')+';transition:background .2s">'+
+            '<div style="width:28px;height:28px;border-radius:50%;background:'+(done?'#63B841':active?'#fff':'rgba(255,255,255,.2)')+';display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:'+(done?'13':'14')+'px;font-weight:700;color:'+(done?'#fff':active?'var(--blue)':'rgba(255,255,255,.5)')+'">'+
+              (done?'✓':''+(i+1))+
+            '</div>'+
+            '<div>'+
+              '<div style="font-size:13px;font-weight:'+(active?'700':'600')+';color:'+(active||done?'#fff':'rgba(255,255,255,.5)')+'">'+s.title+'</div>'+
+              (active?'<div style="font-size:11px;color:rgba(255,255,255,.65);margin-top:1px">'+s.sub+'</div>':'')+
+            '</div>'+
+          '</div>';
+        }).join('')+
+        '</div>'+
+      '</div>'+
+      '<div style="font-size:11px;color:rgba(255,255,255,.4)">© 2025 TradeDesk</div>'+
+    '</div>'+
+    // Right panel — form content
+    '<div style="flex:1;display:flex;flex-direction:column;background:#fff;min-height:100%;overflow-y:auto">'+
+      // Mobile header
+      '<div style="display:flex;align-items:center;justify-content:space-between;padding:16px 20px;border-bottom:1px solid var(--border)" id="ob-mobile-hdr">'+
+        '<div style="display:flex;align-items:center;gap:8px">'+
+          '<div style="width:28px;height:28px;background:var(--blue);border-radius:7px;display:flex;align-items:center;justify-content:center">'+
+            '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="#fff" stroke-width="2.5"><path d="M14.7 6.3a1 1 0 000 1.4l1.6 1.6a1 1 0 001.4 0l3.77-3.77a6 6 0 01-7.94 7.94l-6.91 6.91a2.12 2.12 0 01-3-3l6.91-6.91a6 6 0 017.94-7.94l-3.76 3.76z"/></svg>'+
+          '</div>'+
+          '<span style="font-size:15px;font-weight:800;color:var(--text)">TradeDesk</span>'+
+        '</div>'+
+        '<span style="font-size:12px;color:var(--text3);font-weight:600">'+_ob.step+' of 8</span>'+
+      '</div>'+
+      // Progress bar
+      '<div style="height:3px;background:var(--border)"><div style="height:100%;width:'+pct+'%;background:var(--blue);transition:width .4s ease"></div></div>'+
+      // Step content
+      '<div style="flex:1;padding:32px 28px;max-width:520px;width:100%;margin:0 auto;box-sizing:border-box" id="ob-body"></div>'+
+    '</div>'+
+    '</div>';
+
+  // Left panel visible on wider screens, hidden on mobile
+  const left=document.getElementById('ob-left');
+  if(left)left.style.display=window.innerWidth>=640?'flex':'none';
+
+  const body=document.getElementById('ob-body');
+  if(_ob.step===1)obStep1(body);
+  else if(_ob.step===2)obStep2(body);
+  else if(_ob.step===3)obStep3(body);
+  else if(_ob.step===4)obStep4(body);
+  else if(_ob.step===5)obStep5(body);
+  else if(_ob.step===6)obStep6(body);
+  else if(_ob.step===7)obStep7(body);
+  else if(_ob.step===8)obStep8(body);
+}
+
+function obBtn(label,onclick,secondary){
+  return '<button onclick="'+onclick+'" style="width:100%;padding:13px 18px;border-radius:9px;border:'+(secondary?'1.5px solid #e0dfd8':'none')+';background:'+(secondary?'#fff':'#0D1117')+';color:'+(secondary?'#5f5e5a':'#fff')+';font-size:15px;font-weight:600;cursor:pointer;font-family:inherit;margin-top:8px;letter-spacing:-.01em;box-shadow:'+(secondary?'none':'0 2px 8px rgba(0,0,0,.15)')+';transition:opacity .15s" onmousedown="this.style.opacity=\'.85\'" onmouseup="this.style.opacity=\'1\'">'+label+'</button>';
+}
+function obInput(id,label,placeholder,type,value){
+  return '<div style="margin-bottom:18px">'+
+    '<label style="display:block;font-size:12px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px">'+label+'</label>'+
+    '<input type="'+(type||'text')+'" id="'+id+'" placeholder="'+placeholder+'" value="'+(value||'')+'" style="font-size:15px;padding:11px 14px;border-radius:9px;border:1.5px solid var(--border2);background:var(--bg2);color:var(--text);width:100%;box-sizing:border-box;outline:none;transition:border-color .15s;font-family:inherit" onfocus="this.style.borderColor=\'var(--blue)\'" onblur="this.style.borderColor=\'var(--border2)\'">'+
+  '</div>';
+}
+
+function obStep1(el){
+  el.innerHTML=
+    '<div style="padding-top:20px">'+
+      '<div style="font-size:40px;margin-bottom:20px">🔨</div>'+
+      '<div style="font-size:30px;font-weight:800;line-height:1.2;margin-bottom:12px;letter-spacing:-.02em">Run your business<br>from one place.</div>'+
+      '<div style="font-size:15px;color:var(--text3);line-height:1.7;margin-bottom:32px">Estimates, jobs, payments, mileage — everything a contractor needs, built for the field.</div>'+
+      '<div style="display:grid;gap:10px;margin-bottom:36px">'+
+        ['📋 Estimates & proposals in minutes','💰 Collect payments on the spot','📍 Mileage & expense tracking','📊 Taxes and business analytics'].map(f=>
+          '<div style="display:flex;align-items:center;gap:10px;font-size:14px;font-weight:500;color:var(--text2)"><span>'+f+'</span></div>'
+        ).join('')+
+      '</div>'+
+      obBtn("Get started — it's free","_ob.step=2;renderObStep()")+
+    '</div>';
+}
+
+function obStep2(el){
+  el.innerHTML=
+    '<div style="margin-bottom:28px"><div style="font-size:28px;margin-bottom:10px">👤</div><div style="font-size:22px;font-weight:800;letter-spacing:-.02em;margin-bottom:4px">Create your account</div><div style="font-size:14px;color:var(--text3)">Your email and password to sign in</div></div>'+
+    obInput('ob-name','Your full name','John Smith','text',_ob.name)+
+    obInput('ob-email','Email','you@yourbusiness.com','email',_ob.email)+
+    obInput('ob-pass','Password (min 6 chars)','••••••••','password','')+
+    '<div id="ob-err" style="color:#A32D2D;font-size:12px;min-height:16px;margin-bottom:8px"></div>'+
+    obBtn('Continue','obNext2()');
+}
+
+function obNext2(){
+  const name=document.getElementById('ob-name')?.value.trim();
+  const email=document.getElementById('ob-email')?.value.trim();
+  const pass=document.getElementById('ob-pass')?.value;
+  const err=document.getElementById('ob-err');
+  if(!name){if(err)err.textContent='Enter your name.';return;}
+  if(!email||!email.includes('@')){if(err)err.textContent='Enter a valid email.';return;}
+  if(!pass||pass.length<6){if(err)err.textContent='Password must be at least 6 characters.';return;}
+  _ob.name=name;_ob.email=email;_ob.password=pass;
+  _ob.step=3;renderObStep();
+}
+
+function obStep3(el){
+  const types=[
+    {id:'painting',icon:'🎨',label:'Painting'},
+    {id:'roofing',icon:'🏠',label:'Roofing'},
+    {id:'plumbing',icon:'🔧',label:'Plumbing'},
+    {id:'electrical',icon:'⚡',label:'Electrical'},
+    {id:'hvac',icon:'❄️',label:'HVAC'},
+    {id:'landscaping',icon:'🌿',label:'Landscaping'},
+    {id:'general',icon:'🔨',label:'General Contractor'},
+    {id:'other',icon:'🛠️',label:'Other'},
+  ];
+  el.innerHTML=
+    '<div style="margin-bottom:28px"><div style="font-size:28px;margin-bottom:10px">🎨</div><div style="font-size:22px;font-weight:800;letter-spacing:-.02em;margin-bottom:4px">What type of work do you do?</div><div style="font-size:14px;color:var(--text3)">This sets up your workflow and defaults</div></div>'+
+    '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:20px">'+
+    types.map(t=>'<button onclick="obSelectType(\''+t.id+'\')" id="obtype-'+t.id+'" style="padding:16px 12px;border-radius:var(--r);border:2px solid '+(
+      _ob.businessType===t.id?'var(--blue)':'var(--border2)'
+    )+';background:'+(
+      _ob.businessType===t.id?'var(--blue-lt)':'var(--bg2)'
+    )+';cursor:pointer;font-family:inherit;text-align:center">'+
+      '<div style="font-size:24px;margin-bottom:4px">'+t.icon+'</div>'+
+      '<div style="font-size:13px;font-weight:700;color:var(--text)">'+t.label+'</div>'+
+    '</button>').join('')+
+    '</div>'+
+    '<div id="ob-err" style="color:#A32D2D;font-size:12px;min-height:16px;margin-bottom:8px"></div>'+
+    obBtn('Continue','obNext3()')+
+    obBtn('Back','_ob.step=2;renderObStep()',true);
+}
+
+function obSelectType(t){
+  _ob.businessType=t;
+  document.querySelectorAll('[id^=obtype-]').forEach(b=>{
+    const sel=b.id==='obtype-'+t;
+    b.style.borderColor=sel?'var(--blue)':'var(--border2)';
+    b.style.background=sel?'var(--blue-lt)':'var(--bg2)';
+  });
+}
+
+function obNext3(){
+  const err=document.getElementById('ob-err');
+  if(!_ob.businessType){if(err)err.textContent='Select your trade.';return;}
+  _ob.step=4;renderObStep();
+}
+
+function obStep4(el){
+  el.innerHTML=
+    '<div style="margin-bottom:28px"><div style="font-size:28px;margin-bottom:10px">🏢</div><div style="font-size:22px;font-weight:800;letter-spacing:-.02em;margin-bottom:4px">Business info</div><div style="font-size:14px;color:var(--text3)">Appears on your proposals and estimates</div></div>'+
+    obInput('ob-bname','Business name','Your Business Name','text',_ob.businessName)+
+    '<div class="f" style="margin-bottom:14px"><label>Phone number</label>'+
+    '<input type="tel" id="ob-bphone" placeholder="316-555-0100" value="'+((_ob.phone)||'')+'" maxlength="12" oninput="this.value=this.value.replace(/[^0-9]/g,\'\').slice(0,10).replace(/^(\\d{3})(\\d{3})(\\d{1,4})$/,\'$1-$2-$3\').replace(/^(\\d{3})(\\d{1,3})$/,\'$1-$2\')" style="font-size:16px;padding:12px;border-radius:var(--r);border:1px solid var(--border2);background:var(--bg2);color:var(--text);width:100%;box-sizing:border-box"></div>'+
+    obInput('ob-baddr','Business address (optional)','1234 Main St, Wichita KS','text',_ob.address)+
+    obInput('ob-blic','License / insurance info (optional)','Licensed & Insured · KS #12345','text',_ob.licenseInfo)+
+    '<div id="ob-err" style="color:#A32D2D;font-size:12px;min-height:16px;margin-bottom:8px"></div>'+
+    obBtn('Continue','obNext4()')+
+    obBtn('Back','_ob.step=3;renderObStep()',true);
+}
+
+function obNext4(){
+  const bname=document.getElementById('ob-bname')?.value.trim();
+  const phone=document.getElementById('ob-bphone')?.value.trim();
+  const err=document.getElementById('ob-err');
+  if(!bname){if(err)err.textContent='Enter your business name.';return;}
+  if(!phone){if(err)err.textContent='Enter a phone number.';return;}
+  _ob.businessName=bname;_ob.phone=phone;
+  _ob.address=document.getElementById('ob-baddr')?.value.trim()||'';
+  _ob.licenseInfo=document.getElementById('ob-blic')?.value.trim()||'';
+  _ob.step=5;renderObStep();
+}
+
+function obStep5(el){
+  const roles=[
+    {id:'owner',icon:'👤',label:'Owner',desc:'Full access to everything'},
+    {id:'estimator',icon:'📋',label:'Estimator',desc:'Bids and proposals, no financials'},
+    {id:'technician',icon:'🔧',label:'Technician',desc:'Jobs and schedule only'},
+    {id:'apprentice',icon:'🛠️',label:'Apprentice',desc:'Limited view'},
+  ];
+  el.innerHTML=
+    '<div style="margin-bottom:28px"><div style="font-size:28px;margin-bottom:10px">⚡</div><div style="font-size:22px;font-weight:800;letter-spacing:-.02em;margin-bottom:4px">Your role</div><div style="font-size:14px;color:var(--text3)">Controls what you can see and do in TradeDesk</div></div>'+
+    '<div style="display:grid;gap:10px;margin-bottom:20px">'+
+    roles.map(r=>'<button onclick="obSelectRole(\''+r.id+'\')" id="obrole-'+r.id+'" style="text-align:left;padding:14px;border-radius:var(--r);border:2px solid '+(
+      _ob.role===r.id?'var(--blue)':'var(--border2)'
+    )+';background:'+(
+      _ob.role===r.id?'var(--blue-lt)':'var(--bg2)'
+    )+';cursor:pointer;font-family:inherit;display:flex;gap:12px;align-items:center">'+
+      '<div style="font-size:24px">'+r.icon+'</div>'+
+      '<div><div style="font-size:14px;font-weight:700;color:var(--text)">'+r.label+'</div>'+
+      '<div style="font-size:11px;color:var(--text3)">'+r.desc+'</div></div>'+
+    '</button>').join('')+
+    '</div>'+
+    obBtn('Continue','_ob.step=6;renderObStep()')+
+    obBtn('Back','_ob.step=4;renderObStep()',true);
+}
+
+function obSelectRole(r){
+  _ob.role=r;
+  document.querySelectorAll('[id^=obrole-]').forEach(b=>{
+    const sel=b.id==='obrole-'+r;
+    b.style.borderColor=sel?'var(--blue)':'var(--border2)';
+    b.style.background=sel?'var(--blue-lt)':'var(--bg2)';
+  });
+}
+
+function obStep6(el){
+  el.innerHTML=
+    '<div style="margin-bottom:28px"><div style="font-size:28px;margin-bottom:10px">🚗</div><div style="font-size:22px;font-weight:800;letter-spacing:-.02em;margin-bottom:4px">Your vehicles</div><div style="font-size:14px;color:var(--text3)">At least one required for mileage tracking</div></div>'+
+    '<div id="ob-veh-list">'+(_ob.vehicles.length?_ob.vehicles.map((v,i)=>obVehRow(v,i)).join(''):'')+'</div>'+
+    '<button onclick="obAddVehicle()" style="width:100%;padding:12px;border-radius:var(--r);border:2px dashed var(--border2);background:var(--bg2);cursor:pointer;font-family:inherit;font-size:14px;color:var(--blue);font-weight:700;margin-bottom:14px">+ Add vehicle</button>'+
+    '<div id="ob-err" style="color:#A32D2D;font-size:12px;min-height:16px;margin-bottom:8px"></div>'+
+    obBtn('Continue','obNext6()')+
+    obBtn('Back','_ob.step=5;renderObStep()',true);
+}
+
+function obVehRow(v,i){
+  const needVin=_ob.vehicles.length>1;
+  return '<div style="border:1px solid var(--border2);border-radius:var(--r);padding:12px;margin-bottom:10px">'+
+    '<div style="display:flex;justify-content:space-between;margin-bottom:8px">'+
+      '<div style="font-size:13px;font-weight:700">Vehicle '+(i+1)+'</div>'+
+      '<button onclick="_ob.vehicles.splice('+i+',1);obStep6(document.getElementById(\'ob-body\'))" style="border:none;background:none;color:#A32D2D;cursor:pointer;font-size:18px;padding:0">×</button>'+
+    '</div>'+
+    '<input placeholder="Name (e.g. White F-150)" value="'+(v.name||'')+'" oninput="_ob.vehicles['+i+'].name=this.value" style="width:100%;box-sizing:border-box;margin-bottom:8px;padding:8px;border-radius:var(--r);border:1px solid var(--border2);background:var(--bg2);color:var(--text);font-size:14px;font-family:inherit">'+
+    '<select oninput="_ob.vehicles['+i+'].type=this.value" style="width:100%;box-sizing:border-box;'+(needVin?'margin-bottom:8px;':'')+'padding:8px;border-radius:var(--r);border:1px solid var(--border2);background:var(--bg2);color:var(--text);font-size:14px;font-family:inherit">'+
+      ['Truck','Van','SUV','Car','Trailer'].map(t=>'<option'+(v.type===t?' selected':'')+'>'+t+'</option>').join('')+
+    '</select>'+
+    (needVin?'<input placeholder="VIN — exactly 17 characters" maxlength="17" value="'+(v.vin||'')+'" oninput="_ob.vehicles['+i+'].vin=this.value.toUpperCase().slice(0,17);this.value=this.value.toUpperCase().slice(0,17)" style="width:100%;box-sizing:border-box;padding:8px;border-radius:var(--r);border:1px solid var(--border2);background:var(--bg2);color:var(--text);font-size:14px;font-family:inherit;letter-spacing:.05em">':'')+
+  '</div>';
+}
+
+function obAddVehicle(){
+  _ob.vehicles.push({name:'',type:'Truck',vin:''});
+  obStep6(document.getElementById('ob-body'));
+}
+
+function obNext6(){
+  const err=document.getElementById('ob-err');
+  if(!_ob.vehicles.length){if(err)err.textContent='Add at least one vehicle.';return;}
+  for(const v of _ob.vehicles){
+    if(!v.name.trim()){if(err)err.textContent='Enter a name for each vehicle.';return;}
+  }
+  if(_ob.vehicles.length>1){
+    for(const v of _ob.vehicles){
+      const vin=(v.vin||'').trim();
+      if(!vin){if(err)err.textContent='VIN required when you have more than one vehicle.';return;}
+      if(vin.length!==17){if(err)err.textContent='VIN must be exactly 17 characters ('+vin.length+' entered).';return;}
+    }
+  }
+  _ob.step=7;renderObStep();
+}
+
+function obStep7(el){
+  el.innerHTML=
+    '<div style="margin-bottom:28px"><div style="font-size:28px;margin-bottom:10px">👥</div><div style="font-size:22px;font-weight:800;letter-spacing:-.02em;margin-bottom:4px">Add your team</div><div style="font-size:14px;color:var(--text3)">Optional — you can add crew later in Settings</div></div>'+
+    '<div id="ob-team-list">'+(_ob.team.length?_ob.team.map((m,i)=>obTeamRow(m,i)).join(''):'')+'</div>'+
+    '<button onclick="obAddTeam()" style="width:100%;padding:12px;border-radius:var(--r);border:2px dashed var(--border2);background:var(--bg2);cursor:pointer;font-family:inherit;font-size:14px;color:var(--blue);font-weight:700;margin-bottom:14px">+ Add team member</button>'+
+    obBtn('Continue — skip for now','_ob.step=8;renderObStep()')+
+    obBtn('Back','_ob.step=6;renderObStep()',true);
+}
+
+function obTeamRow(m,i){
+  return '<div style="border:1px solid var(--border2);border-radius:var(--r);padding:12px;margin-bottom:10px">'+
+    '<div style="display:flex;justify-content:space-between;margin-bottom:8px">'+
+      '<div style="font-size:13px;font-weight:700">Member '+(i+1)+'</div>'+
+      '<button onclick="_ob.team.splice('+i+',1);obStep7(document.getElementById(\'ob-body\'))" style="border:none;background:none;color:#A32D2D;cursor:pointer;font-size:18px;padding:0">×</button>'+
+    '</div>'+
+    '<input placeholder="Name" value="'+(m.name||'')+'" oninput="_ob.team['+i+'].name=this.value" style="width:100%;box-sizing:border-box;margin-bottom:8px;padding:8px;border-radius:var(--r);border:1px solid var(--border2);background:var(--bg2);color:var(--text);font-size:14px;font-family:inherit">'+
+    '<input placeholder="Phone or email (optional)" value="'+(m.contact||'')+'" oninput="_ob.team['+i+'].contact=this.value" style="width:100%;box-sizing:border-box;margin-bottom:8px;padding:8px;border-radius:var(--r);border:1px solid var(--border2);background:var(--bg2);color:var(--text);font-size:14px;font-family:inherit">'+
+    '<select oninput="_ob.team['+i+'].role=this.value" style="width:100%;box-sizing:border-box;padding:8px;border-radius:var(--r);border:1px solid var(--border2);background:var(--bg2);color:var(--text);font-size:14px;font-family:inherit">'+
+      ['estimator','technician','apprentice'].map(r=>'<option'+(m.role===r?' selected':'')+'>'+r+'</option>').join('')+
+    '</select>'+
+  '</div>';
+}
+
+function obAddTeam(){
+  _ob.team.push({name:'',role:'technician',contact:''});
+  obStep7(document.getElementById('ob-body'));
+}
+
+function obStep8(el){
+  el.innerHTML=
+    '<div style="margin-bottom:28px"><div style="font-size:28px;margin-bottom:10px">✓</div><div style="font-size:22px;font-weight:800;letter-spacing:-.02em;margin-bottom:4px">You\'re all set</div><div style="font-size:14px;color:var(--text3)">Review your details before creating your account</div></div>'+
+    '<div style="background:var(--bg2);border-radius:var(--r);padding:14px;margin-bottom:16px">'+
+      '<div style="display:flex;justify-content:space-between;margin-bottom:8px;font-size:13px"><span style="color:var(--text2)">Name</span><strong>'+_ob.name+'</strong></div>'+
+      '<div style="display:flex;justify-content:space-between;margin-bottom:8px;font-size:13px"><span style="color:var(--text2)">Email</span><strong>'+_ob.email+'</strong></div>'+
+      '<div style="display:flex;justify-content:space-between;margin-bottom:8px;font-size:13px"><span style="color:var(--text2)">Business</span><strong>'+_ob.businessName+'</strong></div>'+
+      '<div style="display:flex;justify-content:space-between;margin-bottom:8px;font-size:13px"><span style="color:var(--text2)">Trade</span><strong>'+_ob.businessType+'</strong></div>'+
+      '<div style="display:flex;justify-content:space-between;margin-bottom:8px;font-size:13px"><span style="color:var(--text2)">Role</span><strong>'+_ob.role+'</strong></div>'+
+      '<div style="display:flex;justify-content:space-between;font-size:13px"><span style="color:var(--text2)">Vehicles</span><strong>'+_ob.vehicles.length+'</strong></div>'+
+    '</div>'+
+    '<div id="ob-err" style="color:#A32D2D;font-size:12px;min-height:16px;margin-bottom:8px"></div>'+
+    '<div id="ob-progress" style="display:none;font-size:12px;color:var(--text3);text-align:center;margin-bottom:8px"></div>'+
+    obBtn('Create my account','obSubmit()')+
+    obBtn('Back','_ob.step=7;renderObStep()',true);
+}
+
+async function obSubmit(){
+  const err=document.getElementById('ob-err');
+  const prog=document.getElementById('ob-progress');
+  if(err)err.textContent='';
+  function setProgress(msg){if(prog){prog.style.display='';prog.textContent=msg;}}
+  try{
+    setProgress('Creating your account...');
+    const{data:authData,error:authErr}=await _supa.auth.signUp({email:_ob.email,password:_ob.password});
+    if(authErr)throw authErr;
+    const uid=authData.user?.id;if(!uid)throw new Error('Account creation failed');
+    _supaUser=authData.user;
+
+    setProgress('Setting up your business...');
+    const{data:acct,error:acctErr}=await _supa.from('accounts').insert({
+      business_name:_ob.businessName,phone:_ob.phone,email:_ob.email,
+      address:_ob.address,license_info:_ob.licenseInfo,owner_id:uid
+    }).select().single();
+    if(acctErr)throw acctErr;
+    _account=acct;
+
+    setProgress('Creating your profile...');
+    await _supa.from('users').insert({id:uid,email:_ob.email,name:_ob.name,role:_ob.role,account_id:acct.id,business_type:_ob.businessType});
+    await _supa.from('account_users').insert({account_id:acct.id,user_id:uid,role:_ob.role});
+
+    setProgress('Adding vehicles...');
+    if(_ob.vehicles.length){
+      await _supa.from('vehicles').insert(_ob.vehicles.map(v=>({account_id:acct.id,name:v.name,type:v.type,vin:v.vin||null})));
+    }
+
+    setProgress('Configuring your workflow...');
+    const cfg={...BUSINESS_CONFIGS[_ob.businessType]||BUSINESS_CONFIGS.other,account_id:acct.id,business_type:_ob.businessType};
+    const{data:cfgData}=await _supa.from('account_config').insert(cfg).select().single();
+    _config=cfgData;
+
+    await _supa.from('zj_data').insert({user_id:uid,account_id:acct.id});
+
+    S.bname=_ob.businessName;S.bphone=_ob.phone;S.blic=_ob.licenseInfo;
+    _user={id:uid,email:_ob.email,name:_ob.name,role:_ob.role,account_id:acct.id};
+    _vehicles=_ob.vehicles;
+
+    setProgress('All done! Loading TradeDesk...');
+    await new Promise(r=>setTimeout(r,600));
+    document.getElementById('onboarding-overlay')?.remove();
+    saveAll();applyPermissions();renderDash();buildScopeGrid();
+  }catch(e){
+    console.error('Onboarding failed:',e);
+    if(err)err.textContent=e.message||'Something went wrong. Try again.';
+    if(prog)prog.style.display='none';
+  }
+}
+
+function getDashGreeting(){
+  const hr=new Date().getHours();
+  const time=hr<12?'Good morning':hr<17?'Good afternoon':'Good evening';
+  const name=getUserName()||'';
+  return name?time+', '+name.split(' ')[0]+'!':time+'!';
+}
+
 // ── Supabase cloud sync ───────────────────────────────────────────────
 const SUPA_URL = 'https://mwtsmctajhrrybblgorf.supabase.co';
 const SUPA_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im13dHNtY3RhamhycnliYmxnb3JmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzUxNjIwNjMsImV4cCI6MjA5MDczODA2M30.-FMn1pEs9PpCvv8eGwSbtucWAWvcfEcQ1SYx4nD207M';
@@ -9092,9 +9627,15 @@ async function supaInit(){
     const{data:{session}}=await _supa.auth.getSession();
     if(session){
       _supaUser=session.user;
-      await supaLoadFromCloud();
+      const hasAccount=await loadAccountData();
+      if(hasAccount){
+        await supaLoadFromCloud();
+      } else {
+        // Signed in but no account row — show onboarding to complete setup
+        showOnboarding();
+      }
     } else {
-      // No session — remove loading screen and show login
+      // Not signed in — show onboarding (new user path)
       document.getElementById('supa-boot-overlay')?.remove();
       renderDash();buildScopeGrid();
       supaSetStatus('local');
@@ -9104,9 +9645,14 @@ async function supaInit(){
       if(event==='SIGNED_IN'){
         _supaUser=session.user;
         document.getElementById('supa-login-overlay')?.remove();
-        await supaLoadFromCloud();
+        const hasAccount=await loadAccountData();
+        if(hasAccount){
+          await supaLoadFromCloud();
+        } else {
+          showOnboarding();
+        }
       } else if(event==='SIGNED_OUT'){
-        _supaUser=null;
+        _supaUser=null;_user=null;_account=null;_config=null;
         supaSetStatus('local');
         supaShowLogin();
       }
@@ -9127,14 +9673,14 @@ function supaShowLogin(){
   overlay.style.cssText='position:fixed;inset:0;z-index:9999;background:var(--bg);display:flex;flex-direction:column;align-items:center;justify-content:center;padding:24px';
   overlay.innerHTML=
     '<div style="max-width:360px;width:100%">'+
-    '<div style="font-size:24px;font-weight:800;margin-bottom:4px">ZJ\'s Painting</div>'+
+    '<div style="font-size:24px;font-weight:800;margin-bottom:4px">TradeDesk</div>'+
     '<div style="font-size:13px;color:var(--text3);margin-bottom:28px">Sign in to sync your data across devices</div>'+
     '<div class="f" style="margin-bottom:12px"><label>Email</label>'+
-    '<input type="email" id="supa-email" placeholder="zach@zjspainting.com" style="font-size:16px;padding:12px;border-radius:var(--r);border:1px solid var(--border2);background:var(--bg2);color:var(--text);width:100%;box-sizing:border-box"></div>'+
+    '<input type="email" id="supa-email" placeholder="your@email.com" style="font-size:16px;padding:12px;border-radius:var(--r);border:1px solid var(--border2);background:var(--bg2);color:var(--text);width:100%;box-sizing:border-box"></div>'+
     '<div class="f" style="margin-bottom:20px"><label>Password</label>'+
     '<input type="password" id="supa-pass" placeholder="Password" style="font-size:16px;padding:12px;border-radius:var(--r);border:1px solid var(--border2);background:var(--bg2);color:var(--text);width:100%;box-sizing:border-box"></div>'+
     '<button onclick="supaSignIn()" style="width:100%;padding:14px;border-radius:var(--r);border:none;background:var(--blue);color:#fff;font-size:15px;font-weight:700;cursor:pointer;font-family:inherit;margin-bottom:10px">Sign in</button>'+
-    '<button onclick="supaSignUp()" style="width:100%;padding:12px;border-radius:var(--r);border:1px solid var(--border2);background:var(--bg2);color:var(--text);font-size:14px;font-weight:600;cursor:pointer;font-family:inherit;margin-bottom:16px">Create account</button>'+
+    '<button onclick="document.getElementById(\'supa-login-overlay\').remove();showOnboarding()" style="width:100%;padding:12px;border-radius:var(--r);border:1px solid var(--border2);background:var(--bg2);color:var(--text);font-size:14px;font-weight:600;cursor:pointer;font-family:inherit;margin-bottom:16px">Create account</button>'+
     '<button onclick="document.getElementById(\'supa-login-overlay\').remove();document.getElementById(\'supa-boot-overlay\')?.remove();renderDash();buildScopeGrid();" style="width:100%;padding:10px;border:none;background:none;color:var(--text3);font-size:13px;cursor:pointer;font-family:inherit">Use offline (data stays on this device only)</button>'+
     '<div id="supa-login-err" style="font-size:12px;color:#A32D2D;margin-top:10px;text-align:center;min-height:16px"></div>'+
     '</div>';

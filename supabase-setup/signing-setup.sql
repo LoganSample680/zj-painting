@@ -42,3 +42,16 @@ alter table accounts add column if not exists state text;
 
 -- 4. Add state column to account_config if not exists
 alter table account_config add column if not exists state text;
+
+-- Add payment columns to signed_proposals
+alter table signed_proposals add column if not exists payment_method text default 'pending';
+alter table signed_proposals add column if not exists payment_status text default 'pending';
+alter table signed_proposals add column if not exists stripe_payment_intent text;
+alter table signed_proposals add column if not exists stripe_charge_id text;
+alter table signed_proposals add column if not exists stripe_fee numeric;
+
+-- View for Zach's dashboard — signed proposals with payment status
+create or replace view my_signed_proposals as
+select * from signed_proposals
+where contractor_user_id = auth.uid()
+order by signed_at desc;

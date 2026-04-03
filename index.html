@@ -1015,15 +1015,20 @@ input:checked+.dm-slider:before{transform:translateX(22px)}</style>
   <div id="est-s5" style="display:none">
     <div id="est-proposal"></div>
     
-    <div class="brow">
-      <button class="btn" onclick="goEstStep(4)">&#8592; Adjust</button>
-      <button class="btn" onclick="sendEstimateEmail()" style="background:var(--blue-lt);color:var(--blue-dk);border-color:var(--blue)">&#128247; Share</button>
-      <button class="btn" onclick="downloadProposalPDF()" style="background:var(--bg2);border-color:var(--border2)">&#128196; PDF</button>
-      <button class="btn btn-p" onclick="goEstStep(6)">Signs here &#8594;</button>
+    <div class="brow" style="flex-wrap:wrap;gap:6px">
+      <button class="btn" onclick="goEstStep(4)" style="flex:1;min-width:80px">← Adjust</button>
+      <button class="btn" onclick="downloadProposalPDF()" style="flex:1;min-width:80px;background:var(--bg2);border-color:var(--border2)">📄 PDF</button>
+      <button class="btn btn-g" id="send-proposal-btn" onclick="sendProposalLink()" style="flex:1;min-width:80px">🔗 Send to client</button>
+      <button class="btn btn-p" onclick="goEstStep(6)" style="flex:1;min-width:80px">Sign here</button>
     </div>
-    <div id="est-sent-bar" style="display:none;margin-top:8px;background:var(--green-lt);border:1px solid var(--green);border-radius:var(--r);padding:8px 12px;flex-direction:row;align-items:center;justify-content:space-between;gap:8px">
-      <div style="font-size:12px;color:var(--green);font-weight:700">✓ Estimate sent</div>
-      <button class="btn btn-sm" onclick="markEstSigned()" style="background:var(--green);color:#fff;border-color:var(--green)">Mark as signed</button>
+    <div id="proposal-link-bar" style="display:none;margin-top:8px;background:var(--blue-lt);border:1px solid var(--blue);border-radius:var(--r);padding:10px 14px">
+      <div style="font-size:12px;font-weight:700;color:var(--blue-dk);margin-bottom:4px">✓ Signing link ready</div>
+      <div id="proposal-link-label" style="font-size:11px;color:var(--blue);margin-bottom:8px;font-weight:600"></div>
+      <div style="display:flex;gap:8px;align-items:center">
+        <input id="proposal-link-input" readonly style="flex:1;font-size:11px;padding:7px 10px;border-radius:var(--r);border:1px solid var(--border2);background:#fff;color:var(--text2);font-family:inherit;min-width:0">
+        <button onclick="copyProposalLink()" class="btn btn-sm" style="flex-shrink:0">Copy</button>
+      </div>
+      <div style="font-size:11px;color:var(--text3);margin-top:6px">Client opens on any device, reviews, signs, and you get notified.</div>
     </div>
   </div>
   <div id="est-s6" style="display:none">
@@ -6315,6 +6320,57 @@ ${proposal.innerHTML}
   setTimeout(()=>URL.revokeObjectURL(url),10000);
 }
 function syncAdj(){const val=parseInt(v('est-adj'));document.getElementById('est-adj-val').textContent=(val>=0?'+':'')+fmt(Math.abs(val));renderEstReview();}
+
+async function sendProposalLink(){
+  const proposal=document.getElementById('est-proposal');
+  if(!proposal||!proposal.innerHTML.trim()){zAlert('Generate the proposal first.',{title:'Nothing to print'});return;}
+  if(!supaEnabled()||!_supaUser){zAlert('Sign in to send client links.',{title:'Sign in required'});return;}
+  const btn=document.getElementById('send-proposal-btn');
+  if(btn){btn.textContent='⏳ Saving...';btn.disabled=true;}
+  try{
+    const cname=document.getElementById('e-cname')?.value||'Client';
+    const bname=document.getElementById('e-bname')?.value||S.bname||'TradeDesk';
+    const bidId=lastCreatedBidId||Date.now();
+    const token=Math.random().toString(36).slice(2)+Math.random().toString(36).slice(2);
+    const proposalKey=`proposals/${_supaUser.id}/${bidId}_${token}.json`;
+    const proposalData={
+      id:bidId,token,clientName:cname,businessName:bname,
+      contractorUserId:_supaUser.id,contractorEmail:_supaUser.email,
+      proposalHtml:proposal.innerHTML,
+      amount:calcEst().final,
+      deposit:Math.round(calcEst().final*.25*100)/100,
+      createdAt:new Date().toISOString(),status:'pending',
+      notifyEmail:_supaUser.email,stripePk:S.stripePk||'',
+    };
+    const{error}=await _supa.storage.from('proposals').upload(proposalKey,JSON.stringify(proposalData),{contentType:'application/json',upsert:true});
+    if(error)throw error;
+    const baseUrl=window.location.origin+window.location.pathname.replace('index.html','');
+    const signingUrl=`${baseUrl}sign.html?t=${token}&u=${_supaUser.id}&b=${bidId}`;
+    const dateStr=new Date().toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});
+    const linkLabel=`${bname} — ${cname} — ${dateStr} — Proposal`;
+    const bar=document.getElementById('proposal-link-bar');
+    const input=document.getElementById('proposal-link-input');
+    const labelEl=document.getElementById('proposal-link-label');
+    if(bar)bar.style.display='block';
+    if(input)input.value=signingUrl;
+    if(labelEl)labelEl.textContent=linkLabel;
+    const bid=bids.find(b=>b.id===bidId);
+    if(bid){bid.signingToken=token;bid.signingKey=proposalKey;saveAll();}
+    if(btn){btn.textContent='✓ Link ready';btn.disabled=false;}
+  }catch(e){
+    console.error('sendProposalLink failed:',e);
+    zAlert('Could not generate link: '+e.message,{title:'Error'});
+    if(btn){btn.textContent='🔗 Send to client';btn.disabled=false;}
+  }
+}
+
+function copyProposalLink(){
+  const input=document.getElementById('proposal-link-input');
+  if(!input)return;
+  navigator.clipboard.writeText(input.value).catch(()=>{input.select();document.execCommand('copy');});
+  const btn=document.querySelector('[onclick="copyProposalLink()"]');
+  if(btn){btn.textContent='Copied!';setTimeout(()=>btn.textContent='Copy',2000);}
+}
 function buildDescription(){
   const rooms=estSurfaces.filter(s=>s.qty>0);
   const roomList=[...new Set(rooms.map(s=>(s.room||'').split(' — ')[0].replace('[Ext] ','').trim()))].filter(Boolean);

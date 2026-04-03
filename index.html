@@ -1022,12 +1022,12 @@ input:checked+.dm-slider:before{transform:translateX(22px)}</style>
       <button class="btn btn-p" onclick="goEstStep(6)" style="flex:1;min-width:80px">Sign here</button>
     </div>
     <div id="proposal-link-bar" style="display:none;margin-top:8px;background:var(--blue-lt);border:1px solid var(--blue);border-radius:var(--r);padding:10px 14px">
-      <div style="font-size:12px;font-weight:700;color:var(--blue-dk);margin-bottom:4px">✓ Signing link ready</div>
-      <div id="proposal-link-label" style="font-size:11px;color:var(--blue);margin-bottom:8px;font-weight:600"></div>
-      <div style="display:flex;gap:8px;align-items:center">
-        <input id="proposal-link-input" readonly style="flex:1;font-size:11px;padding:7px 10px;border-radius:var(--r);border:1px solid var(--border2);background:#fff;color:var(--text2);font-family:inherit;min-width:0">
-        <button onclick="copyProposalLink()" class="btn btn-sm" style="flex-shrink:0">Copy</button>
+      <div style="font-size:12px;font-weight:700;color:var(--blue-dk);margin-bottom:6px">✓ Signing link ready — share with client</div>
+      <div style="display:flex;gap:8px;align-items:center;background:#fff;border:1px solid var(--border2);border-radius:var(--r);padding:8px 12px;">
+        <div id="proposal-link-label" style="flex:1;font-size:13px;font-weight:600;color:var(--blue-dk);cursor:pointer" onclick="window.open(document.getElementById('proposal-link-input').value,'_blank')"></div>
+        <button onclick="copyProposalLink()" class="btn btn-sm" style="flex-shrink:0">Copy link</button>
       </div>
+      <input id="proposal-link-input" readonly style="display:none">
       <div style="font-size:11px;color:var(--text3);margin-top:6px">Client opens on any device, reviews, signs, and you get notified.</div>
     </div>
   </div>

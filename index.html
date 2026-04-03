@@ -132,18 +132,28 @@ body.nav-open #nav-overlay{display:block;}
   #app-hamburger{display:flex;}
 }
 /* App-level hamburger for when nav is closed */
+/* App hamburger — only shows when nav is hidden */
 #app-hamburger{
-  display:none;position:fixed;top:12px;left:12px;z-index:198;
+  display:none;position:fixed;top:14px;left:14px;z-index:198;
   width:36px;height:36px;border-radius:8px;
   background:var(--nav-bg);border:none;cursor:pointer;
   align-items:center;justify-content:center;
-  box-shadow:0 2px 8px rgba(0,0,0,.25);
+  box-shadow:0 2px 10px rgba(0,0,0,.3);
 }
 #app-hamburger svg{width:18px;height:18px;stroke:#fff;fill:none;stroke-width:2;stroke-linecap:round}
 @media(min-width:901px){
   #app-hamburger{display:none!important}
   body.nav-collapsed #app-hamburger{display:flex!important}
-  body.nav-collapsed #app{padding-left:0}
+  body.nav-collapsed #app{padding-left:0!important}
+  body.nav-collapsed .pg{padding-left:60px}
+}
+/* When app hamburger is visible, push content down so it doesnt overlap */
+body.nav-collapsed .pg,body:not(.nav-open) .pg{
+  padding-top:20px;
+}
+@media(max-width:900px){
+  body:not(.nav-open) .pg{padding-top:20px;}
+  body:not(.nav-open) #pg-dash .tbar-title{padding-left:48px;}
 }
 .pg{display:none;padding:20px 24px 24px}.drive-active .pg{padding-top:70px}
 #pg-leads,#pg-jobs,#pg-money{padding-top:4px}
@@ -1052,11 +1062,11 @@ input:checked+.dm-slider:before{transform:translateX(22px)}</style>
   <div id="est-s5" style="display:none">
     <div id="est-proposal"></div>
     
-    <div class="brow">
-      <button class="btn" onclick="goEstStep(4)">&#8592; Adjust</button>
-      <button class="btn" onclick="downloadProposalPDF()" style="background:var(--bg2);border-color:var(--border2)">&#128196; PDF</button>
-      <button class="btn btn-g" onclick="sendProposalLink()" style="flex:1.5">&#128279; Send to client</button>
-      <button class="btn btn-p" onclick="goEstStep(6)">Signs here &#8594;</button>
+    <div class="brow" style="flex-wrap:wrap;gap:6px">
+      <button class="btn" onclick="goEstStep(4)" style="flex:1;min-width:80px">← Adjust</button>
+      <button class="btn" onclick="downloadProposalPDF()" style="flex:1;min-width:80px;background:var(--bg2);border-color:var(--border2)">📄 PDF</button>
+      <button class="btn btn-g" id="send-proposal-btn" onclick="sendProposalLink()" style="flex:1;min-width:80px">🔗 Send</button>
+      <button class="btn btn-p" onclick="goEstStep(6)" style="flex:1;min-width:80px">Sign here</button>
     </div>
     <div id="proposal-link-bar" style="display:none;margin-top:8px;background:var(--blue-lt);border:1px solid var(--blue);border-radius:var(--r);padding:10px 14px">
       <div style="font-size:12px;font-weight:700;color:var(--blue-dk);margin-bottom:4px">✓ Signing link ready</div>
@@ -1559,7 +1569,7 @@ input:checked+.dm-slider:before{transform:translateX(22px)}</style>
   </div>
 </div>
 <div id="nav">
-  <div id="nav-logo">
+  <div id="nav-logo" style="padding:16px 20px">
   <div id="nav-logo-icon"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="#fff" stroke-width="2.5"><path d="M14.7 6.3a1 1 0 000 1.4l1.6 1.6a1 1 0 001.4 0l3.77-3.77a6 6 0 01-7.94 7.94l-6.91 6.91a2.12 2.12 0 01-3-3l6.91-6.91a6 6 0 017.94-7.94l-3.76 3.76z"/></svg></div>
   <span id="nav-logo-text">TradeDesk</span>
   <button id="nav-hamburger" onclick="toggleNav()" aria-label="Toggle menu"><svg viewBox="0 0 24 24"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg></button>
@@ -6395,8 +6405,8 @@ async function sendProposalLink(){
     zAlert('Sign in to Supabase to send client links.',{title:'Sign in required'});return;
   }
 
-  const btn=document.querySelector('[onclick="sendProposalLink()"]');
-  if(btn){btn.textContent='Saving...';btn.disabled=true;}
+  const btn=document.getElementById('send-proposal-btn');
+  if(btn){btn.textContent='⏳ Saving...';btn.disabled=true;}
 
   try{
     const cname=document.getElementById('e-cname')?.value||'Client';
@@ -6421,7 +6431,6 @@ async function sendProposalLink(){
       createdAt:new Date().toISOString(),
       status:'pending',
       notifyEmail:_supaUser.email,
-      stripePk:S.stripePk||'',
       stripePk:S.stripePk||'',
     };
 
@@ -6451,11 +6460,11 @@ async function sendProposalLink(){
     const bid=bids.find(b=>b.id===bidId);
     if(bid){bid.signingToken=token;bid.signingKey=proposalKey;saveAll();}
 
-    if(btn){btn.textContent='✓ Link ready';btn.disabled=false;}
+    if(btn){btn.innerHTML='✓ Link ready';btn.disabled=false;}
   }catch(e){
     console.error('sendProposalLink failed:',e);
     zAlert('Could not generate link: '+e.message+'\n\nMake sure the proposals storage bucket exists in Supabase.',{title:'Error'});
-    if(btn){btn.textContent='↗ Send to client';btn.disabled=false;}
+    if(btn){btn.innerHTML='🔗 Send to client';btn.disabled=false;}
   }
 }
 

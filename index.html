@@ -2136,7 +2136,7 @@ function renderDash(){
             '<div style="display:flex;gap:5px;flex-shrink:0">'+
               '<button onclick="openBidNotes('+b.id+')" class="btn btn-sm" style="background:var(--amber-lt);color:#856404;border-color:var(--amber);font-size:11px">📝</button>'+
               '<button onclick="openEditBid('+b.id+')" class="btn btn-sm btn-p" style="font-size:11px">Edit</button>'+
-              '<button onclick="goPg('pg-clients');setTimeout(()=>openClientDetail('+b.client_id+'),200)" class="btn btn-sm" style="font-size:11px">View</button>'+
+              '<button onclick="viewBidClient('+b.client_id+')" class="btn btn-sm" style="font-size:11px">View</button>'+
             '</div>'+
           '</div>';
         }).join('')+
@@ -8972,12 +8972,14 @@ let _notesCanvasH=2400;       // logical height in px (grows with "+ More space"
 let _notesPanelOpen=false;
 
 function openBidNotes(bidId){
-  // Set the active bid context so notes save to correct bid
   editingBidId=bidId;
   lastCreatedBidId=bidId;
-  // Show the fab and open the panel
   showNotesFab();
   toggleNotesPanel();
+}
+function viewBidClient(clientId){
+  goPg('pg-clients');
+  setTimeout(()=>openClientDetail(clientId),200);
 }
 
 function showNotesFab(){

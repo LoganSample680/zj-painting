@@ -114,8 +114,8 @@ input[type=text]:focus{border-color:var(--blue)}
       <div class="divider"></div>
 
       <div id="sec-card">
-        <div style="background:var(--bg);border:1.5px solid var(--border2);border-radius:var(--r);padding:16px;margin-bottom:14px;font-size:13px;color:var(--text3);text-align:center">
-          Card payment powered by Stripe
+        <div id="stripe-note" style="background:var(--bg);border:1.5px solid var(--border2);border-radius:var(--r);padding:16px;margin-bottom:14px;font-size:13px;color:var(--text3);text-align:center">
+          Secure card payment via Stripe
         </div>
         <button class="btn btn-green" id="card-btn" onclick="payCard()">Pay deposit by card</button>
       </div>
@@ -157,7 +157,7 @@ input[type=text]:focus{border-color:var(--blue)}
 <script>
 const SUPA_URL='https://mwtsmctajhrrybblgorf.supabase.co';
 const SUPA_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im13dHNtY3RhamhycnliYmxnb3JmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzUxNjIwNjMsImV4cCI6MjA5MDczODA2M30.-FMn1pEs9PpCvv8eGwSbtucWAWvcfEcQ1SYx4nD207M';
-const STRIPE_PK=''; // Add Zach's Stripe publishable key here when ready
+let STRIPE_PK=''; // Loaded from proposal data after fetch
 const _supa=supabase.createClient(SUPA_URL,SUPA_KEY);
 let _prop=null,_sigData=null,_payOpt='card';
 let sigCanvas,sigCtx,signing=false,hasInk=false;
@@ -178,6 +178,7 @@ async function init(){
     const{data,error}=await _supa.storage.from('proposals').download(key);
     if(error||!data)throw error;
     _prop=JSON.parse(await data.text());
+    STRIPE_PK=_prop.stripePk||'';
     if(_prop.status==='signed'||_prop.status==='paid'){
       document.getElementById('done-icon').textContent='✅';
       document.getElementById('done-title').textContent='Already signed';

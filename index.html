@@ -9090,13 +9090,26 @@ async function supaInit(){
   try{
     _supa=supabase.createClient(SUPA_URL,SUPA_KEY);
     const{data:{session}}=await _supa.auth.getSession();
-    if(session){_supaUser=session.user;await supaLoadFromCloud();}
-    else{supaShowLogin();}
+    if(session){
+      _supaUser=session.user;
+      await supaLoadFromCloud();
+    } else {
+      supaSetStatus('local');
+      supaShowLogin();
+    }
     _supa.auth.onAuthStateChange(async(event,session)=>{
-      if(event==='SIGNED_IN'){_supaUser=session.user;document.getElementById('supa-login-overlay')?.remove();await supaLoadFromCloud();renderDash();}
-      else if(event==='SIGNED_OUT'){_supaUser=null;supaShowLogin();}
+      if(event==='SIGNED_IN'){
+        _supaUser=session.user;
+        document.getElementById('supa-login-overlay')?.remove();
+        await supaLoadFromCloud();
+        renderDash();
+      } else if(event==='SIGNED_OUT'){
+        _supaUser=null;
+        supaSetStatus('local');
+        supaShowLogin();
+      }
     });
-  }catch(e){console.warn('Supabase init failed:',e);}
+  }catch(e){console.warn('Supabase init failed:',e);supaSetStatus('local');}
 }
 
 function supaShowLogin(){
@@ -9179,7 +9192,7 @@ async function supaLoadFromCloud(){
   if(!_supa||!_supaUser)return;
   try{
     const{data,error}=await _supa.from('zj_data').select('*').eq('user_id',_supaUser.id).single();
-    if(error||!data)return;
+    if(error||!data){supaSetStatus('local');return;}
     const parse=(s,fb)=>{try{return s?JSON.parse(s):fb}catch{return fb}};
     if(data.clients)clients=parse(data.clients,clients);
     if(data.bids)bids=parse(data.bids,bids);
@@ -9189,10 +9202,15 @@ async function supaLoadFromCloud(){
     if(data.expenses)expenses=parse(data.expenses,expenses);
     if(data.mileage)mileage=parse(data.mileage,mileage);
     if(data.liens)liens=parse(data.liens,liens);
-    if(data.settings){const ss=parse(data.settings,null);if(ss)S={...S,...ss};}
+    if(data.settings){const ss=parse(data.settings,null);if(ss){S={...S,...ss};applySettings();}}
     saveAll();
     supaSetStatus('synced');
-  }catch(e){console.warn('Cloud load failed:',e);}
+    // Re-render everything so the UI reflects cloud data
+    renderDash();
+    renderClientList&&renderClientList();
+    renderJobsPage&&renderJobsPage();
+    renderMoneyPage&&renderMoneyPage();
+  }catch(e){console.warn('Cloud load failed:',e);supaSetStatus('error');}
 }
 
 function supaSetStatus(s){
@@ -9206,7 +9224,10 @@ function supaSetStatus(s){
 }
 
 loadAll();applySettings();
-if(supaEnabled())supaInit();
+if(supaEnabled()){
+  supaSetStatus('syncing');
+  supaInit();
+}
 
 (function seedTestData(){
   if(localStorage.getItem('zp3_seeded_v3'))return;

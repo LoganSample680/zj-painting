@@ -109,51 +109,40 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 }
 #nav-hamburger:hover{color:#fff;background:rgba(255,255,255,.08)}
 #nav-hamburger svg{width:18px;height:18px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round}
-/* Collapsed state */
-body.nav-collapsed{--nav-w:0px}
-body.nav-collapsed #nav{transform:translateX(-220px);box-shadow:none;}
-body.nav-collapsed #app{padding-left:0}
-body.nav-collapsed #supa-status{left:0}
-body.nav-collapsed .drive-banner{left:0}
+/* ── Nav collapse / hamburger ── */
 #nav{transition:transform .25s ease;}
 #app{transition:padding-left .25s ease;}
 #supa-status{transition:left .25s ease;}
-/* Overlay when nav open on small screens */
-#nav-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:199;}
-body.nav-open #nav-overlay{display:block;}
-/* Mobile */
-@media(max-width:900px){
-  body:not(.nav-open) #nav{transform:translateX(-220px);}
-  body:not(.nav-open) #app{padding-left:0}
-  body:not(.nav-open) #supa-status{left:0}
-  body:not(.nav-open) .drive-banner{left:0}
-  body.nav-open #nav{transform:translateX(0);}
-  body.nav-open #app{padding-left:0}
-  #app-hamburger{display:flex;}
-}
-/* App-level hamburger for when nav is closed */
-/* App hamburger — only shows when nav is hidden */
+
+/* Desktop collapsed — nav slides out, content fills full width */
+body.nav-collapsed #nav{transform:translateX(-220px);box-shadow:none;}
+body.nav-collapsed #app{padding-left:0!important;}
+body.nav-collapsed #supa-status{left:0!important;}
+body.nav-collapsed .drive-banner{left:0!important;}
+
+/* App hamburger — floats top-left when nav is hidden */
 #app-hamburger{
   display:none;position:fixed;top:14px;left:14px;z-index:198;
-  width:36px;height:36px;border-radius:8px;
+  width:38px;height:38px;border-radius:9px;
   background:var(--nav-bg);border:none;cursor:pointer;
   align-items:center;justify-content:center;
-  box-shadow:0 2px 10px rgba(0,0,0,.3);
+  box-shadow:0 2px 12px rgba(0,0,0,.35);
 }
 #app-hamburger svg{width:18px;height:18px;stroke:#fff;fill:none;stroke-width:2;stroke-linecap:round}
-@media(min-width:901px){
-  #app-hamburger{display:none!important}
-  body.nav-collapsed #app-hamburger{display:flex!important}
-  body.nav-collapsed #app{padding-left:0!important}
-  body.nav-collapsed .pg{padding-left:60px}
-}
-/* When app hamburger is visible, push content down so it doesnt overlap */
-body.nav-collapsed .pg,body:not(.nav-open) .pg{
-  padding-top:20px;
-}
+body.nav-collapsed #app-hamburger{display:flex;}
+
+/* Overlay — mobile only */
+#nav-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:199;}
+
+/* Tablet/mobile — nav hidden by default, overlay toggle */
 @media(max-width:900px){
-  body:not(.nav-open) .pg{padding-top:20px;}
-  body:not(.nav-open) #pg-dash .tbar-title{padding-left:48px;}
+  #nav{transform:translateX(-220px);}
+  #app{padding-left:0!important;}
+  #supa-status{left:0!important;}
+  .drive-banner{left:0!important;}
+  #app-hamburger{display:flex;}
+  body.nav-open #nav{transform:translateX(0);}
+  body.nav-open #nav-overlay{display:block;}
 }
 .pg{display:none;padding:20px 24px 24px}.drive-active .pg{padding-top:70px}
 #pg-leads,#pg-jobs,#pg-money{padding-top:4px}
@@ -1627,16 +1616,19 @@ function guardedSubmit(fn){
   try{fn();}catch(e){_submitting=false;throw e;}
 }
 function toggleNav(){
-  const isSmall=window.innerWidth<=900;
-  if(isSmall){
+  if(window.innerWidth<=900){
+    // Mobile/tablet — slide over content as overlay
     document.body.classList.toggle('nav-open');
   } else {
-    document.body.classList.toggle('nav-collapsed');
-    localStorage.setItem('navCollapsed',document.body.classList.contains('nav-collapsed')?'1':'0');
+    // Desktop — collapse/expand sidebar
+    const collapsed=document.body.classList.toggle('nav-collapsed');
+    localStorage.setItem('navCollapsed',collapsed?'1':'0');
   }
 }
-// Restore nav state on load
-if(localStorage.getItem('navCollapsed')==='1')document.body.classList.add('nav-collapsed');
+// On desktop restore collapsed state; on mobile start hidden
+if(window.innerWidth>900&&localStorage.getItem('navCollapsed')==='1'){
+  document.body.classList.add('nav-collapsed');
+}
 let clients=[],bids=[],jobs=[],income=[],expenses=[],mileage=[],checksState={},payments=[],liens=[];
 let currentClientId=null,editClientId=null,clientFilter='new';
 let estSurfaces=[],estSurfId=0,estStep=1,estLinkedClientId=null,editingBidId=null,lastCreatedBidId=null;

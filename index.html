@@ -1022,13 +1022,15 @@ input:checked+.dm-slider:before{transform:translateX(22px)}</style>
       <button class="btn btn-p" onclick="goEstStep(6)" style="flex:1;min-width:80px">Sign here</button>
     </div>
     <div id="proposal-link-bar" style="display:none;margin-top:8px;background:var(--blue-lt);border:1px solid var(--blue);border-radius:var(--r);padding:10px 14px">
-      <div style="font-size:12px;font-weight:700;color:var(--blue-dk);margin-bottom:6px">✓ Signing link ready — share with client</div>
-      <div style="display:flex;gap:8px;align-items:center;background:#fff;border:1px solid var(--border2);border-radius:var(--r);padding:8px 12px;">
-        <div id="proposal-link-label" style="flex:1;font-size:13px;font-weight:600;color:var(--blue-dk);cursor:pointer" onclick="window.open(document.getElementById('proposal-link-input').value,'_blank')"></div>
-        <button onclick="copyProposalLink()" class="btn btn-sm" style="flex-shrink:0">Copy link</button>
-      </div>
+      <div style="font-size:12px;font-weight:700;color:var(--blue-dk);margin-bottom:8px">✓ Signing link ready — tap to open, or copy to share</div>
+      <a id="proposal-link-anchor" href="#" target="_blank" style="display:block;background:#fff;border:1px solid var(--blue);border-radius:var(--r);padding:10px 14px;text-decoration:none;margin-bottom:8px">
+        <div style="font-size:11px;color:var(--text3);margin-bottom:3px;text-transform:uppercase;letter-spacing:.05em;font-weight:700">Proposal link</div>
+        <div id="proposal-link-label" style="font-size:14px;font-weight:700;color:var(--blue-dk)"></div>
+        <div style="font-size:10px;color:var(--blue);margin-top:3px">Tap to open ↗</div>
+      </a>
       <input id="proposal-link-input" readonly style="display:none">
-      <div style="font-size:11px;color:var(--text3);margin-top:6px">Client opens on any device, reviews, signs, and you get notified.</div>
+      <button onclick="copyProposalLink()" class="btn btn-sm" style="width:100%;margin-bottom:4px">📋 Copy link to share with client</button>
+      <div style="font-size:11px;color:var(--text3);margin-top:4px">Client opens on any device, reviews, signs, and you get notified.</div>
     </div>
   </div>
   <div id="est-s6" style="display:none">
@@ -6354,6 +6356,7 @@ async function sendProposalLink(){
     if(bar)bar.style.display='block';
     if(input)input.value=signingUrl;
     if(labelEl)labelEl.textContent=linkLabel;
+    const anchorEl=document.getElementById('proposal-link-anchor');if(anchorEl)anchorEl.href=signingUrl;
     const bid=bids.find(b=>b.id===bidId);
     if(bid){bid.signingToken=token;bid.signingKey=proposalKey;saveAll();}
     if(btn){btn.textContent='✓ Link ready';btn.disabled=false;}
@@ -6415,7 +6418,7 @@ function buildProposal(){
       ${blic?`<div style="font-size:11px;margin-top:2px;opacity:.75">${blic}</div>`:''}
     </div>
     <div style="text-align:right">
-      <div style="font-size:16px;font-weight:800">Paint Estimate</div>
+      <div style="font-size:16px;font-weight:800">Paint Proposal</div>
       <div style="font-size:11px;margin-top:4px;opacity:.85"># ${estNum}</div>
       <div style="font-size:11px;opacity:.85">DATE: ${ds}</div>
     </div>

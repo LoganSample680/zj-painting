@@ -9236,7 +9236,7 @@ function applyPermissions(){
 }
 
 // ── Onboarding ────────────────────────────────────────────────────────
-let _ob={step:1,name:'',email:'',password:'',businessType:'',businessName:'',phone:'',address:'',licenseInfo:'',role:'owner',vehicles:[],team:[]};
+let _ob={step:1,name:'',email:'',password:'',businessType:'',businessName:'',phone:'',address:'',state:'',licenseInfo:'',role:'owner',vehicles:[],team:[],stripeKey:''};
 
 async function showOnboarding(){
   document.getElementById('supa-boot-overlay')?.remove();
@@ -9302,7 +9302,7 @@ function renderObStep(){
           '</div>'+
           '<span style="font-size:15px;font-weight:800;color:var(--text)">TradeDesk</span>'+
         '</div>'+
-        '<span style="font-size:12px;color:var(--text3);font-weight:600">'+_ob.step+' of 8</span>'+
+        '<span style="font-size:12px;color:var(--text3);font-weight:600">'+_ob.step+' of 9</span>'+
       '</div>'+
       // Progress bar
       '<div style="height:3px;background:var(--border)"><div style="height:100%;width:'+pct+'%;background:var(--blue);transition:width .4s ease"></div></div>'+
@@ -9324,6 +9324,7 @@ function renderObStep(){
   else if(_ob.step===6)obStep6(body);
   else if(_ob.step===7)obStep7(body);
   else if(_ob.step===8)obStep8(body);
+  else if(_ob.step===9)obStep9(body);
 }
 
 function obBtn(label,onclick,secondary){
@@ -9423,6 +9424,7 @@ function obStep4(el){
     '<div class="f" style="margin-bottom:14px"><label>Phone number</label>'+
     '<input type="tel" id="ob-bphone" placeholder="316-555-0100" value="'+((_ob.phone)||'')+'" maxlength="12" oninput="this.value=this.value.replace(/[^0-9]/g,\'\').slice(0,10).replace(/^(\\d{3})(\\d{3})(\\d{1,4})$/,\'$1-$2-$3\').replace(/^(\\d{3})(\\d{1,3})$/,\'$1-$2\')" style="font-size:16px;padding:12px;border-radius:var(--r);border:1px solid var(--border2);background:var(--bg2);color:var(--text);width:100%;box-sizing:border-box"></div>'+
     obInput('ob-baddr','Business address (optional)','1234 Main St, Wichita KS','text',_ob.address)+
+    '<div class="f" style="margin-bottom:14px"><label>State <span style="color:#A32D2D">*</span></label><select id="ob-state" style="font-size:15px;padding:12px;border-radius:var(--r);border:1px solid var(--border2);background:var(--bg2);color:var(--text);width:100%;box-sizing:border-box"><option value="">Select state...</option><option value="AL">AL</option><option value="AK">AK</option><option value="AZ">AZ</option><option value="AR">AR</option><option value="CA">CA</option><option value="CO">CO</option><option value="CT">CT</option><option value="DE">DE</option><option value="FL">FL</option><option value="GA">GA</option><option value="HI">HI</option><option value="ID">ID</option><option value="IL">IL</option><option value="IN">IN</option><option value="IA">IA</option><option value="KS" selected>KS</option><option value="KY">KY</option><option value="LA">LA</option><option value="ME">ME</option><option value="MD">MD</option><option value="MA">MA</option><option value="MI">MI</option><option value="MN">MN</option><option value="MS">MS</option><option value="MO">MO</option><option value="MT">MT</option><option value="NE">NE</option><option value="NV">NV</option><option value="NH">NH</option><option value="NJ">NJ</option><option value="NM">NM</option><option value="NY">NY</option><option value="NC">NC</option><option value="ND">ND</option><option value="OH">OH</option><option value="OK">OK</option><option value="OR">OR</option><option value="PA">PA</option><option value="RI">RI</option><option value="SC">SC</option><option value="SD">SD</option><option value="TN">TN</option><option value="TX">TX</option><option value="UT">UT</option><option value="VT">VT</option><option value="VA">VA</option><option value="WA">WA</option><option value="WV">WV</option><option value="WI">WI</option><option value="WY">WY</option></select></div>'+
     obInput('ob-blic','License / insurance info (optional)','Licensed & Insured · KS #12345','text',_ob.licenseInfo)+
     '<div id="ob-err" style="color:#A32D2D;font-size:12px;min-height:16px;margin-bottom:8px"></div>'+
     obBtn('Continue','obNext4()')+
@@ -9437,6 +9439,8 @@ function obNext4(){
   if(!phone){if(err)err.textContent='Enter a phone number.';return;}
   _ob.businessName=bname;_ob.phone=phone;
   _ob.address=document.getElementById('ob-baddr')?.value.trim()||'';
+  _ob.state=document.getElementById('ob-state')?.value||'';
+  if(!_ob.state){if(err)err.textContent='Please select your state.';return;}
   _ob.licenseInfo=document.getElementById('ob-blic')?.value.trim()||'';
   _ob.step=5;renderObStep();
 }
@@ -9525,7 +9529,7 @@ function obStep7(el){
     '<div style="margin-bottom:28px"><div style="font-size:28px;margin-bottom:10px">👥</div><div style="font-size:22px;font-weight:800;letter-spacing:-.02em;margin-bottom:4px">Add your team</div><div style="font-size:14px;color:var(--text3)">Optional — you can add crew later in Settings</div></div>'+
     '<div id="ob-team-list">'+(_ob.team.length?_ob.team.map((m,i)=>obTeamRow(m,i)).join(''):'')+'</div>'+
     '<button onclick="obAddTeam()" style="width:100%;padding:12px;border-radius:var(--r);border:2px dashed var(--border2);background:var(--bg2);cursor:pointer;font-family:inherit;font-size:14px;color:var(--blue);font-weight:700;margin-bottom:14px">+ Add team member</button>'+
-    obBtn('Continue — skip for now','_ob.step=8;renderObStep()')+
+    obBtn('Continue','_ob.step=8;renderObStep()')+
     obBtn('Back','_ob.step=6;renderObStep()',true);
 }
 
@@ -9550,6 +9554,29 @@ function obAddTeam(){
 
 function obStep8(el){
   el.innerHTML=
+    '<div style="margin-bottom:28px"><div style="font-size:28px;margin-bottom:10px">💳</div>'+
+    '<div style="font-size:22px;font-weight:800;letter-spacing:-.02em;margin-bottom:4px">Accept card payments</div>'+
+    '<div style="font-size:14px;color:var(--text3)">Optional — clients can always pay cash if you skip this</div></div>'+
+    '<div style="background:#f0fdf4;border:1px solid #86efac;border-radius:var(--r);padding:14px;margin-bottom:16px;font-size:13px;color:#166534;line-height:1.7">'+
+    '<strong>How it works:</strong> Clients pay their deposit directly to your bank via Stripe. Card payments include a 2.9% + $0.30 fee — auto-logged as a tax deductible expense.'+
+    '</div>'+
+    obInput('ob-stripe-key','Stripe Publishable Key (optional)','pk_live_...','text',_ob.stripeKey)+
+    '<div style="font-size:11px;color:var(--text3);margin-bottom:16px;line-height:1.6">Find at <strong>dashboard.stripe.com → Developers → API keys</strong>. Starts with pk_live_</div>'+
+    '<div id="ob-err" style="color:#A32D2D;font-size:12px;min-height:16px;margin-bottom:8px"></div>'+
+    obBtn('Continue','obNext8()')+
+    obBtn('Skip — cash only for now','_ob.stripeKey=\'\';_ob.step=9;renderObStep()',true)+
+    obBtn('Back','_ob.step=7;renderObStep()',true);
+}
+function obNext8(){
+  const key=(document.getElementById('ob-stripe-key')?.value||'').trim();
+  if(key&&!key.startsWith('pk_')){
+    const err=document.getElementById('ob-err');
+    if(err)err.textContent='Should start with pk_live_ or pk_test_';return;
+  }
+  _ob.stripeKey=key;_ob.step=9;renderObStep();
+}
+function obStep9(el){
+  el.innerHTML=
     '<div style="margin-bottom:28px"><div style="font-size:28px;margin-bottom:10px">✓</div><div style="font-size:22px;font-weight:800;letter-spacing:-.02em;margin-bottom:4px">You\'re all set</div><div style="font-size:14px;color:var(--text3)">Review your details before creating your account</div></div>'+
     '<div style="background:var(--bg2);border-radius:var(--r);padding:14px;margin-bottom:16px">'+
       '<div style="display:flex;justify-content:space-between;margin-bottom:8px;font-size:13px"><span style="color:var(--text2)">Name</span><strong>'+_ob.name+'</strong></div>'+
@@ -9562,7 +9589,7 @@ function obStep8(el){
     '<div id="ob-err" style="color:#A32D2D;font-size:12px;min-height:16px;margin-bottom:8px"></div>'+
     '<div id="ob-progress" style="display:none;font-size:12px;color:var(--text3);text-align:center;margin-bottom:8px"></div>'+
     obBtn('Create my account','obSubmit()')+
-    obBtn('Back','_ob.step=7;renderObStep()',true);
+    obBtn('Back','_ob.step=8;renderObStep()',true);
 }
 
 async function obSubmit(){
@@ -9580,7 +9607,7 @@ async function obSubmit(){
     setProgress('Setting up your business...');
     const{data:acct,error:acctErr}=await _supa.from('accounts').insert({
       business_name:_ob.businessName,phone:_ob.phone,email:_ob.email,
-      address:_ob.address,license_info:_ob.licenseInfo,owner_id:uid
+      address:_ob.address,license_info:_ob.licenseInfo,owner_id:uid,state:_ob.state
     }).select().single();
     if(acctErr)throw acctErr;
     _account=acct;
@@ -9595,7 +9622,7 @@ async function obSubmit(){
     }
 
     setProgress('Configuring your workflow...');
-    const cfg={...BUSINESS_CONFIGS[_ob.businessType]||BUSINESS_CONFIGS.other,account_id:acct.id,business_type:_ob.businessType};
+    const cfg={...BUSINESS_CONFIGS[_ob.businessType]||BUSINESS_CONFIGS.other,account_id:acct.id,business_type:_ob.businessType,state:_ob.state,stripe_pk:_ob.stripeKey||null};
     const{data:cfgData}=await _supa.from('account_config').insert(cfg).select().single();
     _config=cfgData;
 

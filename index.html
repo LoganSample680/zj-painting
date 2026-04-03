@@ -1023,12 +1023,13 @@ input:checked+.dm-slider:before{transform:translateX(22px)}</style>
       <button class="btn btn-p" onclick="goEstStep(6)">Signs here &#8594;</button>
     </div>
     <div id="proposal-link-bar" style="display:none;margin-top:8px;background:var(--blue-lt);border:1px solid var(--blue);border-radius:var(--r);padding:10px 14px">
-      <div style="font-size:12px;font-weight:700;color:var(--blue-dk);margin-bottom:6px">✓ Signing link ready — share with client</div>
+      <div style="font-size:12px;font-weight:700;color:var(--blue-dk);margin-bottom:4px">✓ Signing link ready</div>
+      <div id="proposal-link-label" style="font-size:11px;color:var(--blue);margin-bottom:8px;font-weight:600"></div>
       <div style="display:flex;gap:8px;align-items:center">
-        <input id="proposal-link-input" readonly style="flex:1;font-size:12px;padding:7px 10px;border-radius:var(--r);border:1px solid var(--border2);background:#fff;color:var(--text);font-family:inherit;min-width:0">
+        <input id="proposal-link-input" readonly style="flex:1;font-size:11px;padding:7px 10px;border-radius:var(--r);border:1px solid var(--border2);background:#fff;color:var(--text2);font-family:inherit;min-width:0">
         <button onclick="copyProposalLink()" class="btn btn-sm" style="flex-shrink:0">Copy</button>
       </div>
-      <div style="font-size:11px;color:var(--text3);margin-top:6px">Client opens the link, reviews the proposal, signs, and you get notified.</div>
+      <div style="font-size:11px;color:var(--text3);margin-top:6px">Client opens the link on any device, reviews, signs, and you get notified.</div>
     </div>
   </div>
   <div id="est-s6" style="display:none">
@@ -6366,16 +6367,20 @@ async function sendProposalLink(){
     );
     if(error)throw error;
 
-    // Build the signing URL
+    // Build the signing URL with human-readable display
     const baseUrl=window.location.origin+window.location.pathname.replace('index.html','');
-    // Use short token in URL — clean, no storage path exposed
     const signingUrl=`${baseUrl}sign.html?t=${token}&u=${_supaUser.id}&b=${bidId}`;
+    // Human-readable label: Business - Client - Date - Proposal
+    const dateStr=new Date().toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});
+    const linkLabel=`${bname} — ${cname} — ${dateStr} — Proposal`;
 
     // Show the link
     const bar=document.getElementById('proposal-link-bar');
     const input=document.getElementById('proposal-link-input');
+    const labelEl=document.getElementById('proposal-link-label');
     if(bar)bar.style.display='block';
     if(input)input.value=signingUrl;
+    if(labelEl)labelEl.textContent=linkLabel;
 
     // Store token on the bid for verification later
     const bid=bids.find(b=>b.id===bidId);
@@ -6445,7 +6450,7 @@ function buildProposal(){
       ${blic?`<div style="font-size:11px;margin-top:2px;opacity:.75">${blic}</div>`:''}
     </div>
     <div style="text-align:right">
-      <div style="font-size:16px;font-weight:800">Paint Estimate</div>
+      <div style="font-size:16px;font-weight:800">Paint Proposal</div>
       <div style="font-size:11px;margin-top:4px;opacity:.85"># ${estNum}</div>
       <div style="font-size:11px;opacity:.85">DATE: ${ds}</div>
     </div>

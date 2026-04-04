@@ -5015,6 +5015,13 @@ function onSurfRoomName(input){
 const SURF_ORDER=['walls','ceiling','trim','ext_walls','ext_trim','deck','doors','windows','cabinets'];
 const SURF_NEEDS_H=['walls','ceiling','ext_walls','deck'];
 const SURF_IS_COUNT=['doors','windows','cabinets'];
+// Strip legacy surface-type suffixes from room names (e.g. "Dining doors" -> "Dining")
+function cleanRoomName(room){
+  const raw=(room||'').split(' — ')[0].replace('[Ext] ','').trim();
+  const types=['walls','ceiling','trim','doors','windows','cabinets','ext_walls','ext_trim','deck'];
+  for(const t of types){if(raw.endsWith(' '+t))return raw.slice(0,-(t.length+1)).trim();}
+  return raw;
+}
 const SURF_LABELS={walls:'Walls',ceiling:'Ceiling',trim:'Trim',doors:'Doors',windows:'Windows',cabinets:'Cabinets',ext_walls:'Siding',ext_trim:'Ext trim',deck:'Deck'};
 
 function goSurfStepA(){
@@ -5258,7 +5265,7 @@ function finishRoom(){
   if(btn){btn.disabled=false;btn.style.background='var(--blue)';btn.style.color='#fff';btn.style.borderColor='var(--blue)';btn.style.cursor='pointer';}
   surfWhatSelected=[];surfBQueue=[];surfBIdx=0;surfBMeasurements={};surfColor='';surfRoom='';
   updateSurfWhatUI();
-  const rooms=new Set(estSurfaces.map(s=>(s.room||'').split(' — ')[0].replace('[Ext] ','').trim()));
+  const rooms=new Set(estSurfaces.map(s=>cleanRoomName(s.room)));
   const roomCount=rooms.size;
   const rcl=document.getElementById('surf-room-count');if(rcl)rcl.textContent=roomCount+' room'+(roomCount!==1?'s':'')+' added';
   showRoomSavedState(roomCount);
@@ -5288,11 +5295,11 @@ function showRoomSavedState(roomCount){
       '</div>'+
       (()=>{
         const roomSurfs=estSurfaces.filter(s=>{
-          const base=(s.room||'').split(' — ')[0].replace('[Ext] ','').trim();
+          const base=cleanRoomName(s.room);
           return base===surfRoom||(estSurfaces.length>0&&s===estSurfaces[estSurfaces.length-1]);
         });
         const recentRoom=estSurfaces.length>0?(estSurfaces[estSurfaces.length-1].room||'').split(' — ')[0].replace('[Ext] ','').trim():'';
-        const recentSurfs=estSurfaces.filter(s=>(s.room||'').split(' — ')[0].replace('[Ext] ','').trim()===recentRoom);
+        const recentSurfs=estSurfaces.filter(s=>cleanRoomName(s.room)===recentRoom);
         if(!recentSurfs.length)return '';
         const SURF_LABELS2={walls:'Walls',ceiling:'Ceiling',trim:'Trim',doors:'Doors',windows:'Windows',cabinets:'Cabinets',ext_walls:'Siding',ext_trim:'Ext trim',deck:'Deck'};
         return '<div style="background:var(--bg2);border-radius:var(--r);padding:10px 12px;margin-bottom:10px">'+
@@ -5334,7 +5341,7 @@ function initSurfStep(){
   if(estSurfaces.length>0){
     const btn=document.getElementById('est-s3-next-btn');
     if(btn){btn.disabled=false;btn.style.background='var(--blue)';btn.style.color='#fff';btn.style.borderColor='var(--blue)';btn.style.cursor='pointer';}
-    const rooms=new Set(estSurfaces.map(s=>(s.room||'').split(' — ')[0].replace('[Ext] ','').trim()));
+    const rooms=new Set(estSurfaces.map(s=>cleanRoomName(s.room)));
     const rcl=document.getElementById('surf-room-count');if(rcl)rcl.textContent=rooms.size+' room'+(rooms.size!==1?'s':'')+' added';
   }
 }
@@ -5343,8 +5350,12 @@ function renderSurfRoomsLogged(){
   const el=document.getElementById('surf-rooms-logged');if(!el)return;
   if(!estSurfaces.length){el.innerHTML='';return;}
   const roomMap={};
+  const surfTypeNames=['walls','ceiling','trim','doors','windows','cabinets','ext_walls','ext_trim','deck'];
   estSurfaces.forEach(s=>{
-    const base=(s.room||'').split(' — ')[0].replace('[Ext] ','').trim();
+    // Strip surface type suffix from room name if it got appended (legacy data fix)
+    let rawBase=cleanRoomName(s.room);
+    surfTypeNames.forEach(t=>{if(rawBase.endsWith(' '+t))rawBase=rawBase.slice(0,-(t.length+1)).trim();});
+    const base=rawBase||'Other';
     if(!roomMap[base])roomMap[base]=[];
     const t=SURF_TYPES.find(x=>x.v===s.type)||{l:s.type,unit:''};
     roomMap[base].push(t.l+': '+s.qty.toLocaleString()+(t.unit?' '+t.unit:''));
@@ -5362,7 +5373,7 @@ function renderSurfRoomsLogged(){
 
 function removeRoomSurfs(roomBase){
   estSurfaces=estSurfaces.filter(s=>{
-    const base=(s.room||'').split(' — ')[0].replace('[Ext] ','').trim();
+    const base=cleanRoomName(s.room);
     return base!==roomBase;
   });
   renderEstSurfs();renderEstRunning();saveSurfDraft();renderSurfRoomsLogged();
@@ -5370,7 +5381,7 @@ function removeRoomSurfs(roomBase){
     const btn=document.getElementById('est-s3-next-btn');
     if(btn){btn.disabled=true;btn.style.background='var(--border2)';btn.style.color='var(--text3)';btn.style.borderColor='var(--border2)';btn.style.cursor='not-allowed';}
   }
-  const rooms=new Set(estSurfaces.map(s=>(s.room||'').split(' — ')[0].replace('[Ext] ','').trim()));
+  const rooms=new Set(estSurfaces.map(s=>cleanRoomName(s.room)));
   const rcl=document.getElementById('surf-room-count');if(rcl)rcl.textContent=rooms.size>0?rooms.size+' room'+(rooms.size!==1?'s':'')+' added':'';
 }
 
@@ -6365,7 +6376,7 @@ function renderEstReview(){
   estSurfaces.forEach(s=>{
     if(!s.qty)return;
     const t=SURF_TYPES.find(x=>x.v===s.type);
-    const base=(s.room||'').split(' — ')[0].replace('[Ext] ','').trim()||'Other';
+    const base=cleanRoomName(s.room)||'Other';
     if(!roomSqft[base])roomSqft[base]={sqft:0,count:0,surfaces:[]};
     if(t&&t.unit==='sq ft'){roomSqft[base].sqft+=s.qty;totalSqft+=s.qty;}
     roomSqft[base].surfaces.push((t?t.l:s.type)+(t&&t.unit!=='sq ft'?' ('+s.qty+' '+t.unit+')':''));
@@ -6517,7 +6528,7 @@ function copyProposalLink(){
 }
 function buildDescription(){
   const rooms=estSurfaces.filter(s=>s.qty>0);
-  const roomList=[...new Set(rooms.map(s=>(s.room||'').split(' — ')[0].replace('[Ext] ','').trim()))].filter(Boolean);
+  const roomList=[...new Set(rooms.map(s=>cleanRoomName(s.room)))].filter(Boolean);
   const activeScope=SCOPE_ITEMS.filter(sc=>scopeOn(sc.id)&&sc.clientDesc);
   const isExt=estSurfaces.some(s=>s.type==='ext_walls'||s.type==='ext_trim'||s.type==='deck');
   const customerPaint=document.getElementById('e-customer-paint')?.checked||false;
@@ -6597,9 +6608,18 @@ function buildProposal(){
       <tr style="border-bottom:1px solid var(--border)">
         <td style="padding:12px;text-align:center;font-weight:700;vertical-align:top">1</td>
         <td style="padding:12px;line-height:1.6;color:#1a1a1a;font-size:12px">${description}</td>
-        <td style="padding:12px;text-align:right;font-weight:700;vertical-align:top">${fmt(final)}</td>
-        <td style="padding:12px;text-align:right;font-weight:700;vertical-align:top">${fmt(final)}</td>
+        <td style="padding:12px;text-align:right;font-weight:700;vertical-align:top">${fmt(final-matLine)}</td>
+        <td style="padding:12px;text-align:right;font-weight:700;vertical-align:top">${fmt(final-matLine)}</td>
       </tr>
+      ${matLine>0?`<tr style="border-bottom:1px solid var(--border)">
+        <td style="padding:8px 12px;text-align:center;font-weight:700;vertical-align:top">1</td>
+        <td style="padding:8px 12px;font-size:12px;color:#1a1a1a">
+          <strong>Paint, Primer &amp; Materials</strong><br>
+          <span style="font-size:11px;color:#666">Includes paint, primer, tape, plastic sheeting, rollers, brushes, drop cloths and all supplies needed to complete the job.</span>
+        </td>
+        <td style="padding:8px 12px;text-align:right;font-weight:700;vertical-align:top">${fmt(matLine)}</td>
+        <td style="padding:8px 12px;text-align:right;font-weight:700;vertical-align:top">${fmt(matLine)}</td>
+      </tr>`:''}
       ${adj?`<tr style="border-bottom:1px solid var(--border)"><td style="padding:8px 12px;text-align:center"></td><td style="padding:8px 12px;color:var(--text2)">${adjReason||'Price adjustment'}</td><td style="padding:8px 12px;text-align:right">${adj>0?'+':''}${fmt(adj)}</td><td style="padding:8px 12px;text-align:right">${adj>0?'+':''}${fmt(adj)}</td></tr>`:''}
     </tbody>
     <tfoot>

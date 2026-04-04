@@ -605,13 +605,16 @@ input:checked+.dm-slider:before{transform:translateX(22px)}</style>
 
         
         <div style="margin-bottom:16px">
-          <label style="font-size:10px;font-weight:700;text-transform:uppercase;color:var(--text3);display:block;margin-bottom:8px">Vehicle <span style="color:#A32D2D">*</span></label>
-          <div id="cd-vehicle-chips" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:6px"></div>
-          <div id="cd-no-vehicles" style="display:none;background:#FFF0F0;border:1px solid #A32D2D;border-radius:var(--r);padding:12px;font-size:12px;color:#A32D2D">
-            No vehicles added — you must add a vehicle before logging a trip.
-            <button class="btn btn-sm btn-p" onclick="goToVehicleSettings()" style="margin-left:8px;font-size:11px;margin-top:6px;display:block;width:100%">Go to Settings → Add vehicle</button>
+          <label style="font-size:10px;font-weight:700;text-transform:uppercase;color:var(--text3);display:block;margin-bottom:6px">Vehicle <span style="color:#A32D2D">*</span></label>
+          <select id="cd-vehicle-sel" onchange="selectDriveVehicleByName(this.value)" style="width:100%;font-size:16px;font-weight:600;padding:12px;border-radius:var(--r);border:2px solid var(--border2);background:var(--bg2);color:var(--text);font-family:inherit">
+            <option value="">— Select vehicle —</option>
+          </select>
+          <div id="cd-no-vehicles" style="display:none;background:#FFF0F0;border:1px solid #A32D2D;border-radius:var(--r);padding:12px;font-size:12px;color:#A32D2D;margin-top:6px">
+            No vehicles added — go to Settings to add one first.
+            <button class="btn btn-sm btn-p" onclick="goToVehicleSettings()" style="margin-top:6px;display:block;width:100%">Go to Settings → Add vehicle</button>
           </div>
-          <div id="cd-vehicle-required-msg" style="display:none;font-size:11px;color:#A32D2D;margin-top:4px">Select a vehicle to continue</div>
+          <div id="cd-last-odom-hint" style="font-size:11px;color:var(--text3);margin-top:6px"></div>
+          <div id="cd-vehicle-chips" style="display:none"></div>
         </div>
 
         
@@ -631,7 +634,6 @@ input:checked+.dm-slider:before{transform:translateX(22px)}</style>
         
         <div style="margin-bottom:12px">
           <label style="font-size:10px;font-weight:700;text-transform:uppercase;color:var(--text3);display:block;margin-bottom:4px">Odometer reading (miles) <span style="color:#A32D2D">*</span></label>
-          <div id="cd-last-odom-hint" style="font-size:11px;color:var(--text3);margin-bottom:6px"></div>
           <input type="number" id="cd-odom-start" placeholder="Enter current reading" min="0"
             style="font-size:28px;font-weight:700;padding:14px;border-radius:var(--r);border:2px solid var(--blue);background:var(--bg2);color:var(--text);width:100%;box-sizing:border-box;text-align:center"
             oninput="validateOdomStart(this);checkTripReady()">
@@ -1377,8 +1379,11 @@ input:checked+.dm-slider:before{transform:translateX(22px)}</style>
         <label>Vehicles <span style="font-size:10px;color:var(--text3);font-weight:400">(IRS log requires vehicle description per trip)</span></label>
         <div id="set-vehicles-list" style="margin-bottom:8px"></div>
         <div style="display:flex;gap:8px">
-          <input id="set-new-veh" placeholder="e.g. 2019 White F-150" style="flex:1;font-size:13px;padding:8px 10px;border-radius:var(--r);border:1px solid var(--border2);background:var(--bg2);color:var(--text)">
-          <button class="btn btn-sm btn-p" onclick="addVehicle()">+ Add</button>
+          <div style="flex:1;display:flex;flex-direction:column;gap:6px">
+            <input id="set-new-veh" placeholder="Year, make, model (e.g. 2019 White F-150)" style="width:100%;box-sizing:border-box;font-size:13px;padding:8px 10px;border-radius:var(--r);border:1px solid var(--border2);background:var(--bg2);color:var(--text)">
+            <input id="set-new-veh-nick" placeholder="Nickname (optional — e.g. Work Truck)" style="width:100%;box-sizing:border-box;font-size:13px;padding:8px 10px;border-radius:var(--r);border:1px solid var(--border2);background:var(--bg2);color:var(--text)">
+          </div>
+          <button class="btn btn-sm btn-p" onclick="addVehicle()" style="align-self:flex-start">+ Add</button>
         </div>
         <div style="font-size:10px;color:var(--text3);margin-top:5px">Year, make, model is enough. No VIN needed for standard mileage rate deductions.</div>
       </div>
@@ -4439,22 +4444,36 @@ function saveLien(){
 function releaseLien(bidId){zConfirm('Mark this lien as resolved and released?',()=>{const l=liens.find(x=>x.bid_id===bidId);if(l){l.status='resolved';saveAll();renderCDBids();}},{title:'Release lien',yes:'Mark resolved',danger:false});}
 
 function getVehicles(){
-  const vehs=S.vehicles||[];
-  // Fall back to legacy S.veh string if vehicles array is empty
-  if(!vehs.length&&S.veh&&S.veh.trim()){return[S.veh.trim()];}
-  return vehs;
+  let vehs=S.vehicles||[];
+  if(!vehs.length&&S.veh&&S.veh.trim()){vehs=[S.veh.trim()];}
+  // Migrate legacy string array to object array
+  return vehs.map(v=>typeof v==='string'?{name:v,nickname:''}:v);
+}
+function getVehicleLabel(v){
+  if(!v)return '';
+  if(typeof v==='string')return v;
+  return (v.nickname&&v.nickname.trim())||v.name||'';
+}
+function getVehicleFullLabel(v){
+  if(!v)return '';
+  if(typeof v==='string')return v;
+  const nick=v.nickname&&v.nickname.trim();
+  return nick?nick+' ('+v.name+')':v.name||'';
 }
 
 function addVehicle(){
   const inp=document.getElementById('set-new-veh');
+  const nickInp=document.getElementById('set-new-veh-nick');
   const name=(inp?inp.value.trim():'');
+  const nickname=(nickInp?nickInp.value.trim():'');
   if(!name)return zAlert('Enter a vehicle description (e.g. 2019 White F-150)');
   const vehs=getVehicles();
-  if(vehs.find(v=>v===name))return zAlert('Vehicle already added.');
-  vehs.push(name);
+  if(vehs.find(v=>v.name===name))return zAlert('Vehicle already added.');
+  vehs.push({name,nickname});
   S.vehicles=vehs;
   saveAll();
   if(inp)inp.value='';
+  if(nickInp)nickInp.value='';
   renderVehicleSettings();
 }
 
@@ -4470,12 +4489,20 @@ function renderVehicleSettings(){
   const el=document.getElementById('set-vehicles-list');if(!el)return;
   const vehs=getVehicles();
   if(!vehs.length){el.innerHTML='<div style="font-size:12px;color:var(--text3);margin-bottom:4px">No vehicles added yet.</div>';return;}
-  el.innerHTML=vehs.map((v,i)=>
-    '<div style="display:flex;justify-content:space-between;align-items:center;background:var(--bg2);border-radius:var(--r);padding:8px 12px;margin-bottom:4px">'+
-      '<div style="font-size:13px;font-weight:600">'+v+'</div>'+
-      '<button class="btn-del" onclick="removeVehicle('+i+')" style="font-size:11px;padding:3px 8px">Remove</button>'+
-    '</div>'
-  ).join('');
+  el.innerHTML=vehs.map((v,i)=>{
+    const label=getVehicleLabel(v);
+    const sub=v.nickname&&v.nickname.trim()?v.name:'';
+    return '<div style="display:flex;justify-content:space-between;align-items:center;background:var(--bg2);border-radius:var(--r);padding:8px 12px;margin-bottom:4px">'+
+      '<div><div style="font-size:13px;font-weight:700">'+label+'</div>'+(sub?'<div style="font-size:11px;color:var(--text3)">'+sub+'</div>':'')+
+      '<input placeholder="Add nickname (optional)" value="'+(v.nickname||'')+'" oninput="updateVehicleNick('+i+',this.value)" style="margin-top:4px;font-size:12px;padding:4px 8px;border-radius:var(--r);border:1px solid var(--border2);background:var(--bg);color:var(--text);width:100%;box-sizing:border-box;font-family:inherit">'+
+      '</div>'+
+      '<button class="btn-del" onclick="removeVehicle('+i+')" style="font-size:11px;padding:3px 8px;flex-shrink:0;margin-left:10px">Remove</button>'+
+    '</div>';
+  }).join('');
+}
+function updateVehicleNick(idx,nick){
+  const vehs=getVehicles();
+  if(vehs[idx]){vehs[idx].nickname=nick;S.vehicles=vehs;saveAll();}
 }
 
 function setTripPurpose(purpose, btn){
@@ -4526,36 +4553,52 @@ function validateOdomStart(input){
 }
 
 function renderDriveVehicleChips(){
-  const chips=document.getElementById('cd-vehicle-chips');
+  // Now uses dropdown — this just populates the select
+  const sel=document.getElementById('cd-vehicle-sel');
   const noVeh=document.getElementById('cd-no-vehicles');
-  if(!chips)return;
   const vehs=getVehicles();
   if(!vehs.length){
-    chips.style.display='none';
+    if(sel)sel.style.display='none';
     if(noVeh)noVeh.style.display='block';
     const btn=document.getElementById('cd-start-trip-btn');
     if(btn){btn.disabled=true;btn.style.background='var(--border2)';btn.style.cursor='not-allowed';}
     return;
   }
-  chips.style.display='flex';
   if(noVeh)noVeh.style.display='none';
-  chips.innerHTML=vehs.map((v,i)=>{
-    const active=gps.vehicle===v;
-    return '<div onclick="selectDriveVehicle('+i+')" style="padding:8px 14px;border-radius:20px;font-size:13px;font-weight:600;cursor:pointer;border:2px solid '+(active?'var(--blue)':'var(--border2)')+';background:'+(active?'var(--blue)':'var(--bg2)')+';color:'+(active?'#fff':'var(--text2)')+'">'+v+'</div>';
-  }).join('');
+  if(sel){
+    sel.style.display='block';
+    sel.innerHTML='<option value="">— Select vehicle —</option>'+
+      vehs.map(v=>{
+        const label=getVehicleLabel(v);
+        const full=getVehicleFullLabel(v);
+        return '<option value="'+v.name+'"'+(gps.vehicle===v.name?' selected':'')+'>'+full+'</option>';
+      }).join('');
+    // Auto-select if only one vehicle
+    if(vehs.length===1&&!gps.vehicle){
+      gps.vehicle=vehs[0].name;
+      sel.value=vehs[0].name;
+      updateOdomHint();
+      checkTripReady();
+    }
+  }
+}
+function updateOdomHint(){
   const hint=document.getElementById('cd-last-odom-hint');
   if(hint&&gps.vehicle){
     const last=getLastOdomForVehicle(gps.vehicle);
-    hint.textContent=last?'Last recorded: '+last.toLocaleString()+' mi — enter current reading':'First trip in this vehicle — enter starting odometer';
-  }
+    hint.textContent=last?'Last recorded: '+last.toLocaleString()+' mi — enter current odometer':'First trip — enter your starting odometer reading';
+  } else if(hint){hint.textContent='';}
 }
-
+function selectDriveVehicleByName(name){
+  gps.vehicle=name;
+  updateOdomHint();
+  const odom=document.getElementById('cd-odom-start');if(odom&&odom.value)validateOdomStart(odom);
+  checkTripReady();
+}
 function selectDriveVehicle(idx){
   const vehs=getVehicles();
-  gps.vehicle=vehs[idx]||'';
+  gps.vehicle=vehs[idx]?vehs[idx].name:'';
   renderDriveVehicleChips();
-  const msg=document.getElementById('cd-vehicle-required-msg');if(msg)msg.style.display='none';
-  const odom=document.getElementById('cd-odom-start');if(odom&&odom.value)validateOdomStart(odom);
   checkTripReady();
 }
 function checkTripReady(){

@@ -110,6 +110,10 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
   #nav-user{justify-content:center;padding:12px 8px}
   #app{padding-left:60px;padding-bottom:0}
 }
+input[type=range]{-webkit-appearance:none;appearance:none;background:transparent;}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;appearance:none;width:22px;height:22px;border-radius:50%;background:#0D1117;cursor:pointer;border:3px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.3);}
+input[type=range]::-moz-range-thumb{width:22px;height:22px;border-radius:50%;background:#0D1117;cursor:pointer;border:3px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.3);}
+input[type=range]::-webkit-slider-runnable-track{height:6px;border-radius:3px;background:linear-gradient(to right,var(--blue-lt),var(--blue));}
 .pg{display:none;padding:20px 24px 24px}.drive-active .pg{padding-top:70px}
 #pg-leads,#pg-jobs,#pg-money{padding-top:4px}
 .pg.active{display:block}
@@ -380,7 +384,7 @@ input:checked+.dm-slider:before{transform:translateX(22px)}</style>
   
   <div id="dash-quick" style="margin-bottom:12px">
     <div style="font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.06em;color:var(--text3);margin-bottom:8px">Quick actions</div>
-    <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:8px">
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px">
       <button onclick="goPg('pg-clients');setTimeout(()=>openNewClient(),100)" style="position:relative;padding:11px 4px 10px;border-radius:var(--rl);border:2px solid var(--blue);background:var(--blue);color:#fff;font-size:11px;font-weight:700;cursor:pointer;font-family:inherit;display:flex;flex-direction:column;align-items:center;gap:2px;width:100%">
         <span style="position:absolute;top:4px;left:6px;font-size:10px;font-weight:800;opacity:.75">1</span>
         <span style="font-size:17px">👤</span><span style="font-size:10px">New client</span>
@@ -401,12 +405,8 @@ input:checked+.dm-slider:before{transform:translateX(22px)}</style>
         <span style="position:absolute;top:4px;left:6px;font-size:10px;font-weight:800;opacity:.75">5</span>
         <span style="font-size:17px">🧾</span><span style="font-size:10px">Expense</span>
       </button>
-      <button onclick="quickAction('complete')" style="position:relative;padding:11px 4px 10px;border-radius:var(--rl);border:2px solid var(--border2);background:var(--bg2);color:var(--text);font-size:11px;font-weight:700;cursor:pointer;font-family:inherit;display:flex;flex-direction:column;align-items:center;gap:2px;width:100%">
-        <span style="position:absolute;top:4px;left:6px;font-size:10px;font-weight:800;opacity:.75">6</span>
-        <span style="font-size:17px">✅</span><span style="font-size:10px">Complete</span>
-      </button>
       <button onclick="quickAction('collect')" id="qa-collect-btn" style="position:relative;padding:11px 4px 10px;border-radius:var(--rl);border:2px solid var(--green);background:var(--green);color:#fff;font-size:11px;font-weight:700;cursor:pointer;font-family:inherit;display:flex;flex-direction:column;align-items:center;gap:2px;width:100%">
-        <span style="position:absolute;top:4px;left:6px;font-size:10px;font-weight:800;opacity:.75">7</span>
+        <span style="position:absolute;top:4px;left:6px;font-size:10px;font-weight:800;opacity:.75">6</span>
         <span style="font-size:17px">💰</span><span id="qa-collect-label" style="font-size:10px">Collect</span>
       </button>
     </div>
@@ -626,6 +626,7 @@ input:checked+.dm-slider:before{transform:translateX(22px)}</style>
             
           </div>
         </div>
+        <div id="cd-supply-job-picker" style="display:none;margin-bottom:16px"></div>
 
         
         <div style="margin-bottom:12px">
@@ -974,10 +975,13 @@ input:checked+.dm-slider:before{transform:translateX(22px)}</style>
     <div id="est-s4" style="display:none">
     <div class="card"><div class="card-hd">Bid breakdown</div><div id="est-review"></div></div>
     <div class="card"><div class="card-hd">Price adjustment</div>
-      <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
-        <label style="font-size:11px;color:var(--text2);min-width:120px">Adjust final price</label>
-        <input type="range" id="est-adj" min="-500" max="500" step="25" value="0" oninput="syncAdj()" style="flex:1;accent-color:var(--blue)">
-        <span id="est-adj-val" style="font-size:12px;font-weight:700;min-width:45px;text-align:right">$0</span>
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px">
+        <label style="font-size:11px;color:var(--text2);min-width:80px">Adjust price</label>
+        <input type="range" id="est-adj" min="-40" max="40" step="1" value="0" oninput="syncAdj()" style="flex:1;accent-color:var(--navy,#0D1117);height:6px;cursor:pointer">
+        <span id="est-adj-val" style="font-size:12px;font-weight:700;min-width:55px;text-align:right;color:var(--blue)">0%</span>
+      </div>
+      <div style="display:flex;justify-content:space-between;font-size:10px;color:var(--text3);margin-bottom:10px;padding:0 2px">
+        <span>-40%</span><span>0</span><span>+40%</span>
       </div>
       <div class="f"><label>Reason (optional)</label><input type="text" id="est-adj-reason" placeholder="Repeat customer discount, difficult access..."></div>
       <div style="display:flex;align-items:center;gap:12px;margin-top:10px">
@@ -996,6 +1000,10 @@ input:checked+.dm-slider:before{transform:translateX(22px)}</style>
           <div style="font-size:10px;color:var(--text3);margin-top:2px">$106/gal</div>
         </button>
       </div>
+      <label style="display:flex;align-items:center;gap:10px;cursor:pointer;font-size:13px;font-weight:600;padding:10px;background:var(--amber-lt);border-radius:var(--r);border:1px solid var(--amber)">
+        <input type="checkbox" id="e-customer-paint" style="width:18px;height:18px;accent-color:var(--blue);cursor:pointer;appearance:auto;-webkit-appearance:checkbox;flex-shrink:0" onchange="onCustomerPaintChange()">
+        <div><div>Customer supplies paint</div><div style="font-size:11px;font-weight:400;color:#856404;margin-top:2px">Paint cost removed · No warranty provided on finish</div></div>
+      </label>
     </div>
     <div class="card">
       <div class="f">
@@ -1394,6 +1402,15 @@ input:checked+.dm-slider:before{transform:translateX(22px)}</style>
       <div class="f"><label>Standard paint ($/gal)</label><input type="number" id="set-p1"></div>
       <div class="f"><label>Premium paint ($/gal)</label><input type="number" id="set-p2"></div>
       <div class="f"><label>Ultra paint ($/gal)</label><input type="number" id="set-p3"></div>
+      <div style="grid-column:1/-1">
+        <a href="https://www.sherwin-williams.com/en-us/paint/interior-paint" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;gap:6px;font-size:12px;color:var(--blue);font-weight:600;text-decoration:none;padding:6px 10px;background:var(--blue-lt);border-radius:var(--r);border:1px solid var(--blue)">
+          🔗 Check current Sherwin-Williams prices
+        </a>
+        <a href="https://www.homedepot.com/b/Paint/N-5yc1vZbqmi" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;gap:6px;font-size:12px;color:var(--blue);font-weight:600;text-decoration:none;padding:6px 10px;background:var(--blue-lt);border-radius:var(--r);border:1px solid var(--blue);margin-left:6px">
+          🔗 Home Depot paint prices
+        </a>
+        <div style="font-size:11px;color:var(--text3);margin-top:6px">Check current prices and update the fields above. SW ProMar 200 interior ~$42/gal. SW exterior ~$106/gal.</div>
+      </div>
       <div class="f"><label>Materials markup (%)</label><input type="number" id="set-mm"></div>
     </div>
   </div>
@@ -4272,6 +4289,10 @@ function logPayment(){
 
   const newBalance=getBidBalance(bid);
   if(newBalance<=0.01){
+    // Auto-mark job complete when fully paid
+    if(!bid.completion_date)bid.completion_date=todayKey();
+    jobs.filter(j=>j.client_id===bid.client_id&&j.eventType!=='estimate'&&j.status!=='done').forEach(j=>{j.status='done';if(!j.completion_date)j.completion_date=todayKey();});
+    saveAll();
     renderClientDetail();
     const banner=document.createElement('div');
     banner.style.cssText='position:fixed;top:0;left:0;right:0;z-index:9999;animation:slideDown .3s ease';
@@ -4419,7 +4440,12 @@ function saveLien(){
 }
 function releaseLien(bidId){zConfirm('Mark this lien as resolved and released?',()=>{const l=liens.find(x=>x.bid_id===bidId);if(l){l.status='resolved';saveAll();renderCDBids();}},{title:'Release lien',yes:'Mark resolved',danger:false});}
 
-function getVehicles(){return S.vehicles||[];}
+function getVehicles(){
+  const vehs=S.vehicles||[];
+  // Fall back to legacy S.veh string if vehicles array is empty
+  if(!vehs.length&&S.veh&&S.veh.trim()){return[S.veh.trim()];}
+  return vehs;
+}
 
 function addVehicle(){
   const inp=document.getElementById('set-new-veh');
@@ -4458,6 +4484,26 @@ function setTripPurpose(purpose, btn){
   gps.purpose=purpose;
   document.querySelectorAll('#cd-purpose-chips .surf-type-btn').forEach(b=>b.classList.remove('active-surf-btn'));
   if(btn)btn.classList.add('active-surf-btn');
+  // Show job picker for supply runs so mileage ties to correct job
+  const jobPicker=document.getElementById('cd-supply-job-picker');
+  if(jobPicker){
+    if(purpose==='Supply run'){
+      const activeJobs=bids.filter(b=>b.status==='Closed Won');
+      if(activeJobs.length){
+        jobPicker.style.display='block';
+        jobPicker.innerHTML='<label style="font-size:10px;font-weight:700;text-transform:uppercase;color:var(--text3);display:block;margin-bottom:6px">Which job? <span style="font-weight:400;opacity:.7">(optional)</span></label>'+
+          '<select id="cd-supply-job-sel" style="width:100%;font-size:13px;padding:8px 10px;border-radius:var(--r);border:1px solid var(--border2);background:var(--bg2);color:var(--text)" onchange="gps.supplyJobId=this.value">'+
+          '<option value="">— Select job —</option>'+
+          activeJobs.map(b=>{const c=getClientById(b.client_id);return'<option value="'+b.id+'">'+(c?c.name:'Client')+' — '+fmt(b.amount)+'</option>';}).join('')+
+          '</select>';
+      } else {
+        jobPicker.style.display='none';
+      }
+    } else {
+      jobPicker.style.display='none';
+      gps.supplyJobId=null;
+    }
+  }
   checkTripReady();
 }
 
@@ -5183,7 +5229,7 @@ function saveSurfBAndNext(){
   if(SURF_IS_COUNT.includes(type)){
     const m=surfBMeasurements[type]||{count:1};
     const count=m.count||1;
-    estSurfaces.push({id:++estSurfId,type,qty:count,room:prefix+surfRoom+' '+type+colorNote});
+    estSurfaces.push({id:++estSurfId,type,qty:count,room:prefix+surfRoom+colorNote});
     surfBIdx++;
     if(surfBIdx<surfBQueue.length)renderSurfBCurrent();
     else finishRoom();
@@ -6030,9 +6076,15 @@ function selectPaint(key, btn){
   if(btn)btn.classList.add('active-surf-btn');
   const el=document.getElementById('e-paint');
   if(el){el.value=key;el.style.borderColor='var(--border2)';el.style.background='var(--bg2)';}
-
   const card=document.getElementById('paint-picker-card');if(card)card.style.border='';
   checkStep1Ready();saveEstFullDraft();
+}
+
+function onCustomerPaintChange(){
+  const checked=document.getElementById('e-customer-paint')?.checked;
+  const picker=document.getElementById('paint-picker');
+  if(picker)picker.style.opacity=checked?'0.4':'1';
+  renderEstRunning();renderEstReview();
 }
 
 function validateJobSettings(){
@@ -6245,6 +6297,7 @@ function calcEst(){
     deck:    gR('e-r-deck') ||S.rDeck ||1.00,
   };
   const paintCostPerGal=gR('e-paint-rate')||(estSurfaces.some(s=>s.type==='ext_walls'||s.type==='ext_trim'||s.type==='deck')?106:42);
+  const customerPaint=document.getElementById('e-customer-paint')?.checked||false;
   const cov=COVERAGE();const matMark=MATMARK();const coats=scopeOn('twocoat')?2:1;
   let laborTotal=0,totalLaborHours=0;const lines=[];
   estSurfaces.forEach(s=>{
@@ -6274,14 +6327,21 @@ function calcEst(){
   });
   Object.entries(colorGals).forEach(([color,sqFt])=>{
     const gals=Math.ceil(sqFt*coats/cov*1.10*2)/2;
-    const cost=Math.round(gals*paintCostPerGal*matMark*100)/100; // matMark covers waste, rollers, supplies
-    matTotal+=cost;paintLines.push({color,sqFt:Math.round(sqFt),gals,cost});
+    const cost=customerPaint?0:Math.round(gals*paintCostPerGal*matMark*100)/100;
+    matTotal+=cost;paintLines.push({color,sqFt:Math.round(sqFt),gals,cost,customerPaint});
   });
   const flatAdd=0;const scopeFlats=[];
-  const adj=parseInt(v('est-adj'))||0;
-  const base=laborTotal+matTotal;
-  const final=Math.max(0,Math.round((base+adj)*100)/100);
-  return{lines,laborTotal,matTotal,flatAdd,scopeFlats,colorAdd:0,travel:0,base,bid:final,adj,final,
+  const adjPct=parseInt(v('est-adj'))||0;
+  // 7% contingency baked silently into labor (industry standard callback buffer)
+  const contingencyPct=typeof S.contingencyPct==='number'?S.contingencyPct:7;
+  const laborWithContingency=Math.round(laborTotal*(1+contingencyPct/100)*100)/100;
+  const base=laborWithContingency+matTotal;
+  const adj=Math.round(base*(adjPct/100)*100)/100;
+  const finalRaw=Math.max(0,Math.round((base+adj)*100)/100);
+  // Floor materials at 18% of total so it looks reasonable vs bid size
+  const matFinal=Math.max(matTotal,Math.round(finalRaw*0.18*100)/100);
+  const final=finalRaw;
+  return{lines,laborTotal:laborWithContingency,matTotal:matFinal,flatAdd,scopeFlats,colorAdd:0,travel:0,base,bid:final,adj,final,
     profit:0,margin:0,paintLines,totalPaintSqFt,coats,totalLaborHours,laborRate:R.walls,paintCostPerGal,R};
 }
 function renderEstRunning(){
@@ -6296,15 +6356,43 @@ function renderEstRunning(){
   el.innerHTML=html;
 }
 function renderEstReview(){
-  const{lines,base,adj,final,laborTotal,matTotal,totalLaborHours,laborRate,paintCostPerGal,paintLines}=calcEst();
+  const{lines,base,adj,final,laborTotal,matTotal,totalLaborHours,laborRate,paintCostPerGal,paintLines,totalPaintSqFt}=calcEst();
   const el=document.getElementById('est-review');if(!el)return;
   if(!estSurfaces.length&&!lines.length){el.innerHTML='<div class="empty">No surfaces added yet.</div>';return;}
-  let html='<div class="mets" style="margin-bottom:12px">'+
+
+  // Room-by-room sqft breakdown
+  const roomSqft={};let totalSqft=0;
+  estSurfaces.forEach(s=>{
+    if(!s.qty)return;
+    const t=SURF_TYPES.find(x=>x.v===s.type);
+    const base=(s.room||'').split(' — ')[0].replace('[Ext] ','').trim()||'Other';
+    if(!roomSqft[base])roomSqft[base]={sqft:0,count:0,surfaces:[]};
+    if(t&&t.unit==='sq ft'){roomSqft[base].sqft+=s.qty;totalSqft+=s.qty;}
+    roomSqft[base].surfaces.push((t?t.l:s.type)+(t&&t.unit!=='sq ft'?' ('+s.qty+' '+t.unit+')':''));
+  });
+
+  let html='';
+  // Room breakdown
+  if(Object.keys(roomSqft).length){
+    html+='<div style="font-size:10px;font-weight:800;text-transform:uppercase;color:var(--text3);margin-bottom:6px">Rooms &amp; square footage</div>';
+    Object.entries(roomSqft).forEach(([room,data])=>{
+      html+='<div style="display:flex;justify-content:space-between;font-size:12px;padding:5px 0;border-bottom:1px solid var(--border)">'+
+        '<span>'+room+'<span style="color:var(--text3);font-size:11px"> · '+data.surfaces.join(', ')+'</span></span>'+
+        '<span style="font-weight:700">'+(data.sqft?data.sqft.toLocaleString()+' sq ft':'-')+'</span>'+
+      '</div>';
+    });
+    html+='<div style="display:flex;justify-content:space-between;font-size:12px;padding:6px 0;border-bottom:2px solid var(--border2);font-weight:700">'+
+      '<span>Total paintable sq ft</span><span style="color:var(--blue)">'+totalSqft.toLocaleString()+' sq ft</span></div>';
+  }
+
+  // Metrics
+  html+='<div class="mets" style="margin:12px 0">'+
     '<div class="met"><div class="met-l">Labor hours</div><div class="met-v">'+totalLaborHours.toFixed(1)+'h</div><div class="met-s">@ '+fmt(laborRate)+'/hr</div></div>'+
     '<div class="met"><div class="met-l">Labor cost</div><div class="met-v" style="color:var(--blue)">'+fmt(laborTotal)+'</div></div>'+
     '<div class="met"><div class="met-l">Materials</div><div class="met-v" style="color:var(--blue)">'+fmt(matTotal)+'</div><div class="met-s">@ '+fmt(paintCostPerGal)+'/gal</div></div>'+
     '<div class="met"><div class="met-l">Total</div><div class="met-v" style="color:var(--green-mid);font-size:18px">'+fmt(final)+'</div></div>'+
   '</div>';
+
   if(lines.length){
     html+='<div style="font-size:10px;font-weight:800;text-transform:uppercase;color:var(--text3);margin-bottom:6px">Labor breakdown</div>';
     html+=lines.map(l=>'<div style="display:flex;justify-content:space-between;font-size:12px;padding:5px 0;border-bottom:1px solid var(--border)">'+
@@ -6367,7 +6455,7 @@ function saveStripeKey(){
   }
   zAlert(key?'Stripe key saved — card payments enabled on signing links':'Stripe removed — clients will see cash only');
 }
-function syncAdj(){const val=parseInt(v('est-adj'));document.getElementById('est-adj-val').textContent=(val>=0?'+':'')+fmt(Math.abs(val));renderEstReview();}
+function syncAdj(){const pct=parseInt(v('est-adj')||0);document.getElementById('est-adj-val').textContent=(pct>0?'+':'')+pct+'%';renderEstReview();}
 
 async function sendProposalLink(){
   const proposal=document.getElementById('est-proposal');
@@ -6408,8 +6496,15 @@ async function sendProposalLink(){
     if(btn){btn.textContent='✓ Link ready';btn.disabled=false;}
   }catch(e){
     console.error('sendProposalLink failed:',e);
-    zAlert('Could not generate link: '+e.message,{title:'Error'});
-    if(btn){btn.textContent='🔗 Send to client';btn.disabled=false;}
+    const msg=e.message||'Unknown error';
+    if(msg.includes('Bucket not found')||msg.includes('bucket')){
+      zAlert('Storage bucket not found.\n\nIn Supabase → Storage → create a bucket named "proposals" and set it to Public.',{title:'Setup required'});
+    } else if(msg.includes('row-level security')||msg.includes('RLS')){
+      zAlert('Permission error. Run the fix-storage-rls.sql file in your Supabase SQL editor.',{title:'Permission error'});
+    } else {
+      zAlert('Could not generate link: '+msg,{title:'Error'});
+    }
+    if(btn){btn.innerHTML='🔗 Send to client';btn.disabled=false;}
   }
 }
 
@@ -6425,7 +6520,10 @@ function buildDescription(){
   const roomList=[...new Set(rooms.map(s=>(s.room||'').split(' — ')[0].replace('[Ext] ','').trim()))].filter(Boolean);
   const activeScope=SCOPE_ITEMS.filter(sc=>scopeOn(sc.id)&&sc.clientDesc);
   const isExt=estSurfaces.some(s=>s.type==='ext_walls'||s.type==='ext_trim'||s.type==='deck');
-  const matDesc=(isExt?'Exterior-grade paint ($106/gal)':'Sherwin-Williams ProMar 200 interior paint')+' and all materials included in price.';
+  const customerPaint=document.getElementById('e-customer-paint')?.checked||false;
+  const matDesc=customerPaint
+    ?'All materials (tape, plastic, rollers, brushes) included in price. <strong>Paint supplied by customer — no warranty provided on finish.</strong>'
+    :(isExt?'Exterior-grade paint ($106/gal)':'Sherwin-Williams ProMar 200 interior paint')+' and all materials included in price.';
   let html='';
   if(roomList.length)html+='<div style="margin-bottom:6px"><strong>Areas:</strong> '+roomList.join(', ')+'</div>';
   html+='<div style="font-weight:700;margin-bottom:4px">Scope of work:</div>';
@@ -6433,6 +6531,9 @@ function buildDescription(){
   activeScope.forEach(sc=>{html+='<li><strong>'+sc.label+':</strong> '+sc.clientDesc+'</li>';});
   html+='<li><strong>Paint &amp; Materials:</strong> '+matDesc+'</li>';
   html+='</ol>';
+  if(customerPaint){
+    html+='<div style="margin-top:6px;padding:8px 12px;background:#FEF3C7;border:1px solid #D97706;border-radius:6px;font-size:12px;color:#92400E"><strong>⚠ No Warranty:</strong> Customer-supplied paint. Contractor assumes no responsibility for color, coverage, or finish quality.</div>';
+  }
   return html;
 }
 function buildProposal(){

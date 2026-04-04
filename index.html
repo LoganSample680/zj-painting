@@ -4492,13 +4492,21 @@ function renderVehicleSettings(){
   el.innerHTML=vehs.map((v,i)=>{
     const label=getVehicleLabel(v);
     const sub=v.nickname&&v.nickname.trim()?v.name:'';
-    return '<div style="display:flex;justify-content:space-between;align-items:center;background:var(--bg2);border-radius:var(--r);padding:8px 12px;margin-bottom:4px">'+
-      '<div><div style="font-size:13px;font-weight:700">'+label+'</div>'+(sub?'<div style="font-size:11px;color:var(--text3)">'+sub+'</div>':'')+
-      '<input placeholder="Add nickname (optional)" value="'+(v.nickname||'')+'" oninput="updateVehicleNick('+i+',this.value)" style="margin-top:4px;font-size:12px;padding:4px 8px;border-radius:var(--r);border:1px solid var(--border2);background:var(--bg);color:var(--text);width:100%;box-sizing:border-box;font-family:inherit">'+
+    const nickVal=v.nickname||'';
+    return '<div style="background:var(--bg2);border-radius:var(--r);padding:8px 12px;margin-bottom:4px">'+
+      '<div style="display:flex;justify-content:space-between;align-items:center">'+
+        '<div style="font-size:13px;font-weight:700">'+label+'</div>'+
+        '<button class="btn-del" onclick="removeVehicle('+i+')" style="font-size:11px;padding:3px 8px">Remove</button>'+
       '</div>'+
-      '<button class="btn-del" onclick="removeVehicle('+i+')" style="font-size:11px;padding:3px 8px;flex-shrink:0;margin-left:10px">Remove</button>'+
+      (sub?'<div style="font-size:11px;color:var(--text3);margin-top:1px">'+sub+'</div>':'')+
+      '<input placeholder="Nickname (optional — e.g. Work Truck)" data-veh-idx="'+i+'" oninput="updateVehicleNick('+i+',this.value)" style="margin-top:6px;font-size:12px;padding:4px 8px;border-radius:var(--r);border:1px solid var(--border2);background:var(--bg);color:var(--text);width:100%;box-sizing:border-box;font-family:inherit">'+
     '</div>';
   }).join('');
+  // Set input values after innerHTML (avoids quote issues)
+  vehs.forEach((v,i)=>{
+    const inp=el.querySelector('[data-veh-idx="'+i+'"]');
+    if(inp)inp.value=v.nickname||'';
+  });
 }
 function updateVehicleNick(idx,nick){
   const vehs=getVehicles();
@@ -4876,18 +4884,14 @@ function discardDriveTrip(){
   hideDriveBanner();resetDriveUI();
 }
 
-function buildScopeGrid(roomName){
+function buildScopeGrid(){
   const el=document.getElementById('est-scope-grid');if(!el)return;
-  const useRoom=!!roomName;
-  if(useRoom)_currentScopeRoom=roomName;
   el.innerHTML=SCOPE_ITEMS.map(s=>{
-    const isOn=useRoom?roomScopeOn(roomName,s.id):!!scopeActiveMap[s.id];
-    const entry=useRoom?((roomScopeMap[roomName]&&roomScopeMap[roomName][s.id])||{}):scopeHrsStore[s.id]||{};
+    const isOn=!!scopeActiveMap[s.id];
+    const entry=scopeHrsStore[s.id]||{};
     const hrs=entry.hrs||0;
     const rate=entry.rate||0;
-    const safeRoom=roomName?(roomName+'').replace(/\\/g,'\\\\').replace(/'/g,"\\'"):'';
-    const clickFn=useRoom?'toggleScopeRoom(\\''+s.id+'\\',\\''+safeRoom+'\\')':'toggleScope(\\''+s.id+'\\')';
-    return '<div class="stog'+(isOn?' on':'')+'" id="est-st-'+s.id+'" onclick="'+clickFn+'">'+
+    return '<div class="stog'+(isOn?' on':'')+'" id="est-st-'+s.id+'" onclick="toggleScope(\''+s.id+'\')">'+
       '<input type="checkbox" id="est-sc-'+s.id+'" style="display:none"'+(isOn?' checked':'')+'>'+
       '<div class="sdot"></div>'+
       '<div style="flex:1;min-width:0">'+
@@ -4898,7 +4902,7 @@ function buildScopeGrid(roomName){
         '<span class="sprice" style="display:block;font-size:10px;color:var(--text3);font-weight:400">'+(isOn&&hrs?'= $'+(entry.cost||Math.round(hrs*(rate||45))):'Tap to enter hours')+'</span>'+
       '</div></div>';
   }).join('');
-  // State lives in roomScopeMap / scopeActiveMap — never reset here
+  // NOTE: never reset scopeHrsStore or scopeActiveMap here
 }
 function toggleScopeRoom(id, roomName){
   const wasOn=roomScopeOn(roomName,id);

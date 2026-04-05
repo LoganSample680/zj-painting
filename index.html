@@ -111,8 +111,8 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
   #app{padding-left:60px;padding-bottom:0}
 }
 input[type=range]{-webkit-appearance:none;appearance:none;background:transparent;}
-input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;appearance:none;width:22px;height:22px;border-radius:50%;background:#0D1117;cursor:pointer;border:3px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.3);}
-input[type=range]::-moz-range-thumb{width:22px;height:22px;border-radius:50%;background:#0D1117;cursor:pointer;border:3px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.3);}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;appearance:none;width:22px;height:22px;border-radius:50%;background:#0D1117;cursor:pointer;border:3px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.3);margin-top:-8px;}
+input[type=range]::-moz-range-thumb{width:22px;height:22px;border-radius:50%;background:#0D1117;cursor:pointer;border:3px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.3);transform:translateY(0);}
 input[type=range]::-webkit-slider-runnable-track{height:6px;border-radius:3px;background:linear-gradient(to right,var(--blue-lt),var(--blue));}
 .pg{display:none;padding:20px 24px 24px}.drive-active .pg{padding-top:70px}
 #pg-leads,#pg-jobs,#pg-money{padding-top:4px}
@@ -6511,9 +6511,10 @@ function calcEst(){
   const base=laborWithContingency+matTotal;
   const adj=Math.round(base*(adjPct/100)*100)/100;
   const finalRaw=Math.max(0,Math.round((base+adj)*100)/100);
+  // Round to nearest $100 for clean pricing (e.g. $617→$600, $650→$700)
+  const final=Math.round(finalRaw/100)*100||finalRaw;
   // Floor materials at 18% of total so it looks reasonable vs bid size
-  const matFinal=Math.max(matTotal,Math.round(finalRaw*0.18*100)/100);
-  const final=finalRaw;
+  const matFinal=Math.max(matTotal,Math.round(final*0.18*100)/100);
   return{lines,laborTotal:laborWithContingency,matTotal:matFinal,flatAdd,scopeFlats,colorAdd:0,travel:0,base,bid:final,adj,final,
     profit:0,margin:0,paintLines,totalPaintSqFt,coats,totalLaborHours,laborRate:R.walls,paintCostPerGal,R};
 }

@@ -10476,6 +10476,10 @@ async function supaInit(){
         }
       } else if(event==='SIGNED_OUT'){
         _supaUser=null;_user=null;_account=null;_config=null;
+        // Clear all data so next user starts fresh — never bleed data between accounts
+        clients=[];bids=[];jobs=[];payments=[];income=[];expenses=[];mileage=[];liens=[];
+        S={...S,bname:'',bphone:'',blic:'',bemail:'',stripePk:'',vehicles:[],weatherLat:null,weatherLon:null,locationDenied:false};
+        saveAll();
         supaSetStatus('local');
         supaShowLogin();
       }
@@ -10569,7 +10573,10 @@ async function supaLoadFromCloud(){
   try{
     const{data,error}=await _supa.from('zj_data').select('*').eq('user_id',_supaUser.id).maybeSingle();
     if(error||!data){
-      // No cloud data yet — use local, dismiss loading
+      // First time this user has signed in — no cloud data yet.
+      // Clear any localStorage data from a previous user on this device.
+      clients=[];bids=[];jobs=[];payments=[];income=[];expenses=[];mileage=[];liens=[];
+      saveAll();
       document.getElementById('supa-boot-overlay')?.remove();
       renderDash();buildScopeGrid();
       supaSetStatus('synced');

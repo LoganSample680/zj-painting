@@ -6986,6 +6986,8 @@ function buildProposal(){
     const diff=Math.round((laborTotal-roomNames.reduce((s,r)=>s+roomCosts[r].total,0))*100)/100;
     if(diff&&roomNames.length)roomCosts[roomNames[roomNames.length-1]].total+=diff;
   }
+  // Proposal total = what's actually on the rows — rooms + materials
+  const proposalTotal=Math.round((roomNames.reduce((s,r)=>s+roomCosts[r].total,0)+matLine+(adj||0))*100)/100;
 
   // Build table rows — one per room — showing per-room scope in description
   const roomRows=roomNames.map((room,roomIdx)=>{
@@ -7068,7 +7070,7 @@ function buildProposal(){
     <tfoot>
       <tr style="border-top:2px solid var(--border)">
         <td colspan="3" style="padding:8px 12px;text-align:right;font-weight:700;color:var(--text3);font-size:11px">SUBTOTAL</td>
-        <td style="padding:8px 12px;text-align:right;font-weight:700">${fmt(final)}</td>
+        <td style="padding:8px 12px;text-align:right;font-weight:700">${fmt(proposalTotal)}</td>
       </tr>
       <tr>
         <td colspan="3" style="padding:4px 12px;text-align:right;color:var(--text3);font-size:11px">TAX RATE / SALES TAX</td>
@@ -7076,7 +7078,7 @@ function buildProposal(){
       </tr>
       <tr style="background:var(--blue);color:#fff">
         <td colspan="3" style="padding:10px 12px;text-align:right;font-weight:800;font-size:14px">TOTAL</td>
-        <td style="padding:10px 12px;text-align:right;font-weight:800;font-size:14px">${fmt(final)}</td>
+        <td style="padding:10px 12px;text-align:right;font-weight:800;font-size:14px">${fmt(proposalTotal)}</td>
       </tr>
     </tfoot>
   </table>
@@ -7105,7 +7107,7 @@ function buildProposal(){
     </div>
   </div>
 </div>`;
-  document.getElementById('est-sig-sum').innerHTML=`<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px"><div><div style="font-size:15px;font-weight:700">${cname}</div><div style="font-size:12px;color:var(--text2)">${caddr}</div></div><div style="text-align:right"><div style="font-size:22px;font-weight:700;color:var(--blue)">${fmt(final)}</div><div style="font-size:11px;color:var(--text3)">${estNum}</div></div></div>`;
+  document.getElementById('est-sig-sum').innerHTML=`<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px"><div><div style="font-size:15px;font-weight:700">${cname}</div><div style="font-size:12px;color:var(--text2)">${caddr}</div></div><div style="text-align:right"><div style="font-size:22px;font-weight:700;color:var(--blue)">${fmt(proposalTotal)}</div><div style="font-size:11px;color:var(--text3)">${estNum}</div></div></div>`;
   document.getElementById('est-terms').innerHTML='<strong>Terms &amp; Conditions</strong><br><br>1. <strong>Payment:</strong> 25% deposit before work begins. Balance due on completion.<br><br>2. <strong>Cancellation:</strong> Materials cost deducted from deposit if client cancels after work has started.<br><br>3. <strong>Scope:</strong> This estimate covers only the work described. Any additional work requires a written change order and additional charge. Scope descriptions are estimates based on walkthrough — final scope may vary based on site conditions.<br><br>4. <strong>Warranty:</strong> Workmanship warranted 1 year from completion. Excludes pre-existing damage, moisture damage, and substrate failure.<br><br>5. <strong>Liability:</strong> Contractor not responsible for pre-existing damage, water or moisture damage, or damage from pressure washing.<br><br>By typing your name below, you agree to all scope, price, and terms above. This is a binding agreement under the Kansas Uniform Electronic Transactions Act (UETA).';
   document.getElementById('sig-date').value=ds;
   document.getElementById('sig-pname').value=cname;

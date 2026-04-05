@@ -2191,7 +2191,9 @@ function renderDash(){
     const draft=loadEstFullDraft();
     const hasDraft=!!(draft&&draft.cname);
     const hasAny=hasDraft||pendingBids.length>0;
-    if(!hasAny){resumeEl.innerHTML='';return;}
+    if(!hasAny){
+      resumeEl.innerHTML='';
+    } else {
     const totalCount=pendingBids.length+(hasDraft?1:0);
     let rows='';
     // Draft row first
@@ -2227,6 +2229,7 @@ function renderDash(){
         '<div style="font-size:12px;font-weight:700;color:var(--text);margin-bottom:4px">📬 Pending estimates ('+totalCount+')</div>'+
         rows+
       '</div>';
+    }
   }
   renderGoal();
   checkGoalPrompt();

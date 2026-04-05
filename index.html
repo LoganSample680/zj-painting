@@ -8377,7 +8377,7 @@ function avPrev(){
 }
 function avNext(){availMonth++;if(availMonth>11){availMonth=0;availYear++;}refreshAvail();}
 function onStartChange(){const sv=v('s-start');if(sv){availYear=parseD(sv).getFullYear();availMonth=parseD(sv).getMonth();}refreshAvail();updateSchedPreview();}
-function refreshAvail(){
+async function refreshAvail(){
   const M=['January','February','March','April','May','June','July','August','September','October','November','December'];
   document.getElementById('avail-month-lbl').textContent=M[availMonth]+' '+availYear;
   const{booked,buf}=getBookedDays(),selected=v('s-start'),days=parseInt(v('s-days'))||1,b=parseInt(v('s-buf'))||0,today=todayKey();
@@ -8387,22 +8387,26 @@ function refreshAvail(){
   for(let i=0;i<dow;i++){const d=new Date(availYear,availMonth,1-dow+i);cells.push({key:dateKey(d),other:true});}
   for(let i=1;i<=last.getDate();i++)cells.push({key:dateKey(new Date(availYear,availMonth,i)),other:false});
   while(cells.length%7!==0){const l=cells[cells.length-1];cells.push({key:addDays(l.key,1),other:true});}
+  const weather=await fetchWeather();
   document.getElementById('avail-grid').innerHTML=cells.map(({key,other})=>{
     if(other)return'<div class="av-d av-other">'+parseInt(key.split('-')[2])+'</div>';
     const isPast=key<today,isTaken=booked.has(key),isBuf=buf.has(key),isSel=selected&&key>=selected&&key<=selEnd,isStart=key===selected;
     const dow=parseD(key).getDay();
     const isWeekend=dow===0||dow===6;
-    if(isPast)return'<div class="av-d av-past">'+parseInt(key.split('-')[2])+'</div>';
+    const wx=weather[key];
+    const wxHtml=wx?'<div style="font-size:11px;line-height:1">'+wx.icon+'</div><div style="font-size:8px;color:'+(wx.rain?'#A32D2D':'inherit')+';font-weight:600;line-height:1.2">'+wx.hi+'°</div>':'';
+    const dayNum=parseInt(key.split('-')[2]);
+    if(isPast)return'<div class="av-d av-past">'+dayNum+'</div>';
     if(schedType==='estimate'){
-      if(isSel)return'<div class="av-d av-sel" onclick="pickDay(\''+key+'\')">'+parseInt(key.split('-')[2])+(isStart?'<br><span style="font-size:10px">start</span>':'')+' </div>';
-      if(isWeekend)return'<div class="av-d av-open" onclick="pickDay(\''+key+'\')" style="background:var(--blue-lt);color:var(--blue-dk)">'+parseInt(key.split('-')[2])+'</div>';
-      return'<div class="av-d av-open" onclick="pickDay(\''+key+'\')">'+parseInt(key.split('-')[2])+'</div>';
+      if(isSel)return'<div class="av-d av-sel" onclick="pickDay(\''+key+'\')">'+dayNum+(isStart?'<br><span style="font-size:9px">start</span>':'')+wxHtml+'</div>';
+      if(isWeekend)return'<div class="av-d av-open" onclick="pickDay(\''+key+'\')" style="background:var(--blue-lt);color:var(--blue-dk)">'+dayNum+wxHtml+'</div>';
+      return'<div class="av-d av-open" onclick="pickDay(\''+key+'\')">'+dayNum+wxHtml+'</div>';
     }
-    if(isTaken)return'<div class="av-d av-taken">'+parseInt(key.split('-')[2])+'</div>';
-    if(isBuf)return'<div class="av-d av-buf">'+parseInt(key.split('-')[2])+'</div>';
-    if(isSel)return'<div class="av-d av-sel" onclick="pickDay(\''+key+'\')">'+parseInt(key.split('-')[2])+(isStart?'<br><span style="font-size:10px">start</span>':'')+' </div>';
-    if(isWeekend&&!document.getElementById('s-allow-weekend')?.checked)return'<div class="av-d av-past">'+parseInt(key.split('-')[2])+'</div>';
-    return'<div class="av-d av-open" onclick="pickDay(\''+key+'\')">'+parseInt(key.split('-')[2])+'</div>';
+    if(isTaken)return'<div class="av-d av-taken">'+dayNum+wxHtml+'</div>';
+    if(isBuf)return'<div class="av-d av-buf">'+dayNum+'</div>';
+    if(isSel)return'<div class="av-d av-sel" onclick="pickDay(\''+key+'\')">'+dayNum+(isStart?'<br><span style="font-size:9px">start</span>':'')+wxHtml+'</div>';
+    if(isWeekend&&!document.getElementById('s-allow-weekend')?.checked)return'<div class="av-d av-past">'+dayNum+'</div>';
+    return'<div class="av-d av-open" onclick="pickDay(\''+key+'\')">'+dayNum+wxHtml+'</div>';
   }).join('');
 }
 function pickDay(key){

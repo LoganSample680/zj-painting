@@ -6512,7 +6512,7 @@ function calcEst(){
   const adj=Math.round(base*(adjPct/100)*100)/100;
   const finalRaw=Math.max(0,Math.round((base+adj)*100)/100);
   // Round to nearest $100 for clean pricing (e.g. $617→$600, $650→$700)
-  const final=Math.round(finalRaw/100)*100||finalRaw;
+  const final=Math.round(finalRaw/25)*25||finalRaw;
   // Floor materials at 18% of total so it looks reasonable vs bid size
   const matFinal=Math.max(matTotal,Math.round(final*0.18*100)/100);
   return{lines,laborTotal:laborWithContingency,matTotal:matFinal,flatAdd,scopeFlats,colorAdd:0,travel:0,base,bid:final,adj,final,

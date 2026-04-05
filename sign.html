@@ -179,6 +179,14 @@ async function init(){
     if(error||!data)throw error;
     _prop=JSON.parse(await data.text());
     STRIPE_PK=_prop.stripePk||'';
+    // Hide card and ACH options if contractor hasn't set up Stripe
+    if(!STRIPE_PK){
+      const optCard=document.getElementById('opt-card');
+      const optAch=document.getElementById('opt-ach');
+      if(optCard)optCard.style.display='none';
+      if(optAch)optAch.style.display='none';
+      selPay('cash');
+    }
     if(_prop.status==='signed'||_prop.status==='paid'){
       document.getElementById('done-icon').textContent='✅';
       document.getElementById('done-title').textContent='Already signed';

@@ -263,6 +263,7 @@ select{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/
 .cal-cell.other{background:var(--bg2);opacity:.35;pointer-events:none}
 .cal-cell.today .cdn{background:var(--blue);color:#fff;border-radius:50%}
 .cal-cell.booked{background:#fafaf8}
+.cal-cell.cal-rain{background:#EFF6FF}
 .cdn{font-size:11px;font-weight:600;width:20px;height:20px;display:flex;align-items:center;justify-content:center;margin-bottom:2px;color:var(--text3)}
 .cjob{font-size:10px;font-weight:700;padding:2px 4px;border-radius:2px;margin-bottom:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.4;color:#fff}
 .av-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:3px;margin:.5rem 0}
@@ -1590,6 +1591,47 @@ let trackerTab='income',cdTab='overview',trackerYear=new Date().getFullYear();
 let selectedColor='#185FA5';
 let schedType='estimate';
 let availYear,availMonth,calYear,calMonth;
+let _weatherCache=null,_weatherCacheTime=0,_weatherLoading=false;
+// WMO weather code → {icon, label, rain}
+function _wmoIcon(code,precip){
+  if(precip>=60)return{icon:'🌧️',label:'Rain',rain:true};
+  if(precip>=30)return{icon:'🌦️',label:'Showers',rain:true};
+  if(code===0)return{icon:'☀️',label:'Sunny',rain:false};
+  if(code<=2)return{icon:'⛅',label:'Partly cloudy',rain:false};
+  if(code<=3)return{icon:'☁️',label:'Cloudy',rain:false};
+  if(code<=48)return{icon:'🌫️',label:'Fog',rain:false};
+  if(code<=67)return{icon:'🌧️',label:'Rain',rain:true};
+  if(code<=77)return{icon:'🌨️',label:'Snow',rain:false};
+  if(code<=82)return{icon:'🌧️',label:'Rain',rain:true};
+  if(code<=99)return{icon:'⛈️',label:'Storm',rain:true};
+  return{icon:'🌤️',label:'',rain:false};
+}
+async function fetchWeather(){
+  const now=Date.now();
+  if(_weatherCache&&now-_weatherCacheTime<1800000)return _weatherCache;
+  if(_weatherLoading)return _weatherCache;
+  _weatherLoading=true;
+  try{
+    const lat=S.weatherLat||37.6872,lon=S.weatherLon||-97.3301;
+    const url='https://api.open-meteo.com/v1/forecast?latitude='+lat+'&longitude='+lon+
+      '&daily=weathercode,temperature_2m_max,temperature_2m_min,precipitation_probability_max'+
+      '&temperature_unit=fahrenheit&timezone=America%2FChicago&forecast_days=14';
+    const res=await fetch(url);
+    const data=await res.json();
+    const map={};
+    (data.daily?.time||[]).forEach((date,i)=>{
+      const code=data.daily.weathercode[i]||0;
+      const precip=data.daily.precipitation_probability_max[i]||0;
+      const hi=Math.round(data.daily.temperature_2m_max[i]||0);
+      const lo=Math.round(data.daily.temperature_2m_min[i]||0);
+      const w=_wmoIcon(code,precip);
+      map[date]={...w,hi,lo,precip};
+    });
+    _weatherCache=map;_weatherCacheTime=now;
+    return map;
+  }catch(e){console.warn('Weather fetch failed:',e);return {};}
+  finally{_weatherLoading=false;}
+}
 const now=new Date();
 calYear=now.getFullYear();calMonth=now.getMonth();
 availYear=now.getFullYear();availMonth=now.getMonth();
@@ -7377,7 +7419,7 @@ function cm(d){calMonth+=d;if(calMonth>11){calMonth=0;calYear++;}if(calMonth<0){
 function renderCalendar(){renderCalMonthLabel();renderCalGrid();renderCalAvail();renderCalConflicts();renderCalWeek();renderCalUpcoming();}
 function renderCalMonthLabel(){const M=['January','February','March','April','May','June','July','August','September','October','November','December'];document.getElementById('cal-month-lbl').textContent=M[calMonth]+' '+calYear;}
 function getJobsOnDay(key){const res=[];jobs.forEach(job=>{const d=parseInt(job.days)||1,b=parseInt(job.buffer)||0;for(let i=0;i<d;i++){if(addDays(job.start,i)===key){res.push({job,isBuf:false});return;}}for(let i=d;i<d+b;i++){if(addDays(job.start,i)===key){res.push({job,isBuf:true});return;}}});return res;}
-function renderCalGrid(){
+async function renderCalGrid(){
   const{booked,buf}=getBookedDays();const DNAMES=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
   let html=DNAMES.map(d=>`<div class="cal-dh">${d}</div>`).join('');
   const first=new Date(calYear,calMonth,1),last=new Date(calYear,calMonth+1,0),dow=first.getDay(),tk=todayKey();
@@ -7385,15 +7427,23 @@ function renderCalGrid(){
   for(let i=0;i<dow;i++){const d=new Date(calYear,calMonth,1-dow+i);cells.push({d,other:true});}
   for(let i=1;i<=last.getDate();i++)cells.push({d:new Date(calYear,calMonth,i),other:false});
   while(cells.length%7!==0){const l=cells[cells.length-1].d,nd=new Date(l);nd.setDate(l.getDate()+1);cells.push({d:nd,other:true});}
+  // Fetch weather (cached — won't block render on repeat calls)
+  const weather=await fetchWeather();
   cells.forEach(({d,other})=>{
     const key=dateKey(d),isToday=key===tk,dj=getJobsOnDay(key);
+    const wx=!other?weather[key]:null;
     let cls='cal-cell';
     if(other)cls+=' other';
     else if(booked.has(key)||buf.has(key))cls+=' booked';
     if(isToday&&!other)cls+=' today';
-    const clickable=!other&&dj.length>0;
+    if(wx&&wx.rain&&!other)cls+=' cal-rain';
+    const clickable=!other;
     html+='<div class="'+cls+'"'+(clickable?' onclick="expandCalDay('+key+')" style="cursor:pointer"':'')+'>'+
-      '<div class="cdn">'+d.getDate()+'</div>'+
+      '<div style="display:flex;justify-content:space-between;align-items:center">'+
+        '<div class="cdn">'+d.getDate()+'</div>'+
+        (wx?'<div style="font-size:13px;line-height:1" title="'+wx.label+' · '+wx.hi+'°/'+wx.lo+'°F'+'">'+wx.icon+'</div>':'') +
+      '</div>'+
+      (wx?'<div style="font-size:9px;color:'+(wx.rain?'#1a5fa8':'var(--text3)')+';font-weight:600;margin-bottom:1px;line-height:1">'+wx.hi+'°/'+wx.lo+'°'+(wx.precip>20?' · '+wx.precip+'%':'')+'</div>':'')+
       dj.map(({job,isBuf})=>
         '<div class="cjob" style="background:'+(isBuf?lighten(job.color):job.color)+';'+(isBuf?'color:'+job.color+';':'')+'">'+(isBuf?'buf':(job.eventType==='estimate'?'📋 ':'')+job.name)+'</div>'
       ).join('')+

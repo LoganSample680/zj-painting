@@ -9030,21 +9030,16 @@ async function processReceiptPhoto(input){
     r.readAsDataURL(file);
   });
   try{
-    const resp=await fetch('https://api.anthropic.com/v1/messages',{
+    // Call via Supabase Edge Function so API key stays secure server-side
+    const session=_supa?await _supa.auth.getSession():null;
+    const token=session?.data?.session?.access_token;
+    const resp=await fetch('https://mwtsmctajhrrybblgorf.supabase.co/functions/v1/scan-receipt',{
       method:'POST',
-      headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({
-        model:'claude-sonnet-4-20250514',
-        max_tokens:500,
-        messages:[{role:'user',content:[
-          {type:'image',source:{type:'base64',media_type:file.type||'image/jpeg',data:b64}},
-          {type:'text',text:'This is a receipt. Extract: vendor/store name, total amount paid, date, and best category from: Paint & supplies, Tools & equipment, Vehicle (fuel), Vehicle (maintenance), Subcontractors, Insurance, Marketing, Phone/internet, Uniforms/PPE, Other. Return ONLY JSON: {"vendor":"","amount":0,"date":"YYYY-MM-DD","category":"","notes":"brief description"}'}
-        ]}]
-      })
+      headers:{'Content-Type':'application/json',...(token?{'Authorization':'Bearer '+token}:{})},
+      body:JSON.stringify({imageBase64:b64,mediaType:'image/jpeg'})
     });
-    const data=await resp.json();
-    const raw=data.content.find(c=>c.type==='text')?.text||'{}';
-    const parsed=JSON.parse(raw.replace(/```json|```/g,'').trim());
+    if(!resp.ok)throw new Error('Scan service error '+resp.status);
+    const parsed=await resp.json();
     if(parsed.vendor)document.getElementById('exp-vendor').value=parsed.vendor;
     if(parsed.amount)document.getElementById('exp-amount').value=parsed.amount;
     if(parsed.date)document.getElementById('exp-date').value=parsed.date;

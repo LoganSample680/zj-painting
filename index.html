@@ -2416,9 +2416,9 @@ const COLL_STAGES={
 };
 
 const COLL_SMS={
-  reminder: (name,bal,addr)=>`Hi, just following up on the balance of ${fmt(bal)} for the painting work at ${addr}. Please let me know when we can settle this. Thanks, ZJ's Painting`,
-  second:   (name,bal,addr)=>`${name}, this is a second notice regarding ${fmt(bal)} owed for work completed at ${addr}. Please respond within 5 business days to avoid further action.`,
-  intent:   (name,bal,addr)=>`${name}, this is formal notice of my intent to file a mechanic's lien on ${addr} for unpaid services totaling ${fmt(bal)}. You have 7 days to remit payment before filing proceeds.`,
+  reminder: (name,bal,addr,biz)=>`Hi ${name}, this is ${biz}. Just a friendly reminder that a balance of ${fmt(bal)} is outstanding for the painting work at ${addr}. Please let us know when you're ready to take care of this. Thank you!`,
+  second:   (name,bal,addr,biz)=>`Hi ${name}, this is a second notice from ${biz}. A balance of ${fmt(bal)} remains outstanding for work completed at ${addr}. Please respond within 5 business days to arrange payment and avoid further collection steps.`,
+  intent:   (name,bal,addr,biz)=>`${name}, this is formal written notice from ${biz} of our intent to file a Mechanic's Lien against the property at ${addr} for unpaid services totaling ${fmt(bal)}. Under Kansas law (K.S.A. 60-1105), you have 7 days to remit full payment before we proceed with filing. Please contact us immediately.`,
 };
 
 function getBidCollStage(bid){
@@ -2437,13 +2437,23 @@ function setBidCollStage(bid,stage,note){
 }
 
 function collSendSMS(bid,stageKey){
-  const c=getClientById(bid.client_id);if(!c||!c.phone)return zAlert('No phone on file for this client.',{title:'No phone'});
+  const c=getClientById(bid.client_id);
+  if(!c||!c.phone)return zAlert('No phone number on file for this client. Add one in their profile first.',{title:'No phone'});
   const fn=COLL_SMS[stageKey];if(!fn)return;
-  const msg=fn(c.name,getBidBalance(bid),bid.addr||c.addr||'the property');
+  const biz=S.bname||"ZJ's Painting";
+  const msg=fn(c.name,getBidBalance(bid),bid.addr||c.addr||'the property',biz);
   const phone=c.phone.replace(/\D/g,'');
-  window.location.href='sms:'+phone+'?body='+encodeURIComponent(msg);
-  setBidCollStage(bid,stageKey==='reminder'?'reminder':stageKey==='second'?'second':'intent','SMS sent via device');
-  renderCDBids();renderDashCollect();
+  // Open Messages with pre-filled text — use anchor click so it works on iOS Safari
+  const a=document.createElement('a');
+  a.href='sms:+1'+phone+'&body='+encodeURIComponent(msg);
+  a.style.display='none';
+  document.body.appendChild(a);
+  a.click();
+  setTimeout(()=>document.body.removeChild(a),500);
+  // Advance stage and re-render after short delay so SMS link fires first
+  const newStage=stageKey==='reminder'?'reminder':stageKey==='second'?'second':'intent';
+  setBidCollStage(bid,newStage,'SMS sent via device');
+  setTimeout(()=>{renderMoneyPage();try{renderCDBids();}catch(e){}try{renderDash();}catch(e){}},600);
 }
 
 // ── Risk system ───────────────────────────────────────────────────────────
@@ -2521,8 +2531,9 @@ saveLien=function(){
 };
 
 // ── Release lien → require when balance = 0, set risk to watch ───────────
-const _origReleaseLien=releaseLien;
-releaseLien=function(bidId){
+// _origReleaseLien removed — releaseLien is fully self-contained now
+// Legacy wrapper kept for compatibility
+const _origReleaseLien=function(bidId){
   const bid=bids.find(b=>b.id===bidId);
   zConfirm('Mark lien as released? This should only be done after payment is confirmed.',()=>{
     const l=liens.find(x=>x.bid_id===bidId);
@@ -4556,7 +4567,30 @@ function saveLien(){
   liens.push({id:Date.now(),bid_id:activeLienBidId,client_id:bid.client_id,client_name:bid.client_name,date:v('lien-date'),status:v('lien-status'),amount:parseFloat(v('lien-amount'))||0,county:v('lien-county'),notes:v('lien-notes')});
   saveAll();closeLienPanel();renderCDBids();
 }
-function releaseLien(bidId){zConfirm('Mark this lien as resolved and released?',()=>{const l=liens.find(x=>x.bid_id===bidId);if(l){l.status='resolved';saveAll();renderCDBids();}},{title:'Release lien',yes:'Mark resolved',danger:false});}
+function releaseLien(bidId){
+  const bid=bids.find(b=>b.id===bidId);
+  const c=bid?getClientById(bid.client_id):null;
+  zConfirm('Mark lien as released? This confirms payment has been received.',()=>{
+    const l=liens.find(x=>x.bid_id===bidId);
+    if(l){l.status='resolved';saveAll();}
+    if(bid){setBidCollStage(bid,'resolved','Lien released — payment confirmed');}
+    renderMoneyPage();try{renderCDBids();}catch(e){}
+    // Offer to send release confirmation text to client
+    if(c&&c.phone){
+      const biz=S.bname||"ZJ's Painting";
+      const msg=`Hi ${c.name}, this is ${biz}. We're writing to confirm that your balance has been received and the mechanic's lien on your property has been released. Thank you for resolving this — we appreciate your business.`;
+      const phone=c.phone.replace(/\D/g,'');
+      setTimeout(()=>{
+        zConfirm('Send release confirmation text to '+c.name+'?',()=>{
+          const a=document.createElement('a');
+          a.href='sms:+1'+phone+'&body='+encodeURIComponent(msg);
+          a.style.display='none';document.body.appendChild(a);a.click();
+          setTimeout(()=>document.body.removeChild(a),500);
+        },{title:'Notify client',yes:'Send text',danger:false});
+      },300);
+    }
+  },{title:'Release lien',yes:'Mark released',danger:false});
+}
 
 function getVehicles(){
   let vehs=S.vehicles||[];
@@ -9393,7 +9427,7 @@ function renderMoneyPage(){
           const phone=c.phone?c.phone.replace(/\D/g,''):'';
           let nextBtn='';
           if(nxt.smsKey){
-            nextBtn='<button class="btn btn-sm btn-r" onclick="collSendSMS(bids.find(x=>x.id=='+b.id+'),\''+nxt.smsKey+'\');renderMoneyPage()" style="flex:1;font-size:11px">'+nxt.label+'</button>';
+            nextBtn='<button class="btn btn-sm btn-r" onclick="collSendSMS(bids.find(x=>x.id=='+b.id+'),\''+nxt.smsKey+'\')" style="flex:1;font-size:11px">'+nxt.label+'</button>';
           } else if(stage==='intent'||stage==='lien_ready'){
             nextBtn='<button class="btn btn-sm btn-r" onclick="openLienPanelGuarded('+b.id+')" style="flex:1;font-size:11px">'+nxt.label+'</button>';
           } else if(stage==='lien_filed'){

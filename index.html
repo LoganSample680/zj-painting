@@ -8904,7 +8904,7 @@ function renderJobSummary(){
 function renderIncome(){
   const el=document.getElementById('inc-table');
   const yr=String(trackerYear||new Date().getFullYear());
-  const filtered=[...income].filter(r=>r.date&&r.date.startsWith(yr)).sort((a,b)=>(b.date||'').localeCompare(a.date||''));
+  const filtered=[...income].filter(r=>r.date&&r.date.startsWith(yr)).sort((a,b)=>(a.date||'').localeCompare(b.date||''));
   const total=filtered.reduce((s,r)=>s+r.amount,0);
   if(!income.length){el.innerHTML='<div class="empty">No income logged yet.<br><br>Income is recorded automatically when you log a payment on a client bid.</div>';return;}
   if(!filtered.length){el.innerHTML='<div class="empty">No income in '+yr+'.</div>';return;}
@@ -9059,7 +9059,7 @@ function renderExpenses(){
   // Expense rows
   html+='<div style="overflow-x:auto"><table class="tbl"><thead><tr>'+
     ['Date','Category','Vendor','Amount','Receipt'].map(h=>'<th>'+h+'</th>').join('')+'<th></th></tr></thead><tbody>'+
-    [...filtered].sort((a,b)=>(b.date||'').localeCompare(a.date||'')).map(r=>{
+    [...filtered].sort((a,b)=>(a.date||'').localeCompare(b.date||'')).map(r=>{
       const info=IRS_EXPENSE_CATS.find(c=>c.id===r.cat);
       const hasImg=!!(r.receipt_key);
       const recLabel=hasImg?'<span style="color:var(--green-mid);font-weight:700;font-size:10px">📎 Yes</span>':'<span style="color:#A32D2D;font-weight:700;font-size:10px">Missing</span>';

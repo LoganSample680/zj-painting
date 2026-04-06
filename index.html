@@ -1035,7 +1035,7 @@ input:checked+.dm-slider:before{transform:translateX(22px)}</style>
     </div>
     <div class="card" id="paint-picker-card"><div class="card-hd">Who's supplying the paint?</div>
       <input type="hidden" id="e-customer-paint-hidden">
-      <select id="paint-supply-sel" onchange="onPaintSupplyChange(this.value)" style="font-size:15px;font-weight:600;padding:12px;border-radius:var(--r);border:1px solid var(--border2);background:var(--bg2);color:var(--text);width:100%;margin-bottom:8px">
+      <select id="paint-supply-sel" onchange="onPaintSupplyChange(this.value)" onload="onPaintSupplyChange(this.value)" style="font-size:15px;font-weight:600;padding:12px;border-radius:var(--r);border:1px solid var(--border2);background:var(--bg2);color:var(--text);width:100%;margin-bottom:8px">
         <option value="interior">I'm supplying paint</option>
         <option value="customer">Customer supplies paint</option>
       </select>
@@ -2077,7 +2077,7 @@ function _doOpenEstimate(c){
     ['est-adj-reason','inc-notes'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
     scopeActiveMap={};scopeHrsStore={};roomScopeMap={};
   SCOPE_ITEMS.forEach(s=>{const cb=document.getElementById('est-sc-'+s.id),tog=document.getElementById('est-st-'+s.id);if(cb){cb.checked=false;if(tog)tog.classList.remove('on');}});
-    const epEl=document.getElementById('e-paint');if(epEl)epEl.value='';
+    const epEl=document.getElementById('e-paint');if(epEl)epEl.value='interior';const pSel=document.getElementById('paint-supply-sel');if(pSel)pSel.value='interior';
     document.querySelectorAll('#paint-picker .surf-type-btn').forEach(b=>b.classList.remove('active-surf-btn'));
     const edEl=document.getElementById('e-days');
     if(edEl){edEl.value='';edEl.style.borderColor='#A32D2D';edEl.style.background='var(--red-lt)';}
@@ -7456,7 +7456,11 @@ function checkStep1Ready(){
   const nm=(document.getElementById('e-cname')?.value||'').trim();
   const ph=(document.getElementById('e-cphone')?.value||'').trim();
   const addr=(document.getElementById('e-caddr')?.value||'').trim();
-  const paint=document.getElementById('e-paint')?.value||'';
+  // If paint hidden field is empty but select shows a value, sync it
+  const sel=document.getElementById('paint-supply-sel');
+  const paintEl=document.getElementById('e-paint');
+  if(paintEl&&sel&&!paintEl.value)paintEl.value=sel.value||'interior';
+  const paint=paintEl?.value||'';
   const days=parseInt(document.getElementById('e-days')?.value)||0;
   const ready=!!(nm&&ph&&addr&&paint&&days>=1);
   const btn=document.getElementById('est-s1-next');
@@ -10448,6 +10452,7 @@ async function obSubmit(){
   const prog=document.getElementById('ob-progress');
   if(err)err.textContent='';
   function setProgress(msg){if(prog){prog.style.display='';prog.textContent=msg;}}
+  window._obInProgress=true;
   try{
     setProgress('Creating your account...');
     const{data:authData,error:authErr}=await _supa.auth.signUp({email:_ob.email,password:_ob.password});
@@ -10498,8 +10503,10 @@ async function obSubmit(){
     setProgress('All done! Loading TradeDesk...');
     await new Promise(r=>setTimeout(r,600));
     document.getElementById('onboarding-overlay')?.remove();
-    saveAll();applyPermissions();renderDash();buildScopeGrid();
+    window._obInProgress=false;
+    saveAll();applyPermissions();renderDash();buildScopeGrid();goPg('pg-dash');
   }catch(e){
+    window._obInProgress=false;
     console.error('Onboarding failed:',e);
     if(err)err.textContent=e.message||'Something went wrong. Try again.';
     if(prog)prog.style.display='none';
@@ -10618,16 +10625,20 @@ async function supaInit(){
     }
     _supa.auth.onAuthStateChange(async(event,session)=>{
       if(event==='SIGNED_IN'){
+        // Suppress during onboarding — obSubmit handles its own flow
+        if(window._obInProgress){return;}
         _supaUser=session.user;
         document.getElementById('supa-login-overlay')?.remove();
+        document.getElementById('welcome-overlay')?.remove();
         const hasAccount=await loadAccountData();
         if(hasAccount){
           await supaLoadFromCloud();
+          goPg('pg-dash');
         } else {
-          // Pre-schema user — just load the app
           document.getElementById('supa-boot-overlay')?.remove();
           renderDash();buildScopeGrid();
           supaSetStatus('cloud');
+          goPg('pg-dash');
         }
       } else if(event==='SIGNED_OUT'){
         _supaUser=null;_user=null;_account=null;_config=null;
@@ -10777,6 +10788,7 @@ async function supaLoadFromCloud(){
     // Dismiss loading screen and render with cloud data
     document.getElementById('supa-boot-overlay')?.remove();
     renderDash();buildScopeGrid();
+    goPg('pg-dash');
     renderClientList&&renderClientList();
     renderJobsPage&&renderJobsPage();
     renderMoneyPage&&renderMoneyPage();

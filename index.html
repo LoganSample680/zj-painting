@@ -9042,7 +9042,7 @@ function openExportPanel(){
       exportOptionHTML('exportTaxPDF()','📄','Full tax report — PDF','Schedule C summary, income, expenses by IRS category, mileage log. Print or save — IRS audit ready.')+
       exportOptionHTML('exportMileageCSV()','🚗','Mileage log CSV','Every trip — date, client, miles, IRS deduction. Meets IRS contemporaneous recordkeeping.')+
       exportOptionHTML('exportFullBackup()','💾','Full data backup','All clients, jobs, bids, income, expenses, mileage. JSON — restore or migrate anytime.')+
-      exportOptionHTML('exportReceiptImages()','🖼️','Receipt photos','Download all stored receipt images as a ZIP — IRS audit ready. Requires cloud sync sign-in.')+
+      exportOptionHTML('exportReceiptImages()','📄','Receipt PDF','All receipt photos in one PDF — sorted by date with vendor, amount and category. Print or send to your CPA.')+ 
     '</div>';
   document.body.appendChild(ov);
   ov.addEventListener('click',e=>{if(e.target===ov)ov.remove();});
@@ -9257,33 +9257,69 @@ function exportFullBackup(){
 
 function exportTaxReport(){openExportPanel();}
 
-async function exportReceiptImages(){
-  if(!_supa||!_supaUser){zAlert('Sign in to export receipt photos.',{title:'Sign in required'});return;}
+function exportReceiptImages(){
   const yr=document.getElementById('exp-panel-year')?.value||new Date().getFullYear();
-  const filtered=expenses.filter(e=>e.receipt_img&&(yr==='all'||String(new Date(e.date).getFullYear())===String(yr)));
+  const filtered=expenses.filter(e=>e.receipt_img&&(yr==='all'||String(new Date(e.date).getFullYear())===String(yr)))
+    .sort((a,b)=>(a.date||'').localeCompare(b.date||''));
   if(!filtered.length){zAlert('No stored receipt photos for '+yr+'.',{title:'No receipts'});return;}
-  const overlay=document.createElement('div');overlay.className='zmodal-overlay';
-  const box=document.createElement('div');box.className='zmodal';
-  box.innerHTML='<div style="font-size:17px;font-weight:800;margin-bottom:8px">📥 Downloading '+filtered.length+' receipts...</div>'+
-    '<div id="rcpt-dl-prog" style="font-size:13px;color:var(--text3)">Getting signed URLs...</div>';
-  overlay.appendChild(box);document.body.appendChild(overlay);
-  let done=0;
-  for(const e of filtered){
-    try{
-      const data={signedUrl:e.receipt_img}; const error=null;
-      if(error||!data?.signedUrl){done++;continue;}
-      const a=document.createElement('a');
-      a.href=data.signedUrl;
-      const fname=(e.date||'nodate')+'_'+(e.vendor||'vendor').replace(/[^a-z0-9]/gi,'_')+'_$'+(e.amount||0)+'.jpg';
-      a.download=fname;a.target='_blank';
-      document.body.appendChild(a);a.click();document.body.removeChild(a);
-      done++;
-      document.getElementById('rcpt-dl-prog').textContent=done+' of '+filtered.length+' downloaded...';
-      await new Promise(r=>setTimeout(r,400)); // stagger downloads
-    }catch(err){done++;console.warn('Receipt download failed:',err);}
-  }
-  document.getElementById('rcpt-dl-prog').textContent='Done — '+done+' receipts downloaded.';
-  setTimeout(()=>overlay.remove(),2000);
+  const bname=S.bname||"ZJ's Painting & Special Coatings";
+  const pages=filtered.map((e,i)=>{
+    const cat=e.catLabel||e.cat||'';
+    const d=e.date?new Date(e.date+'T12:00:00').toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric'}):e.date||'';
+    return `<div class="page">
+      <div class="page-hdr">
+        <div class="pg-num">Receipt ${i+1} of ${filtered.length}</div>
+        <div class="pg-meta">
+          <span class="field">${d}</span>
+          <span class="field vendor">${e.vendor||'—'}</span>
+          <span class="field amount">$${Number(e.amount||0).toFixed(2)}</span>
+          <span class="field cat">${cat}</span>
+          ${e.job_name?`<span class="field job">Job: ${e.job_name}</span>`:''}
+          ${e.notes?`<span class="field notes">${e.notes}</span>`:''}
+        </div>
+      </div>
+      <div class="img-wrap"><img src="${e.receipt_img}" alt="Receipt ${i+1}"></div>
+    </div>`;
+  }).join('');
+  const win=window.open('','_blank');
+  if(!win){zAlert('Allow pop-ups to export the PDF.',{title:'Pop-up blocked'});return;}
+  win.document.write(`<!DOCTYPE html><html><head>
+<meta charset="utf-8">
+<title>${bname} — Receipts ${yr}</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#fff;color:#1a1a1a}
+.no-print{background:#185FA5;color:#fff;padding:12px 20px;display:flex;justify-content:space-between;align-items:center}
+.no-print button{background:#fff;color:#185FA5;border:none;padding:8px 18px;border-radius:6px;font-weight:700;font-size:14px;cursor:pointer}
+.page{page-break-after:always;padding:24px;max-width:800px;margin:0 auto;border-bottom:2px solid #eee}
+.page:last-child{page-break-after:auto;border-bottom:none}
+.page-hdr{margin-bottom:16px;padding-bottom:12px;border-bottom:1px solid #ddd}
+.pg-num{font-size:11px;color:#888;margin-bottom:8px;text-transform:uppercase;letter-spacing:.05em}
+.pg-meta{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.field{font-size:13px;padding:4px 10px;border-radius:4px;background:#f5f5f3}
+.vendor{font-weight:700;font-size:15px;background:#EBF2FB;color:#185FA5}
+.amount{font-weight:800;font-size:16px;background:#F0FBF0;color:#3B8C2A}
+.cat{background:#FEF3C7;color:#92400E}
+.job{background:#F0F0FF;color:#555}
+.notes{background:#f5f5f3;color:#666;font-style:italic}
+.img-wrap{text-align:center}
+.img-wrap img{max-width:100%;max-height:75vh;border:1px solid #ddd;border-radius:8px}
+@media print{
+  .no-print{display:none!important}
+  @page{margin:0.4in;size:letter portrait}
+  .page{border-bottom:none;padding:16px 0}
+  .img-wrap img{max-height:70vh}
+}
+</style>
+</head><body>
+<div class="no-print">
+  <span><strong>${bname}</strong> — ${filtered.length} receipt${filtered.length>1?'s':''} · ${yr}</span>
+  <button onclick="window.print()">⬇ Save as PDF</button>
+</div>
+${pages}
+<script>setTimeout(()=>window.print(),600)<\/script>
+</body></html>`);
+  win.document.close();
 }
 function showTaxReportModal(){openExportPanel();}
 

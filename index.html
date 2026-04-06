@@ -1243,7 +1243,7 @@ input:checked+.dm-slider:before{transform:translateX(22px)}</style>
   </div>
 </div>
 <div class="pg" id="pg-tracker">
-  <div class="tbar"><div class="tbar-title">Business tracker</div><div style="display:flex;align-items:center;gap:5px"><span style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.04em">Year</span><select id="tracker-year-sel" onchange="setTrackerYear(parseInt(this.value))" style="font-size:13px;font-weight:700;padding:6px 10px;border-radius:var(--r);border:1px solid var(--border2);background:var(--bg2);color:var(--text)"></select></div></div>
+  <div class="tbar"><div class="tbar-title">Business tracker</div><div style="display:flex;align-items:center;gap:8px"><button class="btn btn-sm" onclick="openExportPanel()">⬇ Export</button><span style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.04em">Year</span><select id="tracker-year-sel" onchange="setTrackerYear(parseInt(this.value))" style="font-size:13px;font-weight:700;padding:6px 10px;border-radius:var(--r);border:1px solid var(--border2);background:var(--bg2);color:var(--text)"></select></div></div>
   <div class="fbar">
     <button class="fb active" id="tr-t-income" onclick="setTrTab('income',this)">Income</button>
     <button class="fb" id="tr-t-expenses" onclick="setTrTab('expenses',this)">Expenses</button>
@@ -1311,7 +1311,7 @@ input:checked+.dm-slider:before{transform:translateX(22px)}</style>
   </div>
 </div>
 <div class="pg" id="pg-taxes">
-  <div class="tbar"><div class="tbar-title">Taxes</div><button class="btn btn-sm btn-p" onclick="exportTaxReport()">Export report</button></div>
+  <div class="tbar"><div class="tbar-title">Taxes</div><button class="btn btn-sm btn-p" onclick="openExportPanel()">⬇ Export</button></div>
   <div style="background:#FEF3C7;border:1px solid #D97706;border-radius:var(--r);padding:10px 12px;margin-bottom:12px;font-size:11px;color:#92400E;line-height:1.6"><strong>⚠️ Not a licensed tax tool.</strong> These numbers are estimates only — not a substitute for a CPA. Do not file taxes based solely on these figures. Consult a qualified tax professional, especially for self-employment tax and quarterly payments.</div>
   <div class="fbs" style="margin-bottom:14px">
     <button class="fb active" id="tx-tab-current" onclick="setTaxTab('current',this)">Current year</button>
@@ -8645,96 +8645,181 @@ function renderMonthlyPL(){
   el.innerHTML=html;
 }
 
-function exportTaxReport(){
-  const yr=S.taxYear||new Date().getFullYear();
-  const yrIncome=income.filter(r=>r.date&&r.date.startsWith(yr));
-  const yrExp=expenses.filter(r=>r.date&&r.date.startsWith(yr));
-  const yrMiles=mileage.filter(r=>r.date&&r.date.startsWith(yr));
+// ── Export system ────────────────────────────────────────────────────
+function openExportPanel(){
+  const yr=trackerYear||S.taxYear||new Date().getFullYear();
+  const years=[...new Set([
+    ...expenses.map(e=>e.date?.slice(0,4)),
+    ...income.map(i=>i.date?.slice(0,4)),
+    ...mileage.map(m=>m.date?.slice(0,4))
+  ].filter(Boolean))].sort();
+  if(!years.includes(String(yr)))years.push(String(yr));
+  years.sort();
+  const ov=document.createElement('div');
+  ov.id='export-panel';
+  ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:9995;display:flex;align-items:flex-end;justify-content:center;animation:fadein .15s';
+  ov.innerHTML=
+    '<div style="background:var(--bg);border-radius:20px 20px 0 0;width:100%;max-width:600px;padding:24px 20px 40px;max-height:90vh;overflow-y:auto">'+
+      '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">'+
+        '<div style="font-size:18px;font-weight:800">Export records</div>'+
+        '<button onclick="document.getElementById('export-panel').remove()" style="border:none;background:none;font-size:24px;cursor:pointer;color:var(--text3)">×</button>'+
+      '</div>'+
+      '<div style="font-size:13px;color:var(--text3);margin-bottom:20px">Choose a year and format. All amounts in USD.</div>'+
+      '<div style="margin-bottom:20px">'+
+        '<label style="display:block;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--text3);margin-bottom:6px">Tax year</label>'+
+        '<select id="exp-panel-year" style="width:100%;font-size:15px;font-weight:700;padding:10px 14px;border-radius:var(--r);border:1.5px solid var(--border2);background:var(--bg);color:var(--text)">'+
+          years.map(y=>'<option value="'+y+'"'+(String(y)===String(yr)?' selected':'')+'>'+y+'</option>').join('')+
+          '<option value="all">All years</option>'+
+        '</select>'+
+      '</div>'+
+      '<div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--text3);margin-bottom:10px">Choose format</div>'+
+      exportOptionHTML('exportExpensesCSV()','📊','Expenses CSV','Every expense line — date, vendor, IRS category, amount, job, receipt status. Open in Excel or send to your accountant.')+
+      exportOptionHTML('exportTaxPDF()','📄','Full tax report — PDF','Schedule C summary, income, expenses by IRS category, mileage log. Print or save — IRS audit ready.')+
+      exportOptionHTML('exportMileageCSV()','🚗','Mileage log CSV','Every trip — date, client, miles, IRS deduction. Meets IRS contemporaneous recordkeeping.')+
+      exportOptionHTML('exportFullBackup()','💾','Full data backup','All clients, jobs, bids, income, expenses, mileage. JSON — restore or migrate anytime.')+
+    '</div>';
+  document.body.appendChild(ov);
+  ov.addEventListener('click',e=>{if(e.target===ov)ov.remove();});
+}
+
+function exportOptionHTML(onclick,icon,title,desc){
+  return '<div style="border:1.5px solid var(--border2);border-radius:var(--rl);padding:16px;margin-bottom:10px;cursor:pointer;transition:border-color .15s" onclick="'+onclick+'" onmouseover="this.style.borderColor='var(--blue)'" onmouseout="this.style.borderColor='var(--border2)'">'+
+    '<div style="display:flex;align-items:center;gap:12px">'+
+      '<div style="font-size:28px;flex-shrink:0">'+icon+'</div>'+
+      '<div style="flex:1">'+
+        '<div style="font-size:14px;font-weight:700">'+title+'</div>'+
+        '<div style="font-size:12px;color:var(--text3);margin-top:2px">'+desc+'</div>'+
+      '</div>'+
+      '<div style="font-size:11px;font-weight:700;color:var(--blue);flex-shrink:0">↓</div>'+
+    '</div>'+
+  '</div>';
+}
+
+function getExportYear(){return document.getElementById('exp-panel-year')?.value||String(trackerYear||new Date().getFullYear());}
+
+function downloadFile(filename,content,type){
+  const blob=new Blob([content],{type});
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(blob);
+  a.download=filename;
+  document.body.appendChild(a);a.click();
+  setTimeout(()=>{URL.revokeObjectURL(a.href);document.body.removeChild(a);},1000);
+}
+
+function exportExpensesCSV(){
+  const yr=getExportYear();
+  const biz=S.bname||"ZJ's Painting";
+  const filtered=(yr==='all'?expenses:expenses.filter(e=>e.date?.startsWith(yr)))
+    .sort((a,b)=>(a.date||'').localeCompare(b.date||''));
+  const header=['Date','Vendor','IRS Category','Schedule C Line','Amount','Deductible','Job','Receipt'];
+  const rows=filtered.map(e=>{
+    const cat=IRS_EXPENSE_CATS.find(c=>c.id===e.cat)||{label:e.cat||'Other',line:''};
+    return [e.date||'','"'+(e.vendor||'').replace(/"/g,'""')+'"','"'+cat.label+'"','"'+(cat.line||'')+'"',
+      (e.amount||0).toFixed(2),e.deductible===false?'No':'Yes',
+      '"'+(e.job_name||'').replace(/"/g,'""')+'"',e.receipt_key?'Yes':'No'].join(',');
+  });
+  const total=filtered.reduce((s,e)=>s+e.amount,0);
+  const csv=['"'+biz+' — Expenses — '+(yr==='all'?'All Years':yr)+'"','',header.join(','),...rows,'','TOTAL,,,,"'+total.toFixed(2)+'",,,'  ].join('\n');
+  downloadFile((biz+' Expenses '+(yr==='all'?'All Years':yr)+'.csv').replace(/\s+/g,'_'),csv,'text/csv');
+  showToast('Expenses CSV — '+filtered.length+' records downloaded','📊');
+}
+
+function exportMileageCSV(){
+  const yr=getExportYear();
+  const biz=S.bname||"ZJ's Painting";
+  const rate=IRS();
+  const filtered=(yr==='all'?mileage:mileage.filter(m=>m.date?.startsWith(yr)))
+    .sort((a,b)=>(a.date||'').localeCompare(b.date||''));
+  const header=['Date','Vehicle','From','To','Miles','IRS Deduction','Purpose','Client'];
+  const rows=filtered.map(m=>[m.date||'','"'+(m.vehicle||'')+'"','"'+(m.from||'')+'"','"'+(m.to||'')+'"',
+    (m.miles||0).toFixed(1),((m.miles||0)*rate).toFixed(2),'"'+(m.purpose||'')+'"','"'+(m.client_name||'')+'"'].join(','));
+  const tot=filtered.reduce((s,m)=>s+(m.miles||0),0);
+  const csv=['"'+biz+' — Mileage — '+(yr==='all'?'All Years':yr)+'"','"IRS Rate $'+rate.toFixed(3)+'/mi"','',header.join(','),...rows,'','TOTAL,,,,"'+tot.toFixed(1)+'","'+(tot*rate).toFixed(2)+'",,'].join('\n');
+  downloadFile((biz+' Mileage '+(yr==='all'?'All Years':yr)+'.csv').replace(/\s+/g,'_'),csv,'text/csv');
+  showToast('Mileage log — '+filtered.length+' trips downloaded','🚗');
+}
+
+function exportTaxPDF(){
+  const yr=getExportYear()==='all'?String(new Date().getFullYear()):getExportYear();
+  const biz=S.bname||"ZJ's Painting & Special Coatings";
+  const yrIncome=income.filter(r=>r.date?.startsWith(yr)).sort((a,b)=>a.date.localeCompare(b.date));
+  const yrExp=expenses.filter(r=>r.date?.startsWith(yr)).sort((a,b)=>(a.date||'').localeCompare(b.date||''));
+  const yrMiles=mileage.filter(r=>r.date?.startsWith(yr)).sort((a,b)=>(a.date||'').localeCompare(b.date||''));
   const tInc=yrIncome.reduce((s,r)=>s+r.amount,0);
   const tExp=yrExp.reduce((s,r)=>s+r.amount,0);
   const tMiles=yrMiles.reduce((s,r)=>s+(r.miles||0),0);
   const mileDed=tMiles*IRS();
   const net=tInc-tExp-mileDed;
-
+  const seTax=Math.max(0,net*0.9235*0.153);
   const byCat={};
-  yrExp.forEach(r=>{byCat[r.cat]=(byCat[r.cat]||0)+r.amount;});
-
-  const lines=[
-    'TAX FILING REPORT — '+yr,
-    'Generated: '+new Date().toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric'}),
-    'Business: '+(S.bname||"ZJ's Painting & Special Coatings"),
-    '',
-    '═══════════════════════════════',
-    'INCOME SUMMARY',
-    '═══════════════════════════════',
-    'Gross revenue:          '+fmt(tInc),
-    '',
-    '═══════════════════════════════',
-    'BUSINESS EXPENSES',
-    '═══════════════════════════════',
-    ...Object.entries(byCat).sort((a,b)=>b[1]-a[1]).map(([k,v])=>k.padEnd(28)+fmt(v)),
-    '─────────────────────────────',
-    'Total expenses:         '+fmt(tExp),
-    '',
-    '═══════════════════════════════',
-    'MILEAGE DEDUCTION (Schedule C)',
-    '═══════════════════════════════',
-    'Total miles driven:     '+tMiles.toFixed(1)+' mi',
-    'IRS rate:               $'+IRS().toFixed(3)+'/mile',
-    'Mileage deduction:      '+fmt(mileDed),
-    '',
-    '═══════════════════════════════',
-    'NET PROFIT (Schedule C)',
-    '═══════════════════════════════',
-    'Gross revenue:          '+fmt(tInc),
-    'Less expenses:         ('+fmt(tExp)+')',
-    'Less mileage:          ('+fmt(mileDed)+')',
-    '─────────────────────────────',
-    'Net profit:             '+fmt(net),
-    '',
-    'SE tax (15.3%):         '+fmt(Math.max(0,net*0.9235*0.153)),
-    'Recommended reserve:    '+fmt(Math.max(0,net*0.30)),
-    '',
-    '═══════════════════════════════',
-    'INCOME DETAIL ('+yrIncome.length+' transactions)',
-    '═══════════════════════════════',
-    ...yrIncome.map(r=>r.date+'  '+(r.client_name||'').padEnd(20)+fmt(r.amount)),
-    '',
-    '═══════════════════════════════',
-    'EXPENSE DETAIL ('+yrExp.length+' transactions)',
-    '═══════════════════════════════',
-    ...yrExp.map(r=>r.date+'  '+r.cat.padEnd(20)+'  '+r.vendor.padEnd(20)+fmt(r.amount)),
-    '',
-    '═══════════════════════════════',
-    'MILEAGE LOG ('+yrMiles.length+' trips)',
-    '═══════════════════════════════',
-    ...yrMiles.map(r=>r.date+'  '+(r.client_name||'').padEnd(20)+(r.miles||0).toFixed(1)+' mi'),
-  ];
-
-  const text=lines.join('\n');
-  if(navigator.clipboard){
-    navigator.clipboard.writeText(text).then(()=>{
-      zAlert('Tax report copied to clipboard!\n\nPaste it into an email to your accountant, or into Notes/Pages to save it.\n\n'+yr+' Summary:\nGross: '+fmt(tInc)+'\nExpenses: '+fmt(tExp+mileDed)+'\nNet profit: '+fmt(net));
-    }).catch(()=>showTaxReportModal(text));
-  } else {
-    showTaxReportModal(text);
-  }
+  yrExp.forEach(e=>{
+    const cat=IRS_EXPENSE_CATS.find(c=>c.id===e.cat)||{label:e.cat||'Other',icon:'📦',line:'Part II Line 27'};
+    if(!byCat[cat.label])byCat[cat.label]={label:cat.label,icon:cat.icon||'',line:cat.line||'',total:0};
+    byCat[cat.label].total+=e.amount;
+  });
+  const html=`<!DOCTYPE html><html><head><meta charset="utf-8"><title>${biz} Tax Report ${yr}</title>
+<style>*{box-sizing:border-box;margin:0;padding:0}body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;color:#1a1a18;font-size:11px;line-height:1.5}
+@media print{@page{margin:.6in;size:letter}body{padding:0}}
+.hdr{background:#0D1117;color:#fff;padding:20px 28px}.hdr-t{font-size:20px;font-weight:800}.hdr-s{font-size:12px;opacity:.6;margin-top:3px}
+.body{padding:20px 28px}.sec{margin-bottom:20px}.sec-t{font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.08em;color:#9a9890;border-bottom:2px solid #e0dfd8;padding-bottom:5px;margin-bottom:10px}
+.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:16px}.box{border:1px solid #e0dfd8;border-radius:8px;padding:10px 12px}
+.box-l{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#9a9890;margin-bottom:3px}.box-v{font-size:17px;font-weight:800}
+.green{color:#27500A}.red{color:#791F1F}.blue{color:#185FA5}
+table{width:100%;border-collapse:collapse;font-size:10px}th{text-align:left;padding:4px 7px;background:#f7f7f5;border-bottom:2px solid #e0dfd8;font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:#9a9890}
+td{padding:5px 7px;border-bottom:1px solid #f0efec}.tr td{font-weight:800;border-top:2px solid #e0dfd8;background:#f7f7f5}
+.note{font-size:9px;color:#9a9890;border-top:1px solid #e0dfd8;padding-top:10px;margin-top:16px;line-height:1.6}
+.pill{display:inline-block;padding:1px 6px;border-radius:20px;font-size:8px;font-weight:700;background:#e0dfd8;color:#5f5e5a}
+</style></head><body>
+<div class="hdr"><div class="hdr-t">${biz}</div><div class="hdr-s">Schedule C Tax Report — ${yr} &nbsp;·&nbsp; Generated ${new Date().toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric'})}</div></div>
+<div class="body">
+<div class="sec"><div class="sec-t">Summary</div>
+<div class="grid">
+<div class="box"><div class="box-l">Gross Revenue</div><div class="box-v green">${fmt(tInc)}</div></div>
+<div class="box"><div class="box-l">Total Deductions</div><div class="box-v red">(${fmt(tExp+mileDed)})</div></div>
+<div class="box"><div class="box-l">Net Profit</div><div class="box-v ${net>=0?'blue':'red'}">${net<0?'('+fmt(Math.abs(net))+')':fmt(net)}</div></div>
+<div class="box"><div class="box-l">SE Tax Est.</div><div class="box-v">${fmt(seTax)}</div></div>
+<div class="box"><div class="box-l">Miles Driven</div><div class="box-v">${tMiles.toFixed(1)} mi</div></div>
+<div class="box"><div class="box-l">Mileage Deduction</div><div class="box-v red">(${fmt(mileDed)})</div></div>
+</div></div>
+<div class="sec"><div class="sec-t">Income — ${yrIncome.length} transactions</div>
+<table><thead><tr><th>Date</th><th>Client</th><th>Type</th><th>Method</th><th style="text-align:right">Amount</th></tr></thead><tbody>
+${yrIncome.map(r=>`<tr><td>${r.date||''}</td><td>${r.client_name||''}</td><td>${r.type||''}</td><td>${r.method||''}</td><td style="text-align:right;font-weight:700">${fmt(r.amount)}</td></tr>`).join('')}
+<tr class="tr"><td colspan="4">Total Income</td><td style="text-align:right">${fmt(tInc)}</td></tr></tbody></table></div>
+<div class="sec"><div class="sec-t">Expenses by IRS Category</div>
+<table><thead><tr><th>Category</th><th>Schedule C</th><th style="text-align:right">Total</th></tr></thead><tbody>
+${Object.values(byCat).sort((a,b)=>b.total-a.total).map(c=>`<tr><td>${c.icon} ${c.label}</td><td style="color:#9a9890">${c.line}</td><td style="text-align:right;font-weight:700;color:#791F1F">(${fmt(c.total)})</td></tr>`).join('')}
+<tr class="tr"><td colspan="2">Total Expenses</td><td style="text-align:right">(${fmt(tExp)})</td></tr></tbody></table></div>
+<div class="sec"><div class="sec-t">Expense Detail — ${yrExp.length} entries (01/01/${yr} — 12/31/${yr})</div>
+<table><thead><tr><th>Date</th><th>Vendor</th><th>Category</th><th>Job</th><th>Receipt</th><th style="text-align:right">Amount</th></tr></thead><tbody>
+${yrExp.map(e=>{const cat=IRS_EXPENSE_CATS.find(c=>c.id===e.cat)||{icon:'📦',label:e.cat||'Other'};return`<tr><td>${e.date||''}</td><td style="font-weight:600">${e.vendor||'—'}</td><td>${cat.icon} ${cat.label}</td><td style="color:#9a9890">${e.job_name||'—'}</td><td>${e.receipt_key?'<span class="pill">📎 Yes</span>':'<span class="pill" style="background:#FCEBEB;color:#791F1F">No</span>'}</td><td style="text-align:right;font-weight:700">(${fmt(e.amount)})</td></tr>`;}).join('')}
+<tr class="tr"><td colspan="5">Total</td><td style="text-align:right">(${fmt(tExp)})</td></tr></tbody></table></div>
+<div class="sec"><div class="sec-t">Mileage Log — ${yrMiles.length} trips · $${IRS().toFixed(3)}/mi</div>
+<table><thead><tr><th>Date</th><th>Vehicle</th><th>Route</th><th>Purpose / Client</th><th style="text-align:right">Miles</th><th style="text-align:right">Deduction</th></tr></thead><tbody>
+${yrMiles.map(m=>`<tr><td>${m.date||''}</td><td>${m.vehicle||''}</td><td>${m.from||''}${m.to?' → '+m.to:''}</td><td>${m.purpose||''}${m.client_name?' · '+m.client_name:''}</td><td style="text-align:right">${(m.miles||0).toFixed(1)}</td><td style="text-align:right;color:#791F1F">(${fmt((m.miles||0)*IRS())})</td></tr>`).join('')}
+<tr class="tr"><td colspan="4">Total</td><td style="text-align:right">${tMiles.toFixed(1)}</td><td style="text-align:right">(${fmt(mileDed)})</td></tr></tbody></table></div>
+<div class="note">⚠️ Not a substitute for professional tax advice. Verify all figures with a CPA before filing. SE tax estimated at 15.3% on 92.35% of net profit per IRS Schedule SE.</div>
+</div><script>setTimeout(()=>window.print(),800)<\/script></body></html>`;
+  const blob=new Blob([html],{type:'text/html'});
+  const url=URL.createObjectURL(blob);
+  const w=window.open(url,'_blank');
+  if(!w){const a=document.createElement('a');a.href=url;a.target='_blank';document.body.appendChild(a);a.click();document.body.removeChild(a);}
+  setTimeout(()=>URL.revokeObjectURL(url),30000);
+  showToast('Tax report opened — Print → Save as PDF','📄');
 }
 
-function closeTaxModal(btn){const m=btn.closest('div');if(m&&m.parentNode)m.parentNode.removeChild(m);}
-function showTaxReportModal(text){
-  const modal=document.createElement('div');
-  modal.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px';
-  modal.innerHTML='<div style="background:var(--bg);border-radius:var(--rl);padding:20px;width:100%;max-width:500px;max-height:80vh;display:flex;flex-direction:column">'+
-    '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">'+
-      '<div style="font-size:15px;font-weight:700">Tax Report</div>'+
-      '<button onclick="closeTaxModal(this)" style="border:none;background:none;font-size:20px;cursor:pointer;color:var(--text)">&#10005;</button>'+
-    '</div>'+
-    '<textarea style="flex:1;font-size:10px;font-family:monospace;border:1px solid var(--border);border-radius:var(--r);padding:10px;background:var(--bg2);color:var(--text);resize:none;min-height:300px" readonly>'+text+'</textarea>'+
-    '<div style="margin-top:10px;font-size:11px;color:var(--text3);text-align:center">Select all → Copy → Send to your accountant</div>'+
-  '</div>';
-  document.body.appendChild(modal);
+function exportFullBackup(){
+  const biz=(S.bname||'TradeDesk').replace(/\s+/g,'_');
+  const ts=new Date().toISOString().slice(0,10);
+  const backup={version:3,exported:new Date().toISOString(),business:S.bname||'',
+    data:{clients,bids,jobs,income,expenses,mileage,payments,liens},settings:S,
+    meta:{clients:clients.length,bids:bids.length,expenses:expenses.length,income:income.length,mileage:mileage.length}};
+  downloadFile(biz+'_TradeDesk_Backup_'+ts+'.json',JSON.stringify(backup,null,2),'application/json');
+  showToast('Full backup downloaded — keep this safe','💾');
 }
+
+function exportTaxReport(){openExportPanel();}
+function showTaxReportModal(){openExportPanel();}
+
 
 function renderJobsHistory(){
   const yearSel=document.getElementById('tr-jobs-year');

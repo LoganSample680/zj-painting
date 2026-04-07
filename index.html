@@ -8107,7 +8107,10 @@ async function expSave(){
   const err=document.getElementById('exp-save-err');
   const vendor=(document.getElementById('em-vendor')?.value||'').trim();
   const amount=parseFloat(document.getElementById('em-amount')?.value||0);
-  const date=document.getElementById('em-date')?.value||'';
+  // Parse date from MM/DD/YYYY text input → YYYY-MM-DD
+  const _rawDate=document.getElementById('em-date')?.value||'';
+  const _dm=_rawDate.match(/(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})/);
+  const date=_dm?(_dm[3].length===2?'20':'')+_dm[3]+'-'+_dm[1].padStart(2,'0')+'-'+_dm[2].padStart(2,'0'):_rawDate;
   const cat=document.getElementById('em-cat')?.value||'other';
   const jobId=parseInt(document.getElementById('em-job')?.value)||null;
   const notes=(document.getElementById('em-notes')?.value||'').trim();
@@ -10691,7 +10694,7 @@ async function loadAccountData(){
     // No users row — check for pre-schema user via zj_data
     const{data:zd}=await _supa.from('zj_data').select('user_id').eq('user_id',_supaUser.id).maybeSingle();
     if(zd){
-      _user={id:_supaUser.id,email:_supaUser.email,name:'',role:'owner',account_id:null};
+      _user={id:_supaUser.id,email:_supaUser.email,name:S.ownerName||'',role:'owner',account_id:null};
       applyPermissions();
       return true;
     }
@@ -10706,7 +10709,11 @@ function applyPermissions(){
   const nameEl=document.getElementById('nav-user-name');
   const roleEl=document.getElementById('nav-user-role');
   const avatarEl=document.getElementById('nav-user-avatar');
-  const name=getUserName()||_supaUser?.email?.split('@')[0]||'You';
+  // Use stored owner name, Supabase metadata, or clean email prefix
+  const _meta=_supaUser?.user_metadata;
+  const _metaName=_meta?.full_name||_meta?.name||'';
+  const _emailName=(_supaUser?.email||'').split('@')[0].replace(/[0-9_\.]+/g,' ').trim();
+  const name=getUserName()||S.ownerName||_metaName||_emailName||'You';
   if(nameEl)nameEl.textContent=name;
   if(roleEl)roleEl.textContent=getRole().charAt(0).toUpperCase()+getRole().slice(1);
   if(avatarEl)avatarEl.textContent=name.charAt(0).toUpperCase();
@@ -11119,7 +11126,7 @@ async function obSubmit(){
     await _supa.from('zj_data').insert({user_id:uid,account_id:acct.id});
 
     S.bname=_ob.businessName;S.bphone=_ob.phone;S.blic=_ob.licenseInfo;S.state=_ob.state||'KS';
-    _user={id:uid,email:_ob.email,name:_ob.name,role:_ob.role,account_id:acct.id};
+    _user={id:uid,email:_ob.email,name:_ob.name,role:_ob.role,account_id:acct.id};S.ownerName=_ob.name;saveAll();
     _vehicles=_ob.vehicles;
 
     setProgress('All done! Loading TradeDesk...');

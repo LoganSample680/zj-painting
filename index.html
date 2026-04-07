@@ -10719,9 +10719,7 @@ function applyPermissions(){
   // Use stored owner name, Supabase metadata, or clean email prefix
   const _meta=_supaUser?.user_metadata;
   const _metaName=_meta?.full_name||_meta?.name||'';
-  const _rawEmail=(_supaUser?.email||'').split('@')[0];
-  const _emailName=_rawEmail.replace(/([a-z])([A-Z])/g,'$1 $2').replace(/[0-9_.]+/g,' ').trim().replace(/\s+/g,' ').split(' ').map(w=>w.charAt(0).toUpperCase()+w.slice(1).toLowerCase()).join(' ');
-  const name=getUserName()||S.ownerName||_metaName||_emailName||'You';
+  const name=getUserName()||S.ownerName||_metaName||'My Account';
   if(nameEl)nameEl.textContent=name;
   if(roleEl)roleEl.textContent=getRole().charAt(0).toUpperCase()+getRole().slice(1);
   if(avatarEl)avatarEl.textContent=name.charAt(0).toUpperCase();

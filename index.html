@@ -128,7 +128,7 @@ input[type=range]::-webkit-slider-runnable-track{height:6px;border-radius:3px;ba
 .met{background:var(--bg);border:1px solid var(--border);border-radius:var(--rl);padding:12px 10px;display:flex;flex-direction:column;box-shadow:0 1px 4px rgba(0,0,0,.04);transition:box-shadow .15s;overflow:hidden;min-width:0}
 .met:hover{box-shadow:0 3px 12px rgba(0,0,0,.08)}
 .met-l{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--text3);margin-bottom:6px}
-.met-v{font-size:16px;font-weight:800;line-height:1.2;color:var(--text);overflow:hidden;word-break:break-word}
+.met-v{font-size:18px;font-weight:800;line-height:1.1;color:var(--text);overflow:hidden;white-space:nowrap;text-overflow:clip}
 .met-s{font-size:11px;color:var(--text3);margin-top:5px}
 .fg{display:grid;gap:9px;margin-bottom:10px}
 .fg2{grid-template-columns:repeat(auto-fit,minmax(145px,1fr))}
@@ -1801,6 +1801,7 @@ function saveAll(){try{const lp=(k,d)=>localStorage.setItem(k,JSON.stringify(d))
 function loadAll(){try{const lp=(k,d)=>{const s=localStorage.getItem(k);return s?JSON.parse(s):d;};clients=lp('zp3_clients',[]);bids=lp('zp3_bids',[]);jobs=lp('zp3_jobs',[]);income=lp('zp3_inc',[]);expenses=lp('zp3_exp',[]);mileage=lp('zp3_mil',[]);checksState=lp('zp3_chk',{});payments=lp('zp3_pay',[]);liens=lp('zp3_lien',[]);const ss=lp('zp3_S',null);if(ss)S={...S,...ss};}catch(e){}}
 
 const fmt=n=>'$'+Number(n||0).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
+const fmtShort=n=>{const v=Number(n||0);if(Math.abs(v)>=1000000)return'$'+(v/1000000).toLocaleString('en-US',{minimumFractionDigits:1,maximumFractionDigits:1})+'M';if(Math.abs(v)>=1000)return'$'+(v/1000).toLocaleString('en-US',{minimumFractionDigits:1,maximumFractionDigits:1})+'K';return'$'+v.toLocaleString('en-US',{minimumFractionDigits:0,maximumFractionDigits:0});};
 function formatPhoneDisplay(val){
   let d=(val||'').replace(/\D/g,'').slice(0,10);
   if(d.length>=7)return d.slice(0,3)+'-'+d.slice(3,6)+'-'+d.slice(6);
@@ -2202,27 +2203,27 @@ function renderDash(){
     kpiEl.innerHTML='<div class="mets" id="dash-mets-inner">'+
       '<div class="met" style="cursor:pointer" data-chart="revenue" onclick="showKpiChart(this.dataset.chart)">'+
         '<div class="met-l">YTD Revenue</div>'+
-        '<div class="met-v" style="color:var(--blue)">'+fmt(tInc)+'</div>'+
+        '<div class="met-v" style="color:var(--blue)">'+fmtShort(tInc)+'</div>'+
         '<div class="met-s">All payments received</div>'+
       '</div>'+
       '<div class="met" style="cursor:pointer" onclick="goToExpenses()">'+
         '<div class="met-l">YTD Expenses</div>'+
-        '<div class="met-v" style="color:#A32D2D">'+fmt(tExp)+'</div>'+
+        '<div class="met-v" style="color:#A32D2D">'+fmtShort(tExp)+'</div>'+
         '<div class="met-s">Cash spent only</div>'+
       '</div>'+
       '<div class="met" style="cursor:pointer" data-pg="pg-tracker" onclick="goPg(this.dataset.pg)">'+
         '<div class="met-l">YTD Mileage</div>'+
         '<div class="met-v">'+Math.round(tMi).toLocaleString()+'<span style="font-size:11px;font-weight:400;color:var(--text3)"> mi</span></div>'+
-        '<div class="met-s">'+fmt(mileDed)+' deduction</div>'+
+        '<div class="met-s">'+fmtShort(mileDed)+' deduction</div>'+
       '</div>'+
       '<div class="met" style="cursor:pointer" data-pg="pg-taxes" onclick="goPg(this.dataset.pg)">'+
         '<div class="met-l">YTD Taxes</div>'+
-        '<div class="met-v" style="color:var(--amber)">'+fmt(ytdTaxEst)+'</div>'+
+        '<div class="met-v" style="color:var(--amber)">'+fmtShort(ytdTaxEst)+'</div>'+
         '<div class="met-s">Estimated — set aside</div>'+
       '</div>'+
       '<div class="met" style="cursor:pointer" data-chart="profit" onclick="showKpiChart(this.dataset.chart)">'+
         '<div class="met-l">YTD Profit</div>'+
-        '<div class="met-v" style="color:'+(ytdTrueProfit<0?'#A32D2D':'var(--green-mid)')+'">'+fmt(ytdTrueProfit)+'</div>'+
+        '<div class="met-v" style="color:'+(ytdTrueProfit<0?'#A32D2D':'var(--green-mid)')+'">'+fmtShort(ytdTrueProfit)+'</div>'+
         '<div class="met-s">Rev − exp − miles − tax</div>'+
       '</div>'+
     '</div>';

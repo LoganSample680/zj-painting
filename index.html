@@ -128,7 +128,7 @@ input[type=range]::-webkit-slider-runnable-track{height:6px;border-radius:3px;ba
 .met{background:var(--bg);border:1px solid var(--border);border-radius:var(--rl);padding:12px 10px;display:flex;flex-direction:column;box-shadow:0 1px 4px rgba(0,0,0,.04);transition:box-shadow .15s;overflow:hidden;min-width:0}
 .met:hover{box-shadow:0 3px 12px rgba(0,0,0,.08)}
 .met-l{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--text3);margin-bottom:6px}
-.met-v{font-size:18px;font-weight:800;line-height:1.1;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.met-v{font-size:16px;font-weight:800;line-height:1.2;color:var(--text);overflow:hidden;word-break:break-word}
 .met-s{font-size:11px;color:var(--text3);margin-top:5px}
 .fg{display:grid;gap:9px;margin-bottom:10px}
 .fg2{grid-template-columns:repeat(auto-fit,minmax(145px,1fr))}
@@ -1780,6 +1780,18 @@ function canSeeTaxes(){return isOwner();}
 function getConfig(){return _config||BUSINESS_CONFIGS.painting;}
 function getBusinessName(){return _account?.business_name||S.bname||"TradeDesk";}
 function getUserName(){return _user?.name||'';}
+function getOwnerName(){
+  // Per-user name stored by user ID — never shared across accounts
+  if(_supaUser?.id){
+    const stored=localStorage.getItem('zp3_uname_'+_supaUser.id);
+    if(stored)return stored;
+  }
+  return _user?.name||'';
+}
+function setOwnerName(name){
+  if(_supaUser?.id)localStorage.setItem('zp3_uname_'+_supaUser.id,name);
+  if(_user)_user.name=name;
+}
 let FED_BRACKETS={single:[],mfj:[],mfs:[],hoh:[]};
 let STD_DED={single:14600,mfj:29200,mfs:14600,hoh:21900};
 let KS_BRACKETS={single:[],mfj:[],mfs:[],hoh:[]};
@@ -1912,13 +1924,13 @@ function loadSettingsForm(){
   sf('set-b10',S.b10);sf('set-b12',S.b12);sf('set-b22',S.b22);sf('set-b24',S.b24);sf('set-b32',S.b32);sf('set-b35',S.b35);
   sf('set-ksl',S.ksLow);sf('set-kst',S.ksTop);sf('set-ksh',S.ksHigh);sf('set-kss',S.ksStdS);sf('set-ksm',S.ksStdM);
   sf('set-goal-monthly',S.goalMonthly||'');
-  sf('set-labor-rate',S.laborRate||45);sf('set-owner-name',S.ownerName||'');sf('set-bname',S.bname);sf('set-state',S.state||'KS');
+  sf('set-labor-rate',S.laborRate||45);sf('set-owner-name',getOwnerName()||'');sf('set-bname',S.bname);sf('set-state',S.state||'KS');
   if(S.state){const lbl=document.getElementById('set-state-label');const info=STATE_TAX[S.state];if(lbl&&info)lbl.textContent=info.name+' tax rates';}sf('set-stripe-pk',S.stripePk||'');sf('set-bphone',S.bphone);sf('set-blic',S.blic);sf('set-bemail',S.bemail||'');sf('set-veh',S.veh);
   sf('set-margin',S.margin);sf('set-cov',S.cov);sf('set-p1',S.p1);sf('set-p2',S.p2);sf('set-p3',S.p3);sf('set-mm',S.mm);sf('set-r-walls',S.rWalls||1.50);sf('set-r-ceil',S.rCeil||1.25);sf('set-r-trim',S.rTrim||1.75);sf('set-r-door',S.rDoor||85);sf('set-r-win',S.rWin||45);sf('set-r-ext',S.rExt||1.60);sf('set-r-deck',S.rDeck||1.25);
 }
 function saveSettings(){
   const gf=id=>parseFloat(v(id))||0,gs=id=>v(id);
-  S={...S,ownerName:gs('set-owner-name')||S.ownerName||'',goalMonthly:gf('set-goal-monthly')||0,irsRate:gf('set-irs')||.670,taxYear:parseInt(v('set-year'))||2024,fedSingle:gf('set-fs')||14600,fedMFJ:gf('set-fm')||29200,fedMFS:gf('set-fms')||14600,fedHOH:gf('set-fh')||21900,b10:gf('set-b10')||11600,b12:gf('set-b12')||47150,b22:gf('set-b22')||100525,b24:gf('set-b24')||191950,b32:gf('set-b32')||243725,b35:gf('set-b35')||609350,ksLow:gf('set-ksl')||3.1,ksTop:gf('set-kst')||33000,ksHigh:gf('set-ksh')||5.7,ksStdS:gf('set-kss')||3500,ksStdM:gf('set-ksm')||8000,laborRate:gf('set-labor-rate')||45,bname:gs('set-bname'),bphone:gs('set-bphone'),blic:gs('set-blic'),state:gs('set-state')||S.state||'',bemail:gs('set-bemail'),veh:gs('set-veh'),stripePk:gs('set-stripe-pk')||'',vehicles:S.vehicles||[],margin:gf('set-margin')||25,cov:gf('set-cov')||350,p1:gf('set-p1')||35,p2:gf('set-p2')||58,p3:gf('set-p3')||82,mm:gf('set-mm')||20,rWalls:gf('set-r-walls')||1.50,rCeil:gf('set-r-ceil')||1.25,rTrim:gf('set-r-trim')||1.75,rDoor:gf('set-r-door')||85,rWin:gf('set-r-win')||45,rExt:gf('set-r-ext')||1.60,rDeck:gf('set-r-deck')||1.25};
+  setOwnerName(gs('set-owner-name')||getOwnerName()||'');S={...S,goalMonthly:gf('set-goal-monthly')||0,irsRate:gf('set-irs')||.670,taxYear:parseInt(v('set-year'))||2024,fedSingle:gf('set-fs')||14600,fedMFJ:gf('set-fm')||29200,fedMFS:gf('set-fms')||14600,fedHOH:gf('set-fh')||21900,b10:gf('set-b10')||11600,b12:gf('set-b12')||47150,b22:gf('set-b22')||100525,b24:gf('set-b24')||191950,b32:gf('set-b32')||243725,b35:gf('set-b35')||609350,ksLow:gf('set-ksl')||3.1,ksTop:gf('set-kst')||33000,ksHigh:gf('set-ksh')||5.7,ksStdS:gf('set-kss')||3500,ksStdM:gf('set-ksm')||8000,laborRate:gf('set-labor-rate')||45,bname:gs('set-bname'),bphone:gs('set-bphone'),blic:gs('set-blic'),state:gs('set-state')||S.state||'',bemail:gs('set-bemail'),veh:gs('set-veh'),stripePk:gs('set-stripe-pk')||'',vehicles:S.vehicles||[],margin:gf('set-margin')||25,cov:gf('set-cov')||350,p1:gf('set-p1')||35,p2:gf('set-p2')||58,p3:gf('set-p3')||82,mm:gf('set-mm')||20,rWalls:gf('set-r-walls')||1.50,rCeil:gf('set-r-ceil')||1.25,rTrim:gf('set-r-trim')||1.75,rDoor:gf('set-r-door')||85,rWin:gf('set-r-win')||45,rExt:gf('set-r-ext')||1.60,rDeck:gf('set-r-deck')||1.25};
   applySettings();saveAll();
   const el=document.getElementById('set-saved');if(el){el.style.display='block';setTimeout(()=>el.style.display='none',3000);}
 }
@@ -10701,7 +10713,7 @@ async function loadAccountData(){
     // No users row — check for pre-schema user via zj_data
     const{data:zd}=await _supa.from('zj_data').select('user_id').eq('user_id',_supaUser.id).maybeSingle();
     if(zd){
-      _user={id:_supaUser.id,email:_supaUser.email,name:S.ownerName||'',role:'owner',account_id:null};
+      _user={id:_supaUser.id,email:_supaUser.email,name:getOwnerName()||'',role:'owner',account_id:null};
       applyPermissions();
       return true;
     }
@@ -10719,7 +10731,7 @@ function applyPermissions(){
   // Use stored owner name, Supabase metadata, or clean email prefix
   const _meta=_supaUser?.user_metadata;
   const _metaName=_meta?.full_name||_meta?.name||'';
-  const name=getUserName()||S.ownerName||_metaName||'My Account';
+  const name=getOwnerName()||_metaName||'My Account';
   if(nameEl)nameEl.textContent=name;
   if(roleEl)roleEl.textContent=getRole().charAt(0).toUpperCase()+getRole().slice(1);
   if(avatarEl)avatarEl.textContent=name.charAt(0).toUpperCase();
@@ -11132,7 +11144,7 @@ async function obSubmit(){
     await _supa.from('zj_data').insert({user_id:uid,account_id:acct.id});
 
     S.bname=_ob.businessName;S.bphone=_ob.phone;S.blic=_ob.licenseInfo;S.state=_ob.state||'KS';
-    _user={id:uid,email:_ob.email,name:_ob.name,role:_ob.role,account_id:acct.id};S.ownerName=_ob.name;saveAll();
+    _user={id:uid,email:_ob.email,name:_ob.name,role:_ob.role,account_id:acct.id};setOwnerName(_ob.name);saveAll();
     _vehicles=_ob.vehicles;
 
     setProgress('All done! Loading TradeDesk...');

@@ -6215,9 +6215,11 @@ function goSurfStepB(){
   const measureWrap=document.getElementById('surf-measure-color-wrap');
   if(scopeFirst)scopeFirst.style.display='';
   if(measureWrap)measureWrap.style.display='none';
-  // Sync paint supply buttons to current state
-  const _cpv=document.getElementById('e-customer-paint')?.value;
-  const _isc=_cpv==='1';
+  // Read THIS room's stored paint supply — default to Zach (false)
+  const _isc=roomScopeMap[surfRoom]?._customerPaint===true;
+  // Sync global DOM so goSurfScopeToMeasure can read it for hiding color picker
+  const _custEl=document.getElementById('e-customer-paint');
+  if(_custEl)_custEl.value=_isc?'1':'';
   const _zb=document.getElementById('paint-sup-zach');
   const _cb=document.getElementById('paint-sup-cust');
   if(_zb){_zb.style.borderColor=_isc?'var(--border2)':'var(--blue)';_zb.style.background=_isc?'var(--bg2)':'var(--blue-lt)';_zb.style.color=_isc?'var(--text)':'var(--blue-dk)';}
@@ -6251,6 +6253,11 @@ function setPaintSupply(who){
   const custEl=document.getElementById('e-customer-paint');
   if(paintEl)paintEl.value=isCustomer?'customer':'interior';
   if(custEl)custEl.value=isCustomer?'1':'';
+  // Store per-room — this is what buildProposal and calcEst read
+  if(surfRoom){
+    if(!roomScopeMap[surfRoom])roomScopeMap[surfRoom]={};
+    roomScopeMap[surfRoom]._customerPaint=isCustomer;
+  }
   const zachBtn=document.getElementById('paint-sup-zach');
   const custBtn=document.getElementById('paint-sup-cust');
   if(zachBtn){zachBtn.style.borderColor=isCustomer?'var(--border2)':'var(--blue)';zachBtn.style.background=isCustomer?'var(--bg2)':'var(--blue-lt)';zachBtn.style.color=isCustomer?'var(--text)':'var(--blue-dk)';}
@@ -7779,18 +7786,24 @@ function calcEst(){
     totalPaintSqFt+=s.qty;
     const spec=(s.room||'').indexOf(' — ')>-1?(s.room||'').split(' — ').slice(1).join(' — '):'';
     const key=spec||'Paint';
-    if(!orderMap[key])orderMap[key]={sqFt:0,cov:_prodCov(s.room),price:_prodContractorPrice(s.room),spec,surfaces:[]};
+    const roomName=cleanRoomName(s.room)||'';
+    if(!orderMap[key])orderMap[key]={sqFt:0,cov:_prodCov(s.room),price:_prodContractorPrice(s.room),spec,surfaces:[],rooms:[]};
     orderMap[key].sqFt+=s.qty;
     orderMap[key].surfaces.push({type:s.type,qty:s.qty});
+    if(roomName&&!orderMap[key].rooms.includes(roomName))orderMap[key].rooms.push(roomName);
   });
   Object.entries(orderMap).forEach(([key,od])=>{
     // Round up to nearest half-gallon, add 10% waste
     const rawGals=od.sqFt*coats/od.cov*1.10;
-    const gals=Math.ceil(rawGals*2)/2; // nearest 0.5
-    const wholeCans=Math.ceil(gals); // SW sells whole gallons
-    const cost=customerPaint?0:Math.round(wholeCans*od.price*matMark*100)/100;
+    const gals=Math.ceil(rawGals*2)/2;
+    const wholeCans=Math.ceil(gals);
+    // Per-room customer paint — if ANY room in this order group is customer-paint, flag it
+    const isRoomCustomer=od.rooms&&od.rooms.length>0
+      ?od.rooms.every(r=>roomScopeMap[r]?._customerPaint===true)
+      :customerPaint;
+    const cost=isRoomCustomer?0:Math.round(wholeCans*od.price*matMark*100)/100;
     matTotal+=cost;
-    paintLines.push({color:key,spec:od.spec,sqFt:Math.round(od.sqFt),gals,wholeCans,cost,customerPaint,cov:od.cov});
+    paintLines.push({color:key,spec:od.spec,sqFt:Math.round(od.sqFt),gals,wholeCans,cost,customerPaint:isRoomCustomer,cov:od.cov});
   });
   const flatAdd=0;const scopeFlats=[];
   const adjPct=parseInt(v('est-adj'))||0;
@@ -8228,6 +8241,8 @@ function buildProposal(){
   // Use final from calcEst directly — room/mat breakdown is display only
   const proposalTotal=final;
 
+  // Compute per-room customer paint flags
+  const anyRoomCustomerPaint=roomNames.some(r=>roomScopeMap[r]?._customerPaint===true);
   // Build table rows — one per room — showing per-room scope in description
   const roomRows=roomNames.map((room,roomIdx)=>{
     const r=roomCosts[room];
@@ -8256,7 +8271,8 @@ function buildProposal(){
           return '<div style="font-size:11px;color:#555;line-height:1.7"><span style="font-weight:600;color:#333">'+ps.surfLabel+':</span> '+dot+ps.spec+'</div>';
         }).join('')+'</div>'
       :'';
-    const custPaintBadge=customerPaint?'<span style="font-size:10px;background:#FEF3C7;color:#856404;border:1px solid #D97706;border-radius:4px;padding:1px 6px;margin-left:6px;font-weight:700">Client supplies paint</span>':'';
+    const _roomCustPaint=roomCosts[room]&&(roomScopeMap[room]?._customerPaint===true);
+    const custPaintBadge=_roomCustPaint?'<span style="font-size:10px;background:#FEF3C7;color:#856404;border:1px solid #D97706;border-radius:4px;padding:1px 6px;margin-left:6px;font-weight:700">Client supplies paint</span>':'';
     const descContent='<strong style="font-size:13px">'+room+'</strong>'+custPaintBadge+
       paintSpecHtml+
       scopeHtml;
@@ -8311,8 +8327,8 @@ function buildProposal(){
       <tr style="border-bottom:1px solid var(--border)">
         <td style="padding:8px 12px;text-align:center;font-weight:700;vertical-align:top">1</td>
         <td style="padding:8px 12px;font-size:12px;color:#1a1a1a">
-          <strong>${customerPaint?'Prep &amp; Application Supplies':'Paint, Primer &amp; Materials'}</strong><br>
-          <span style="font-size:11px;color:#666">${customerPaint?'All prep supplies, tape, plastic sheeting, rollers, brushes, and drop cloths included. <strong>Paint to be supplied by client prior to start date.</strong> No warranty is provided on finish quality, sheen, or color accuracy when client-supplied paint is used.':'Includes paint, primer, tape, plastic sheeting, rollers, brushes, drop cloths and all supplies needed to complete the job.'}</span>
+          <strong>${anyRoomCustomerPaint?'Paint, Primer &amp; Materials (partial)':(customerPaint?'Prep &amp; Application Supplies':'Paint, Primer &amp; Materials')}</strong><br>
+          <span style="font-size:11px;color:#666">${anyRoomCustomerPaint?'Includes all paint, primer, and supplies for contractor-painted rooms. For rooms where client supplies paint: all prep supplies and application labor included. No warranty on finish quality for client-supplied paint.':customerPaint?'All prep supplies, tape, plastic sheeting, rollers, brushes, and drop cloths included. Paint to be supplied by client prior to start date. No warranty on finish quality.':'Includes paint, primer, tape, plastic sheeting, rollers, brushes, drop cloths and all supplies needed to complete the job.'}</span>
         </td>
         <td style="padding:8px 12px;text-align:right;font-weight:700;vertical-align:top">${fmt(matLine)}</td>
         <td style="padding:8px 12px;text-align:right;font-weight:700;vertical-align:top">${fmt(matLine)}</td>

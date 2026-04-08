@@ -1166,6 +1166,11 @@ input:checked+.dm-slider:before{transform:translateX(22px)}</style>
       <button class="btn btn-g" id="send-proposal-btn" onclick="sendProposalLink()" style="flex:1;min-width:80px">🔗 Send to client</button>
       <button class="btn btn-p" onclick="goEstStep(6)" style="flex:1;min-width:80px">Sign here</button>
     </div>
+    <div class="brow" style="margin-top:6px">
+      <button class="btn" onclick="saveAndExitEstimate()" style="width:100%;background:var(--bg2);border-color:var(--border2);color:var(--text2);font-size:13px">
+        💾 Save bid &amp; exit — I'll get the signature later
+      </button>
+    </div>
     <div id="proposal-link-bar" style="display:none;margin-top:8px;background:var(--blue-lt);border:1px solid var(--blue);border-radius:var(--r);padding:10px 14px">
       <div style="font-size:12px;font-weight:700;color:var(--blue-dk);margin-bottom:8px">✓ Signing link ready — tap to open, or copy to share</div>
       <a id="proposal-link-anchor" href="#" target="_blank" style="display:block;background:#fff;border:1px solid var(--blue);border-radius:var(--r);padding:10px 14px;text-decoration:none;margin-bottom:8px">
@@ -1174,8 +1179,9 @@ input:checked+.dm-slider:before{transform:translateX(22px)}</style>
         <div style="font-size:10px;color:var(--blue);margin-top:3px">Tap to open ↗</div>
       </a>
       <input id="proposal-link-input" readonly style="display:none">
-      <button onclick="copyProposalLink()" class="btn btn-sm" style="width:100%;margin-bottom:4px">📋 Copy link to share with client</button>
-      <div style="font-size:11px;color:var(--text3);margin-top:4px">Client opens on any device, reviews, signs, and you get notified.</div>
+      <button onclick="copyProposalLink()" class="btn btn-sm" style="width:100%;margin-bottom:6px">📋 Copy link to share with client</button>
+      <button onclick="saveAndExitEstimate()" class="btn btn-p" style="width:100%;font-size:14px">✓ Done — back to home</button>
+      <div style="font-size:11px;color:var(--text3);margin-top:6px">Bid saved as Pending. You'll get a follow-up reminder in 3 days if no response.</div>
     </div>
   </div>
   <div id="est-s6" style="display:none">
@@ -1200,7 +1206,8 @@ input:checked+.dm-slider:before{transform:translateX(22px)}</style>
       </details>
     </div>
     <div class="card"><div class="card-hd">Terms &amp; conditions</div><div id="est-terms" style="font-size:11px;color:var(--text3);line-height:1.7;max-height:120px;overflow-y:auto"></div></div>
-    <div class="brow"><button class="btn" onclick="goEstStep(5)">&#8592; Back</button><button class="btn btn-xl" id="confirm-btn" onclick="confirmContract()" style="background:var(--bg2);color:var(--text3);border-color:var(--border2);cursor:not-allowed" disabled>Confirm &amp; close job</button></div>
+    <div class="brow"><button class="btn" onclick="goEstStep(5)">&#8592; Back to proposal</button><button class="btn btn-xl" id="confirm-btn" onclick="confirmContract()" style="background:var(--bg2);color:var(--text3);border-color:var(--border2);cursor:not-allowed" disabled>Confirm &amp; close job</button></div>
+    <div class="brow" style="margin-top:6px"><button class="btn" onclick="saveAndExitEstimate()" style="width:100%;background:var(--bg2);border-color:var(--border2);color:var(--text2);font-size:13px">💾 Not signing now — save &amp; exit</button></div>
   </div>
   <div id="est-s7" style="display:none">
     <div style="text-align:center;padding:28px 16px">
@@ -8280,6 +8287,55 @@ function clearEstimatorForm(){
   renderEstSurfs();
   ['est-s1-next','est-s2-next'].forEach(id=>{const b=document.getElementById(id);if(b){b.disabled=true;b.style.background='var(--border2)';b.style.color='var(--text3)';b.style.borderColor='var(--border2)';b.style.cursor='not-allowed';}});
 }
+function saveAndExitEstimate(){
+  // Ensure bid is saved to bids array with Pending status
+  const{final}=calcEst();
+  const cname=document.getElementById('e-cname')?.value||'Client';
+  const caddr=document.getElementById('e-caddr')?.value||'';
+  const cphone=document.getElementById('e-cphone')?.value||'';
+  const days=parseInt(document.getElementById('e-days')?.value)||2;
+  const ss={};SCOPE_ITEMS.forEach(s=>{ss[s.id]=!!scopeOn(s.id);});
+
+  if(lastCreatedBidId){
+    // Update existing bid
+    const b=bids.find(x=>x.id===lastCreatedBidId);
+    if(b){
+      b.amount=final;b.status=b.status==='Closed Won'?'Closed Won':'Pending';
+      if(!b.followup)b.followup=addDays(todayKey(),3);
+      b.surfaces=[...estSurfaces];b.roomScopeMap=JSON.parse(JSON.stringify(roomScopeMap));
+    }
+  } else if(estLinkedClientId||cname){
+    // Create new bid
+    const c=estLinkedClientId?getClientById(estLinkedClientId):null;
+    const followup=addDays(todayKey(),3);
+    const newBid={
+      id:Date.now(),
+      client_id:estLinkedClientId||null,
+      client_name:c?c.name:cname,
+      name:cname,phone:cphone,addr:caddr,
+      bid_date:todayKey(),followup,
+      amount:final,
+      type:getBidIncomeLabel({surfaces:estSurfaces}),
+      days,status:'Pending',
+      notes:document.getElementById('e-cnotes')?.value||'',
+      completion_date:'',collStage:'none',collHistory:[],
+      scope:ss,surfaces:[...estSurfaces],
+      roomScopeMap:JSON.parse(JSON.stringify(roomScopeMap)),
+      cond:document.getElementById('e-cond')?.value||'',
+      paint:document.getElementById('e-paint')?.value||'',
+    };
+    bids.unshift(newBid);lastCreatedBidId=newBid.id;
+  }
+  saveAll();
+  localStorage.removeItem('zp3_est_full_draft');
+  showToast('Bid saved — follow-up reminder set for 3 days','✓');
+  // Navigate to leads page filtered to pending so Zach sees it immediately
+  goPg('pg-leads');
+  setTimeout(()=>{
+    setLeadFilter('pending',document.getElementById('lft-pending'));
+  },150);
+}
+
 function newEstimate(){
   const existing=loadEstFullDraft();
   if(existing&&existing.cname){

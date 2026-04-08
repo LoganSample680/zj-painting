@@ -991,7 +991,8 @@ input:checked+.dm-slider:before{transform:translateX(22px)}</style>
             <div style="font-size:11px;font-weight:800;text-transform:uppercase;color:var(--text3)">Product <span style="color:#A32D2D">*</span></div>
             <div id="sw-product-selected" style="font-size:11px;font-weight:700;color:var(--blue)"></div>
           </div>
-          <div id="sw-product-grid" style="padding:8px 10px;display:grid;grid-template-columns:1fr 1fr;gap:5px"></div>
+          <div style="padding:6px 12px 4px;font-size:11px;color:var(--blue-dk);font-weight:700" id="sw-product-grid-hdr"></div>
+          <div id="sw-product-grid" style="padding:4px 10px 8px;display:grid;grid-template-columns:1fr 1fr;gap:5px"></div>
           <input type="hidden" id="sw-selected-product" value="">
         </div>
 
@@ -5624,20 +5625,33 @@ const SURF_PRODUCT_TYPE={
   trim:'trim',doors:'trim',windows:'trim',cabinets:'trim',
 };
 let _swProduct=null;
+let _swLastProductByCategory={}; // remembers last picked product per category within a room
+
 
 function swRenderProductGrid(surfType){
   const grid=document.getElementById('sw-product-grid');if(!grid)return;
   const category=SURF_PRODUCT_TYPE[surfType]||'interior';
   const products=SW_PRODUCTS[category]||SW_PRODUCTS.interior;
+
+  // Build a context label so Zach knows what he's picking for
+  const SURF_NICE={walls:'Walls',ceiling:'Ceiling',trim:'Trim',doors:'Doors',
+    windows:'Windows',cabinets:'Cabinets',ext_walls:'Siding',ext_trim:'Ext Trim',deck:'Deck'};
+  const hdr=document.getElementById('sw-product-grid-hdr');
+  if(hdr)hdr.textContent='Choose product for: '+( SURF_NICE[surfType]||surfType);
+
+  // If previous surface used a product in the same category, pre-highlight it as suggestion
+  const prevProductId=_swLastProductByCategory[category]||null;
+
   grid.innerHTML='';
   products.forEach(p=>{
     const btn=document.createElement('button');
     btn.type='button';
     btn.dataset.id=p.id;
-    btn.style.cssText='padding:8px 10px;border-radius:var(--r);border:1px solid var(--border2);background:var(--bg);cursor:pointer;font-family:inherit;text-align:left;transition:border .1s;position:relative';
+    const isSuggested=prevProductId===p.id;
+    btn.style.cssText='padding:8px 10px;border-radius:var(--r);border:'+(isSuggested?'2px dashed var(--blue)':'1px solid var(--border2)')+';background:'+(isSuggested?'var(--blue-lt)':'var(--bg)')+';cursor:pointer;font-family:inherit;text-align:left;transition:border .1s;position:relative';
     btn.innerHTML='<div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:2px;padding-right:18px">'+
       '<span style="font-size:12px;font-weight:700;color:var(--text)">'+p.name+'</span>'+
-      '<span style="font-size:11px;color:var(--text3)">'+p.price+'</span>'+
+      '<span style="font-size:11px;color:var(--text3)">'+p.price+(isSuggested?' · <span style=\'color:var(--blue)\'>used last</span>':'')+'</span>'+
       '</div>'+
       '<div style="font-size:10px;color:var(--text3);line-height:1.3">'+p.sub+'</div>'+
       (SW_PRODUCT_INFO[p.id]?'<span onclick="event.stopPropagation();swShowProductInfo(\''+p.id+'\')" style="position:absolute;top:6px;right:7px;font-size:14px;color:var(--text3);cursor:pointer;line-height:1" title="Learn more">ⓘ</span>':'');
@@ -5677,6 +5691,10 @@ function swSelectProduct(p,btn){
   _swProduct=p;
   const h=document.getElementById('sw-selected-product');if(h)h.value=p.id;
   const lbl=document.getElementById('sw-product-selected');if(lbl)lbl.textContent=p.name;
+  // Remember this product for this category so next surface can suggest it
+  const type=surfBQueue[surfBIdx];
+  const cat=SURF_PRODUCT_TYPE[type]||'interior';
+  _swLastProductByCategory[cat]=p.id;
 }
 
 function swResetProduct(){
@@ -6033,7 +6051,7 @@ function finishRoom(){
   saveSurfDraft();renderSurfRoomsLogged();
   const btn=document.getElementById('est-s3-next-btn');
   if(btn){btn.disabled=false;btn.style.background='var(--blue)';btn.style.color='#fff';btn.style.borderColor='var(--blue)';btn.style.cursor='pointer';}
-  surfWhatSelected=[];surfBQueue=[];surfBIdx=0;surfBMeasurements={};surfColor='';surfRoom='';_swResetColorUI();
+  surfWhatSelected=[];surfBQueue=[];surfBIdx=0;surfBMeasurements={};surfColor='';surfRoom='';_swResetColorUI();_swLastProductByCategory={};
   updateSurfWhatUI();
   const rooms=new Set(estSurfaces.map(s=>cleanRoomName(s.room)));
   const roomCount=rooms.size;

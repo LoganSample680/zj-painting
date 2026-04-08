@@ -1825,51 +1825,51 @@ const SCOPE_ITEMS=[
   {id:'sand',    label:'Sanding',          icon:'🪚',
    hint:'Light scuff-sand walls/trim to help paint grab. About 100 sf/hr.',
    ratePerSqFt:0.10, flatRate:0,
-   clientDesc:'All surfaces will be sanded to ensure proper paint adhesion and a smooth, lasting finish.'},
+   clientDesc:'Sanded for proper adhesion and a smooth finish.'},
   {id:'spackle', label:'Spackle & patch',  icon:'🔧',
    hint:'Fill nail holes, cracks, and dents. About 80 sf/hr — adds up fast on older homes.',
    ratePerSqFt:0.07, flatRate:35,
-   clientDesc:'All nail holes, cracks, dents, and surface imperfections will be filled, spackled, and sanded smooth before painting.'},
+   clientDesc:'Nail holes, cracks, and imperfections filled, spackled, and sanded smooth.'},
   {id:'prime',   label:'Primer coat',      icon:'🪣',
    hint:'Required on new drywall, dark colors, or stained surfaces. About 150 sf/hr.',
    ratePerSqFt:0.32, flatRate:0,
-   clientDesc:'A full coat of primer will be applied to all surfaces before finish coats to promote adhesion, cover stains, and ensure true color.'},
+   clientDesc:'Full primer coat applied for adhesion, stain coverage, and true color.'},
   {id:'tape',    label:'Tape & masking',   icon:'🎭',
    hint:'Tape trim, mask floors, hang plastic. About 200 sf/hr of wall area.',
    ratePerSqFt:0.08, flatRate:0,
-   clientDesc:'All trim, windows, doors, and floors will be masked and protected with drop cloths before any painting begins.'},
+   clientDesc:'Trim, windows, doors, and floors masked and protected with drop cloths.'},
   {id:'caulk',   label:'Caulking',         icon:'💧',
    hint:'Seal gaps at trim, corners, windows. ~45 min per average room.',
    ratePerSqFt:0, flatRate:38,
-   clientDesc:'All gaps, seams, and cracked corners will be caulked and sealed for a clean, professional finish and to prevent moisture intrusion.'},
+   clientDesc:'Gaps, seams, and cracked corners caulked for a clean finish.'},
   {id:'movefurn',label:'Move furniture',   icon:'🪑',
    hint:'Move and cover furniture before, replace after. ~30 min per furnished room.',
    ratePerSqFt:0, flatRate:35,
-   clientDesc:'Furniture will be moved away from walls prior to painting and returned to its original position upon completion.'},
+   clientDesc:'Furniture moved from walls before painting, replaced after.'},
   {id:'popcorn', label:'Popcorn removal',  icon:'⚡',
    hint:'Spray, scrape, and clean popcorn ceiling. ~40 sf/hr — slow and messy.',
    ratePerSqFt:0.55, flatRate:0,
-   clientDesc:'Popcorn/acoustic ceiling texture will be professionally removed, surface skim-coated smooth, and prepared for painting.'},
+   clientDesc:'Popcorn texture removed, surface skim-coated, and prepped for paint.'},
   {id:'wallpaper',label:'Wallpaper removal',icon:'📜',
    hint:'Score, soak, scrape, and clean. ~50 sf/hr — doubles job time on bad installs.',
    ratePerSqFt:0.65, flatRate:50,
-   clientDesc:'Existing wallpaper will be scored, soaked, stripped, and the wall surface repaired and primed before painting.'},
+   clientDesc:'Wallpaper stripped, walls repaired and primed.'},
   {id:'twocoat', label:'Two coats',        icon:'🎨',
    hint:'Standard on color changes and bare surfaces. Already in base rate — use when specifically calling it out on the proposal.',
    ratePerSqFt:0.15, flatRate:0,
-   clientDesc:'Two full coats of finish paint will be applied to all surfaces for maximum coverage, depth of color, and durability.'},
+   clientDesc:'Two full coats applied for maximum coverage and durability.'},
   {id:'cleanup', label:'Final cleanup',    icon:'🧹',
    hint:'Remove all tape, drop cloths, and debris. ~30 min per room.',
    ratePerSqFt:0, flatRate:28,
-   clientDesc:'All drop cloths and debris will be removed and work areas cleaned and left in the same condition as found.'},
+   clientDesc:'All drop cloths removed, work area cleaned.'},
   {id:'scaffold', label:'Scaffolding',     icon:'🏗️',
    hint:'For stairwells, 2-story foyers, or high exterior. Setup/tear-down ~2 hrs.',
    ratePerSqFt:0, flatRate:125,
-   clientDesc:'Scaffolding will be erected and secured to safely access high walls, ceilings, or exterior surfaces. Setup, tear-down, and all safety requirements are included.'},
+   clientDesc:'Scaffolding erected and safely managed for high-reach areas.'},
   {id:'pwash',   label:'Pressure washing', icon:'💦',
    hint:'Exterior only — wash before painting. ~250 sf/hr. Must dry 48 hrs before paint.',
    ratePerSqFt:0.26, flatRate:0,
-   clientDesc:'All exterior surfaces will be pressure washed to remove dirt, mold, mildew, and loose paint prior to painting. Surfaces must fully cure and dry for a minimum of 48 hours after washing before any paint is applied.'},
+   clientDesc:'Exterior surfaces pressure washed. Minimum 48-hr dry time before paint.'},
 ];
 const SURF_TYPES=[
   {v:'walls',l:'Walls',unit:'sq ft',rate:1.25,mf:1},
@@ -5236,8 +5236,7 @@ function buildScopeGrid(roomName){
       ?'onclick="toggleScopeRoom(\''+s.id+'\',decodeURIComponent(this.dataset.room))"'
       :'onclick="toggleScope(\''+s.id+'\')"';
     // Auto-price preview
-    const estCost=roomSqFt?Math.round(((s.ratePerSqFt||0)*roomSqFt+(s.flatRate||0))):s.flatRate||0;
-    const priceTag=estCost>0?'<span style="font-size:10px;font-weight:700;color:var(--green-mid);margin-left:auto;white-space:nowrap">+$'+estCost+'</span>':'';
+    const priceTag='';
     return '<div class="stog'+(isOn?' on':'')+'" id="est-st-'+s.id+'" '+clickHandler+roomAttr+' style="align-items:flex-start">'+
       '<input type="checkbox" id="est-sc-'+s.id+'" style="display:none"'+(isOn?' checked':'')+'>'+
       '<div class="sdot" style="margin-top:2px"></div>'+
@@ -5977,7 +5976,7 @@ function goSurfStepB(){
     sg.innerHTML=SCOPE_ITEMS.map(s=>{
       const isOn=roomScopeOn(surfRoom,s.id);
       const roomAttr=' data-room="'+encodeURIComponent(surfRoom)+'"';
-      const priceHint=s.flatRate&&!s.ratePerSqFt?'+$'+s.flatRate+' flat':s.ratePerSqFt?'+$'+s.ratePerSqFt.toFixed(2)+'/sf':'';
+      const priceHint='';
       return '<div class="stog'+(isOn?' on':'')+'" id="est-st-'+s.id+'" onclick="toggleScopeRoom(\''+s.id+'\',decodeURIComponent(this.dataset.room))"'+roomAttr+' style="align-items:flex-start">'+
         '<input type="checkbox" id="est-sc-'+s.id+'" style="display:none"'+(isOn?' checked':'')+'>'+
         '<div class="sdot" style="margin-top:2px"></div>'+
@@ -6392,18 +6391,11 @@ function showRoomSavedState(roomCount){
         '</div>';
       })()+
     '</div>'+
-    '<div style="margin:12px 0;background:var(--bg);border:1px solid var(--border);border-radius:var(--rl);padding:14px">'+
-      '<div style="font-size:11px;font-weight:800;text-transform:uppercase;color:var(--text3);margin-bottom:6px">Scope of work for '+lastSavedRoom+'</div>'+
-      '<div style="font-size:11px;color:var(--text3);margin-bottom:10px">Check what applies to this room and enter hours</div>'+
-      '<div class="sg" id="est-scope-grid"></div>'+
-    '</div>'+
     '<div style="display:grid;gap:10px">'+
       '<button onclick="addAnotherRoom()" style="padding:14px;border-radius:var(--rl);border:2px solid var(--border2);background:var(--bg2);color:var(--text);font-size:14px;font-weight:700;cursor:pointer;font-family:inherit">'+
         '+ Add another room'+
       '</button>'+
     '</div>';
-  // Now render scope grid for this specific room
-  if(lastSavedRoom)buildScopeGrid(lastSavedRoom);
 }
 
 function addAnotherRoom(){
@@ -6436,6 +6428,35 @@ function initSurfStep(){
     const rooms=new Set(estSurfaces.map(s=>cleanRoomName(s.room)));
     const rcl=document.getElementById('surf-room-count');if(rcl)rcl.textContent=rooms.size+' room'+(rooms.size!==1?'s':'')+' added';
   }
+}
+
+function editRoom(roomName){
+  // Load existing surfaces for this room back into the form
+  const roomSurfs=estSurfaces.filter(s=>cleanRoomName(s.room)===roomName);
+  if(!roomSurfs.length)return;
+  // Remove existing surfaces for this room
+  estSurfaces=estSurfaces.filter(s=>cleanRoomName(s.room)!==roomName);
+  // Reset the form to that room name
+  const rn=document.getElementById('surf-room-name');
+  if(rn){rn.value=roomName;rn.style.borderColor='';rn.style.background='';}
+  // Re-select the surfaces that were in this room
+  surfWhatSelected=[];
+  roomSurfs.forEach(s=>{
+    if(!surfWhatSelected.includes(s.type))surfWhatSelected.push(s.type);
+  });
+  updateSurfWhatUI();
+  surfRoom=roomName;
+  // Hide done div, show step A
+  const doneDiv=document.getElementById('surf-room-done');if(doneDiv)doneDiv.style.display='none';
+  document.getElementById('surf-step-a').style.display='';
+  document.getElementById('surf-step-b').style.display='none';
+  // Update the next button
+  const btn=document.getElementById('surf-next-to-dims');
+  if(surfWhatSelected.length&&btn){btn.disabled=false;btn.style.background='var(--blue)';btn.style.color='#fff';btn.style.borderColor='var(--blue)';btn.style.cursor='pointer';}
+  renderEstSurfs();renderEstRunning();renderSurfRoomsLogged();
+  // Scroll to top
+  const s3=document.getElementById('est-s3');if(s3)s3.scrollIntoView({behavior:'smooth',block:'start'});
+  zAlert('Editing "'+roomName+'". Re-enter measurements and colors for each surface.',{title:'Room loaded for editing'});
 }
 
 function renderSurfRoomsLogged(){
@@ -6483,35 +6504,29 @@ function removeRoomSurfs(roomBase){
 }
 
 function editRoomSurfs(roomBase){
-  // Remove surfaces for this room and re-open the form pre-filled with room name
-  // so Zach can re-enter dimensions — scope is preserved
+  // Remove surfaces for this room — preserve scope
   const existingSurfs=estSurfaces.filter(s=>cleanRoomName(s.room)===roomBase);
-  const color=existingSurfs.length?(existingSurfs[0].room||'').split(' — ')[1]||'':'';
-  // Remove the room's surfaces
   estSurfaces=estSurfaces.filter(s=>cleanRoomName(s.room)!==roomBase);
   renderEstSurfs();renderEstRunning();saveSurfDraft();renderSurfRoomsLogged();
-  // Hide the saved state and open the room form pre-filled
+  // Hide saved state
   const doneDiv=document.getElementById('surf-room-done');
   if(doneDiv)doneDiv.style.display='none';
   document.getElementById('surf-step-a').style.display='';
   document.getElementById('surf-step-b').style.display='none';
   // Pre-fill room name
   const rn=document.getElementById('surf-room-name');
-  if(rn){
-    rn.value=roomBase;
-    rn.style.borderColor='var(--green)';
-    rn.style.background='var(--green-lt)';
-    onSurfRoomName(rn);
-  }
-  // Pre-fill color if exists
-  const sc=document.getElementById('surf-color');
-  if(sc&&color)sc.value=color;
+  if(rn){rn.value=roomBase;rn.style.borderColor='var(--green)';rn.style.background='var(--green-lt)';onSurfRoomName(rn);}
+  // Restore surface type selections
+  surfWhatSelected=existingSurfs.map(s=>s.type).filter((v,i,a)=>a.indexOf(v)===i);
+  updateSurfWhatUI();
   // Update title
   const title=document.getElementById('surf-card-title');
-  if(title)title.textContent='Edit: '+roomBase;
+  if(title)title.textContent='Editing: '+roomBase;
   // Scroll to room card
   const card=document.getElementById('surf-room-card');
   if(card)card.scrollIntoView({behavior:'smooth',block:'start'});
+  // Keep scope for this room intact — note to user
+  zAlert('Room loaded for editing. Surface types are pre-selected. Re-enter measurements and colors — scope items are preserved.',{title:'Editing: '+roomBase});
 }
 
 function addManualSurface(){}
@@ -7129,7 +7144,7 @@ function renderEstSurfs(){
     const isSqFt=unitLabel==='sq ft';
     const hasQty=s.qty>0;
     return '<div class="surf-row" style="'+(hasQty?'border-left:3px solid var(--green)':'border-left:3px solid var(--border2)')+'">'+
-      '<div style="display:flex;align-items:center;gap:6px;margin-bottom:6px">'+
+      '<div style="display:flex;align-items:center;gap:6px;margin-bottom:6px;justify-content:space-between">'+
         '<input id="room-'+s.id+'" value="'+(s.room||'')+'" placeholder="Room or area name (e.g. Master bedroom)" '+
           'onchange="updateSurfRoom('+s.id+',this.value)" onblur="updateSurfRoom('+s.id+',this.value)" '+
           'style="font-size:13px;font-weight:600;border:none;background:transparent;padding:0;flex:1;color:var(--text)">'+
@@ -7778,7 +7793,7 @@ function buildDescription(){
     const allScope=hasRoomScope
       ?SCOPE_ITEMS.filter(sc=>{const e=roomScopeMap[room]&&roomScopeMap[room][sc.id];return e&&e.active&&sc.clientDesc;})
       :SCOPE_ITEMS.filter(sc=>scopeOn(sc.id)&&sc.clientDesc);
-    allScope.forEach(sc=>{html+='<li><strong>'+sc.label+':</strong> '+sc.clientDesc+'</li>';});
+    allScope.forEach(sc=>{html+='<li style="padding:1px 0"><span style="color:#1a365d;font-weight:700">'+sc.label+':</span> '+sc.clientDesc+'</li>';});
     html+='<li><strong>Paint &amp; Materials:</strong> '+matDesc+'</li>';
     html+='</ol>';
   } else {
@@ -7908,8 +7923,8 @@ function buildProposal(){
       roomScopeItems=SCOPE_ITEMS.filter(sc=>scopeOn(sc.id)&&sc.clientDesc);
     }
     const scopeHtml=roomScopeItems.length
-      ?'<ol style="margin:6px 0 0 0;padding-left:16px;font-size:11px;color:#444;line-height:1.8">'+
-        roomScopeItems.map(sc=>'<li><strong>'+sc.label+':</strong> '+sc.clientDesc+'</li>').join('')+
+      ?'<ol style="margin:8px 0 0 0;padding-left:16px;font-size:11px;color:#4a5568;line-height:2">'+
+        roomScopeItems.map(sc=>'<li style="padding:1px 0"><span style="color:#1a365d;font-weight:700">'+sc.label+':</span> '+sc.clientDesc+'</li>').join('')+
         '</ol>'
       :'';
     // Build per-surface paint spec lines
@@ -7926,17 +7941,18 @@ function buildProposal(){
     const descContent='<strong style="font-size:13px">'+room+'</strong>'+
       paintSpecHtml+
       scopeHtml;
-    return `<tr style="border-bottom:1px solid var(--border)">
-      <td style="padding:10px 12px;text-align:center;font-weight:700;vertical-align:top">1</td>
-      <td style="padding:10px 12px;line-height:1.6;color:#1a1a1a;font-size:12px">${descContent}</td>
-      <td style="padding:10px 12px;text-align:right;font-weight:700;vertical-align:top">${fmt(r.total)}</td>
-      <td style="padding:10px 12px;text-align:right;font-weight:700;vertical-align:top">${fmt(r.total)}</td>
+    const rowBg=roomIdx%2===0?'#ffffff':'#f8fafc';
+    return `<tr style="border-bottom:1px solid #e2e8f0;background:${rowBg}">
+      <td style="padding:14px;text-align:center;font-weight:700;vertical-align:top;color:#1a365d;font-size:13px">1</td>
+      <td style="padding:14px;line-height:1.7;color:#2d3748;font-size:12px">${descContent}</td>
+      <td style="padding:14px;text-align:right;font-weight:600;vertical-align:top;color:#2d3748">${fmt(r.total)}</td>
+      <td style="padding:14px;text-align:right;font-weight:700;vertical-align:top;color:#1a365d">${fmt(r.total)}</td>
     </tr>`;
   }).join('');
 
   document.getElementById('est-proposal').innerHTML=`
-<div class="proposal" style="background:#fff;color:#1a1a1a;border-radius:var(--rl);overflow:hidden;border:1px solid var(--border)">
-  <div style="background:var(--blue);color:#fff;padding:20px;display:flex;justify-content:space-between;align-items:flex-start">
+<div class="proposal" style="background:#fff;color:#1a1a1a;border-radius:10px;overflow:hidden;border:1px solid #e2e8f0;box-shadow:0 4px 24px rgba(0,0,0,.10)">
+  <div style="background:linear-gradient(135deg,#1a365d 0%,#2a4a7f 100%);color:#fff;padding:24px 28px;display:flex;justify-content:space-between;align-items:flex-start">
     <div>
       <div style="font-size:21px;font-weight:800;line-height:1.1">${bname}</div>
       ${bphone?`<div style="font-size:12px;margin-top:4px;opacity:.85">P ${bphone}</div>`:''}
@@ -8003,29 +8019,30 @@ function buildProposal(){
     <div style="font-size:10px;font-weight:800;text-transform:uppercase;color:#92400E;margin-bottom:4px">⚠ Weather Notice — Exterior Work</div>
     <div style="font-size:11px;color:#92400E;line-height:1.7">Exterior painting is weather-dependent. Start dates and completion timelines may shift based on temperature, rain, or high winds. Paint will not be applied to wet or damp surfaces. If surfaces were pressure washed, a minimum 48-hour dry time is required before painting begins. ${getBusinessName()} will communicate any weather-related delays promptly and reschedule at the earliest suitable date at no additional charge.</div>
   </div>`:''}
-  <div style="padding:14px 16px;display:grid;grid-template-columns:1fr 1fr;gap:14px;border-top:1px solid var(--border)">
+  <div style="padding:20px 24px;display:grid;grid-template-columns:1fr 1fr;gap:20px;border-top:3px solid #1a365d;background:#f8fafc">
     <div>
-      <div style="font-size:10px;font-weight:800;text-transform:uppercase;color:var(--text3);margin-bottom:6px">Payment Terms</div>
-      <div style="font-size:11px;color:var(--text2);line-height:1.9">
-        25% up front. Remainder due upon completion.<br>
-        Materials deducted from deposit if canceled.<br>
-        I am not responsible for any water damage to any surfaces.<br>
-        Not responsible for pre-existing damage to any surface.<br>
-        Pressure washing at client risk — no liability assumed.
+      <div style="font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.08em;color:#1a365d;margin-bottom:10px">Payment Terms</div>
+      <div style="font-size:11.5px;color:#2d3748;line-height:2">
+        <div style="display:flex;align-items:baseline;gap:8px;margin-bottom:2px"><span style="color:#1a365d;font-weight:700;min-width:16px">1.</span><span><strong>Deposit:</strong> 25% due before work begins.</span></div>
+        <div style="display:flex;align-items:baseline;gap:8px;margin-bottom:2px"><span style="color:#1a365d;font-weight:700;min-width:16px">2.</span><span><strong>Balance:</strong> Remainder due on completion.</span></div>
+        <div style="display:flex;align-items:baseline;gap:8px;margin-bottom:2px"><span style="color:#1a365d;font-weight:700;min-width:16px">3.</span><span><strong>Cancellation:</strong> Materials cost deducted from deposit if canceled after work begins.</span></div>
+        <div style="display:flex;align-items:baseline;gap:8px;margin-bottom:2px"><span style="color:#1a365d;font-weight:700;min-width:16px">4.</span><span><strong>Warranty:</strong> All workmanship warranted for 1 year. Excludes pre-existing conditions and substrate failure.</span></div>
+        <div style="display:flex;align-items:baseline;gap:8px"><span style="color:#1a365d;font-weight:700;min-width:16px">5.</span><span><strong>Liability:</strong> Contractor not responsible for pre-existing damage or conditions present before work began.</span></div>
       </div>
     </div>
     <div>
-      <div style="font-size:10px;font-weight:800;text-transform:uppercase;color:var(--text3);margin-bottom:6px">Sign Below to Accept Quote</div>
-      <canvas id="proposal-notes-canvas" style="width:100%;height:64px;border:1px solid var(--border);border-radius:var(--r);background:#fff;display:block;touch-action:none;cursor:crosshair"></canvas>
-      <div style="display:flex;justify-content:space-between;font-size:10px;color:var(--text3);margin-top:6px">
-        <div>Authorized Rep: Zach Johnson</div>
+      <div style="font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.08em;color:#1a365d;margin-bottom:10px">Client Acceptance</div>
+      <canvas id="proposal-notes-canvas" style="width:100%;height:72px;border:1.5px solid #cbd5e0;border-radius:6px;background:#fff;display:block;touch-action:none;cursor:crosshair"></canvas>
+      <div style="display:flex;justify-content:space-between;font-size:10px;color:#718096;margin-top:6px;padding:0 2px">
+        <div>Authorized: ${bname}</div>
         <div>Date: ${ds}</div>
       </div>
+      <div style="margin-top:8px;font-size:10px;color:#718096;font-style:italic;line-height:1.5">By signing above, client accepts all scope, pricing, and terms. Binding under Kansas UETA.</div>
     </div>
   </div>
 </div>`;
   document.getElementById('est-sig-sum').innerHTML=`<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px"><div><div style="font-size:15px;font-weight:700">${cname}</div><div style="font-size:12px;color:var(--text2)">${caddr}</div></div><div style="text-align:right"><div style="font-size:22px;font-weight:700;color:var(--blue)">${fmt(proposalTotal)}</div><div style="font-size:11px;color:var(--text3)">${estNum}</div></div></div>`;
-  document.getElementById('est-terms').innerHTML='<strong>Terms &amp; Conditions</strong><br><br>1. <strong>Payment:</strong> 25% deposit before work begins. Balance due on completion.<br><br>2. <strong>Cancellation:</strong> Materials cost deducted from deposit if client cancels after work has started.<br><br>3. <strong>Scope:</strong> This estimate covers only the work described. Any additional work requires a written change order and additional charge. Scope descriptions are estimates based on walkthrough — final scope may vary based on site conditions.<br><br>4. <strong>Warranty:</strong> Workmanship warranted 1 year from completion. Excludes pre-existing damage, moisture damage, and substrate failure.<br><br>5. <strong>Liability:</strong> Contractor not responsible for pre-existing damage, water or moisture damage, or damage from pressure washing.<br><br>By typing your name below, you agree to all scope, price, and terms above. This is a binding agreement under the Kansas Uniform Electronic Transactions Act (UETA).';
+  document.getElementById('est-terms').innerHTML='<strong style="color:#1a365d">Terms &amp; Conditions</strong><br><br>1. <strong>Payment:</strong> A non-refundable 25% deposit is required before any work begins. The remaining balance is due upon completion of work.<br><br>2. <strong>Cancellation:</strong> If client cancels after materials have been purchased, the cost of those materials will be deducted from the deposit. The remainder, if any, will be refunded.<br><br>3. <strong>Change Orders:</strong> This proposal covers only the scope described herein. Any additional work, surfaces, or materials not listed require a written change order signed by both parties and may be billed at the current rate.<br><br>4. <strong>Warranty:</strong> All workmanship is warranted for one (1) year from the date of completion. This warranty covers labor defects and application failures. It does not cover pre-existing surface conditions, substrate failure, moisture damage, or damage caused by events outside the contractor\'s control.<br><br>5. <strong>Limitation of Liability:</strong> Contractor is not responsible for damage to surfaces, structures, or contents that existed prior to the start of work, or for conditions not disclosed at the time of walkthrough. Client assumes all risk associated with pressure washing services on their property.<br><br>6. <strong>Materials &amp; Sales Tax:</strong> Contractor purchases all materials and pays applicable Kansas sales tax at the point of purchase. Sales tax on materials is incorporated into the project price and is not itemized separately on this proposal.<br><br>By signing below, client acknowledges full agreement with all scope, pricing, and terms stated in this proposal. This document constitutes a legally binding agreement pursuant to the Kansas Uniform Electronic Transactions Act (K.S.A. 16-1601 et seq.).';
   document.getElementById('sig-date').value=ds;
   document.getElementById('sig-pname').value=cname;
   initSigPad();

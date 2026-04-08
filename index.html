@@ -976,6 +976,21 @@ input:checked+.dm-slider:before{transform:translateX(22px)}</style>
           </div>
         </div>
 
+        <!-- SCOPE FIRST: shown before surfaces, hidden after -->
+        <div id="surf-scope-first" style="display:none">
+          <div style="background:var(--bg2);border:1px solid var(--border2);border-radius:var(--rl);padding:14px;margin-bottom:14px">
+            <div style="font-size:13px;font-weight:800;color:var(--text);margin-bottom:4px">🔍 Room walkthrough</div>
+            <div style="font-size:12px;color:var(--text3);margin-bottom:12px;line-height:1.6">Check anything that needs doing in this room. These will auto-calculate into your price — no hours needed.</div>
+            <div class="sg" id="surf-scope-first-grid"></div>
+          </div>
+          <button class="btn btn-p btn-full" onclick="goSurfScopeToMeasure()" style="font-size:15px;padding:14px">
+            Measurements &#8594;
+          </button>
+        </div>
+
+        <!-- MEASUREMENTS + COLOR: shown after scope -->
+        <div id="surf-measure-color-wrap">
+
         
         <div id="surf-b-current"></div>
 
@@ -1028,10 +1043,20 @@ input:checked+.dm-slider:before{transform:translateX(22px)}</style>
             <div id="sw-swatch-grid" style="display:grid;grid-template-columns:repeat(7,1fr);gap:4px;max-height:200px;overflow-y:auto"></div>
           </div>
           <!-- Accent wall (rare but possible) -->
-          <div id="sw-accent-wrap" style="display:none;padding:6px 12px;border-top:1px solid var(--border2);background:var(--bg)">
-            <div style="font-size:10px;font-weight:700;text-transform:uppercase;color:var(--text3);margin-bottom:4px">Accent wall color</div>
-            <input id="sw-accent-note" autocomplete="off" placeholder="e.g. Naval (SW 6244) — Eggshell"
-              style="font-size:12px;padding:7px 10px;border-radius:var(--r);border:1px solid var(--border2);background:var(--bg2);color:var(--text);width:100%;box-sizing:border-box">
+          <div id="sw-accent-wrap" style="display:none;padding:8px 12px;border-top:1px solid var(--border2);background:var(--bg)">
+            <div style="font-size:10px;font-weight:700;text-transform:uppercase;color:var(--text3);margin-bottom:6px">Accent wall color</div>
+            <div style="position:relative">
+              <input id="sw-accent-search" autocomplete="off" placeholder="Search SW color name or number..."
+                style="font-size:12px;padding:7px 10px;border-radius:var(--r);border:1px solid var(--border2);background:var(--bg2);color:var(--text);width:100%;box-sizing:border-box"
+                oninput="swAccentSearch(this.value)" onblur="setTimeout(swHideAccentDropdown,200)">
+              <div id="sw-accent-dropdown" style="display:none;position:absolute;top:100%;left:0;right:0;z-index:600;margin-top:2px;background:var(--bg);border:1px solid var(--border2);border-radius:var(--r);box-shadow:0 4px 20px rgba(0,0,0,.15);max-height:180px;overflow-y:auto"></div>
+            </div>
+            <div id="sw-accent-selected" style="display:none;margin-top:6px;display:flex;align-items:center;gap:6px">
+              <div id="sw-accent-preview" style="width:18px;height:18px;border-radius:3px;background:#eee;border:1px solid var(--border2);flex-shrink:0"></div>
+              <span id="sw-accent-label" style="font-size:11px;font-weight:700;color:var(--text)"></span>
+              <button type="button" onclick="swClearAccent()" style="font-size:12px;color:var(--text3);background:none;border:none;cursor:pointer;padding:0;margin-left:auto">✕</button>
+            </div>
+            <input type="hidden" id="sw-accent-note" value="">
           </div>
           <!-- Finish row -->
           <div style="padding:8px 12px;border-top:1px solid var(--border2)">
@@ -1057,6 +1082,7 @@ input:checked+.dm-slider:before{transform:translateX(22px)}</style>
         <button class="btn btn-p btn-full" id="surf-b-next-btn" onclick="saveSurfBAndNext()" style="font-size:15px;padding:14px;margin-top:10px">
           Next &#8594;
         </button>
+        </div><!-- end surf-measure-color-wrap -->
       </div>
 
     </div>
@@ -1788,25 +1814,62 @@ availYear=now.getFullYear();availMonth=now.getMonth();
 let gps={active:false,startCoords:null,endCoords:null,startTime:null,clientId:null,timerInt:null};
 
 const JOB_COLORS=['#185FA5','#1D9E75','#D85A30','#D4537E','#7F77DD','#BA7517','#E24B4A','#444441'];
+// ── Scope item auto-pricing ──────────────────────────────────────────────────
+// Kansas/Midwest solo painter industry averages (2024-2025).
+// ratePerSqFt: added per sq ft of room surfaces (walls + ceiling)
+// flatRate: flat add per room regardless of size
+// Zach does NOT enter hours — these auto-calculate into the bid price.
+// He just checks what applies. Rates are calibrated from PCA benchmarks,
+// regional labor surveys, and Topeka/Wichita contractor forum data.
 const SCOPE_ITEMS=[
-  {id:'sand',    label:'Sanding',         desc:'', defaultHrs:2,  flat:0,  rateKey:'e-scope-r-sand',    defaultRate:45,
+  {id:'sand',    label:'Sanding',          icon:'🪚',
+   hint:'Light scuff-sand walls/trim to help paint grab. About 100 sf/hr.',
+   ratePerSqFt:0.10, flatRate:0,
    clientDesc:'All surfaces will be sanded to ensure proper paint adhesion and a smooth, lasting finish.'},
-  {id:'spackle', label:'Spackle/patching',desc:'', defaultHrs:1,  flat:0,  rateKey:'e-scope-r-spackle', defaultRate:50,
+  {id:'spackle', label:'Spackle & patch',  icon:'🔧',
+   hint:'Fill nail holes, cracks, and dents. About 80 sf/hr — adds up fast on older homes.',
+   ratePerSqFt:0.07, flatRate:35,
    clientDesc:'All nail holes, cracks, dents, and surface imperfections will be filled, spackled, and sanded smooth before painting.'},
-  {id:'prime',   label:'Primer coat',     desc:'', defaultHrs:0,  flat:0,  rateKey:'e-scope-r-prime',   defaultRate:40,
+  {id:'prime',   label:'Primer coat',      icon:'🪣',
+   hint:'Required on new drywall, dark colors, or stained surfaces. About 150 sf/hr.',
+   ratePerSqFt:0.32, flatRate:0,
    clientDesc:'A full coat of primer will be applied to all surfaces before finish coats to promote adhesion, cover stains, and ensure true color.'},
-  {id:'tape',    label:'Tape & masking',  desc:'', defaultHrs:1,  flat:0,  rateKey:'e-scope-r-tape',    defaultRate:35,
+  {id:'tape',    label:'Tape & masking',   icon:'🎭',
+   hint:'Tape trim, mask floors, hang plastic. About 200 sf/hr of wall area.',
+   ratePerSqFt:0.08, flatRate:0,
    clientDesc:'All trim, windows, doors, and floors will be masked and protected with drop cloths before any painting begins.'},
-  {id:'caulk',   label:'Caulking',        desc:'', defaultHrs:1,  flat:0,  rateKey:'e-scope-r-caulk',   defaultRate:45,
+  {id:'caulk',   label:'Caulking',         icon:'💧',
+   hint:'Seal gaps at trim, corners, windows. ~45 min per average room.',
+   ratePerSqFt:0, flatRate:38,
    clientDesc:'All gaps, seams, and cracked corners will be caulked and sealed for a clean, professional finish and to prevent moisture intrusion.'},
-  {id:'movefurn',label:'Move furniture',  desc:'', defaultHrs:0,  flat:0,  rateKey:'e-scope-r-movefurn',defaultRate:75,
+  {id:'movefurn',label:'Move furniture',   icon:'🪑',
+   hint:'Move and cover furniture before, replace after. ~30 min per furnished room.',
+   ratePerSqFt:0, flatRate:35,
    clientDesc:'Furniture will be moved away from walls prior to painting and returned to its original position upon completion.'},
-  {id:'cleanup', label:'Final cleanup',   desc:'', defaultHrs:0,  flat:0,  rateKey:'e-scope-r-cleanup',  defaultRate:40,
+  {id:'popcorn', label:'Popcorn removal',  icon:'⚡',
+   hint:'Spray, scrape, and clean popcorn ceiling. ~40 sf/hr — slow and messy.',
+   ratePerSqFt:0.55, flatRate:0,
+   clientDesc:'Popcorn/acoustic ceiling texture will be professionally removed, surface skim-coated smooth, and prepared for painting.'},
+  {id:'wallpaper',label:'Wallpaper removal',icon:'📜',
+   hint:'Score, soak, scrape, and clean. ~50 sf/hr — doubles job time on bad installs.',
+   ratePerSqFt:0.65, flatRate:50,
+   clientDesc:'Existing wallpaper will be scored, soaked, stripped, and the wall surface repaired and primed before painting.'},
+  {id:'twocoat', label:'Two coats',        icon:'🎨',
+   hint:'Standard on color changes and bare surfaces. Already in base rate — use when specifically calling it out on the proposal.',
+   ratePerSqFt:0.15, flatRate:0,
+   clientDesc:'Two full coats of finish paint will be applied to all surfaces for maximum coverage, depth of color, and durability.'},
+  {id:'cleanup', label:'Final cleanup',    icon:'🧹',
+   hint:'Remove all tape, drop cloths, and debris. ~30 min per room.',
+   ratePerSqFt:0, flatRate:28,
    clientDesc:'All drop cloths and debris will be removed and work areas cleaned and left in the same condition as found.'},
-  {id:'scaffold', label:'Scaffolding',     desc:'', defaultHrs:0,  flat:0,  rateKey:'e-scope-r-scaffold', defaultRate:65,
+  {id:'scaffold', label:'Scaffolding',     icon:'🏗️',
+   hint:'For stairwells, 2-story foyers, or high exterior. Setup/tear-down ~2 hrs.',
+   ratePerSqFt:0, flatRate:125,
    clientDesc:'Scaffolding will be erected and secured to safely access high walls, ceilings, or exterior surfaces. Setup, tear-down, and all safety requirements are included.'},
-  {id:'pwash',   label:'Pressure washing', desc:'', defaultHrs:0,  flat:0,  rateKey:'e-scope-r-pwash',    defaultRate:55,
-   clientDesc:'All exterior surfaces will be pressure washed to remove dirt, mold, mildew, and loose paint prior to painting. Surfaces must fully cure and dry for a minimum of 48 hours after washing before any paint is applied — this ensures maximum paint adhesion and a lasting finish.'},
+  {id:'pwash',   label:'Pressure washing', icon:'💦',
+   hint:'Exterior only — wash before painting. ~250 sf/hr. Must dry 48 hrs before paint.',
+   ratePerSqFt:0.26, flatRate:0,
+   clientDesc:'All exterior surfaces will be pressure washed to remove dirt, mold, mildew, and loose paint prior to painting. Surfaces must fully cure and dry for a minimum of 48 hours after washing before any paint is applied.'},
 ];
 const SURF_TYPES=[
   {v:'walls',l:'Walls',unit:'sq ft',rate:1.25,mf:1},
@@ -4057,7 +4120,7 @@ function markJobDone(jobId){
     :'')+
     '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">'+
       '<button onclick="closeTopModal()" style="padding:12px;border-radius:var(--r);border:1px solid var(--border2);background:var(--bg2);font-size:14px;font-weight:600;cursor:pointer;font-family:inherit">Cancel</button>'+
-      '<button onclick="confirmJobDone('+jobId+')" style="padding:12px;border-radius:var(--r);border:none;background:var(--green);color:#fff;font-size:15px;font-weight:700;cursor:pointer;font-family:inherit">Complete job ✓</button>'+
+      '<button onclick="closeTopModal();showJobDebrief('+jobId+')" style="padding:12px;border-radius:var(--r);border:none;background:var(--green);color:#fff;font-size:15px;font-weight:700;cursor:pointer;font-family:inherit">Complete job ✓</button>'+
     '</div>';
   overlay.appendChild(box);
   document.body.appendChild(overlay);
@@ -4161,6 +4224,8 @@ function confirmJobDone(jobId){
     },100);
   }
 }
+// Alias called by post-job debrief after saving hours
+function confirmMarkComplete(jobId){confirmJobDone(jobId);}
 function callClient(){const c=getClientById(currentClientId);if(c&&c.phone)window.location.href='tel:'+c.phone.replace(/\D/g,'');}
 function openMapsDir(){const c=getClientById(currentClientId);if(!c||!c.addr)return zAlert('No address on file for this client.');window.open('https://maps.apple.com/?daddr='+encodeURIComponent(c.addr),'_blank');}
 function driveToJob(jobId){
@@ -5158,49 +5223,48 @@ function discardDriveTrip(){
 }
 
 function buildScopeGrid(roomName){
-  const el=document.getElementById('est-scope-grid');if(!el)return;
+  const el=document.getElementById('est-scope-grid')||document.getElementById('surf-scope-first-grid');
+  if(!el)return;
   _currentScopeRoom=roomName||'';
+  // Get room sqft estimate for auto-price preview
+  const roomSqFt=roomName?estSurfaces.filter(s=>cleanRoomName(s.room)===roomName&&
+    (s.type==='walls'||s.type==='ceiling')).reduce((sum,s)=>sum+(s.qty||0),0):0;
   el.innerHTML=SCOPE_ITEMS.map(s=>{
     const isOn=roomName?roomScopeOn(roomName,s.id):!!scopeActiveMap[s.id];
-    const entry=roomName?((roomScopeMap[roomName]&&roomScopeMap[roomName][s.id])||{}):(scopeHrsStore[s.id]||{});
-    const hrs=entry.hrs||0;
-    const rate=entry.rate||0;
-    // Use data attribute for room name to avoid string escaping issues in onclick
     const roomAttr=roomName?(' data-room="'+encodeURIComponent(roomName)+'"'):'';
     const clickHandler=roomName
       ?'onclick="toggleScopeRoom(\''+s.id+'\',decodeURIComponent(this.dataset.room))"'
       :'onclick="toggleScope(\''+s.id+'\')"';
-    return '<div class="stog'+(isOn?' on':'')+'" id="est-st-'+s.id+'" '+clickHandler+roomAttr+'>'+
+    // Auto-price preview
+    const estCost=roomSqFt?Math.round(((s.ratePerSqFt||0)*roomSqFt+(s.flatRate||0))):s.flatRate||0;
+    const priceTag=estCost>0?'<span style="font-size:10px;font-weight:700;color:var(--green-mid);margin-left:auto;white-space:nowrap">+$'+estCost+'</span>':'';
+    return '<div class="stog'+(isOn?' on':'')+'" id="est-st-'+s.id+'" '+clickHandler+roomAttr+' style="align-items:flex-start">'+
       '<input type="checkbox" id="est-sc-'+s.id+'" style="display:none"'+(isOn?' checked':'')+'>'+
-      '<div class="sdot"></div>'+
+      '<div class="sdot" style="margin-top:2px"></div>'+
       '<div style="flex:1;min-width:0">'+
-        '<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:4px;min-width:0">'+
-          '<span class="slabel" style="flex:1;min-width:0;word-break:break-word">'+s.label+'</span>'+
-          '<span id="scope-hrs-badge-'+s.id+'" style="font-size:10px;font-weight:800;color:var(--blue-dk);background:var(--blue-lt);padding:2px 5px;border-radius:8px;'+(isOn&&hrs?'':'display:none;')+'text-align:right;line-height:1.5;flex-shrink:0;white-space:nowrap">'+(isOn&&hrs?hrs+'h<br>'+(rate?'$'+rate+'/hr':''):'')+'</span>'+
+        '<div style="display:flex;align-items:center;gap:4px">'+
+          '<span class="slabel">'+(s.icon||'')+'  '+s.label+'</span>'+
+          priceTag+
         '</div>'+
-        '<span class="sprice" style="display:block;font-size:10px;color:var(--text3);font-weight:400">'+(isOn&&hrs?'= $'+(entry.cost||Math.round(hrs*(rate||45))):'Tap to enter hours')+'</span>'+
+        '<span style="display:block;font-size:10px;color:var(--text3);font-weight:400;margin-top:1px;line-height:1.4">'+s.hint+'</span>'+
       '</div></div>';
   }).join('');
-  // NOTE: never reset scopeHrsStore, scopeActiveMap, or roomScopeMap here
 }
 function toggleScopeRoom(id, roomName){
   const wasOn=roomScopeOn(roomName,id);
   const nowOn=!wasOn;
+  const cb=document.getElementById('est-sc-'+id);
+  const tog=document.getElementById('est-st-'+id);
   if(!nowOn){
     if(roomScopeMap[roomName])delete roomScopeMap[roomName][id];
-    const cb=document.getElementById('est-sc-'+id);const tog=document.getElementById('est-st-'+id);
     if(cb)cb.checked=false;if(tog)tog.classList.remove('on');
-    const badge=document.getElementById('scope-hrs-badge-'+id);
-    if(badge){badge.textContent='';badge.style.display='none';}
-    saveEstFullDraft();
   } else {
     if(!roomScopeMap[roomName])roomScopeMap[roomName]={};
-    roomScopeMap[roomName][id]={active:true,hrs:0,rate:45,cost:0};
-    const cb=document.getElementById('est-sc-'+id);const tog=document.getElementById('est-st-'+id);
+    roomScopeMap[roomName][id]={active:true};
     if(cb)cb.checked=true;if(tog)tog.classList.add('on');
-    const sc=SCOPE_ITEMS.find(x=>x.id===id);
-    promptScopeHoursRoom(id,sc?sc.label:id,roomName);
   }
+  saveEstFullDraft();
+  renderEstRunning();
 }
 function promptScopeHoursRoom(id,label,roomName){
   const existing=(roomScopeMap[roomName]&&roomScopeMap[roomName][id])||{};
@@ -5901,8 +5965,148 @@ function goSurfStepB(){
   document.getElementById('surf-step-a').style.display='none';
   document.getElementById('surf-step-b').style.display='';
   document.getElementById('surf-b-roomname').textContent=surfRoom;
+  // Show scope-first state
+  const scopeFirst=document.getElementById('surf-scope-first');
+  const measureWrap=document.getElementById('surf-measure-color-wrap');
+  if(scopeFirst)scopeFirst.style.display='';
+  if(measureWrap)measureWrap.style.display='none';
+  // Render scope grid for this room (no sqft yet, show flat rates only)
+  const sg=document.getElementById('surf-scope-first-grid');
+  if(sg){
+    _currentScopeRoom=surfRoom;
+    sg.innerHTML=SCOPE_ITEMS.map(s=>{
+      const isOn=roomScopeOn(surfRoom,s.id);
+      const roomAttr=' data-room="'+encodeURIComponent(surfRoom)+'"';
+      const priceHint=s.flatRate&&!s.ratePerSqFt?'+$'+s.flatRate+' flat':s.ratePerSqFt?'+$'+s.ratePerSqFt.toFixed(2)+'/sf':'';
+      return '<div class="stog'+(isOn?' on':'')+'" id="est-st-'+s.id+'" onclick="toggleScopeRoom(\''+s.id+'\',decodeURIComponent(this.dataset.room))"'+roomAttr+' style="align-items:flex-start">'+
+        '<input type="checkbox" id="est-sc-'+s.id+'" style="display:none"'+(isOn?' checked':'')+'>'+
+        '<div class="sdot" style="margin-top:2px"></div>'+
+        '<div style="flex:1;min-width:0">'+
+          '<div style="display:flex;align-items:center;gap:4px">'+
+            '<span class="slabel">'+(s.icon||'')+' '+s.label+'</span>'+
+            (priceHint?'<span style="font-size:10px;font-weight:700;color:var(--green-mid);margin-left:auto">'+priceHint+'</span>':'')+
+          '</div>'+
+          '<span style="display:block;font-size:10px;color:var(--text3);font-weight:400;margin-top:1px;line-height:1.4">'+s.hint+'</span>'+
+        '</div></div>';
+    }).join('');
+  }
+}
+
+function goSurfScopeToMeasure(){
+  const scopeFirst=document.getElementById('surf-scope-first');
+  const measureWrap=document.getElementById('surf-measure-color-wrap');
+  if(scopeFirst)scopeFirst.style.display='none';
+  if(measureWrap)measureWrap.style.display='';
   swInitFamilyGrid();
   renderSurfBCurrent();
+}
+
+// Accent wall search
+async function swAccentSearch(val){
+  const dd=document.getElementById('sw-accent-dropdown');if(!dd)return;
+  const q=(val||'').trim().toLowerCase();
+  if(!q||q.length<2){dd.style.display='none';return;}
+  const colors=await swLoadColors();
+  const swNum=q.replace(/sw\s*/i,'').trim();
+  const scored=[];
+  for(const c of colors){
+    const n=c.name.toLowerCase();
+    let score=0;
+    if(n===q)score=100;
+    else if(n.startsWith(q))score=85;
+    else if(n.includes(q))score=70;
+    else if(c.sw.replace('SW ','')===swNum)score=95;
+    else if(c.sw.toLowerCase().includes(swNum)&&swNum.length>=3)score=80;
+    if(score>0)scored.push({...c,score});
+  }
+  scored.sort((a,b)=>b.score-a.score);
+  const top=scored.slice(0,12);
+  if(!top.length){dd.style.display='none';return;}
+  dd.innerHTML=top.map(c=>
+    '<div style="display:flex;align-items:center;gap:8px;padding:7px 10px;cursor:pointer;border-bottom:1px solid var(--border2)" '+
+      'onmousedown="swAccentSelect(\''+c.sw+'\','+JSON.stringify(c.name).replace(/'/g,"\\'")+',\''+c.hex+'\')">'+
+      '<div style="width:22px;height:22px;border-radius:3px;background:'+c.hex+';border:1px solid rgba(0,0,0,.1);flex-shrink:0"></div>'+
+      '<div><div style="font-size:12px;font-weight:600;color:var(--text)">'+c.name+'</div>'+
+      '<div style="font-size:10px;color:var(--text3)">'+c.sw+'</div></div>'+
+    '</div>'
+  ).join('');
+  dd.style.display='block';
+}
+
+function swAccentSelect(sw,name,hex){
+  const dd=document.getElementById('sw-accent-dropdown');if(dd)dd.style.display='none';
+  const si=document.getElementById('sw-accent-search');if(si)si.value='';
+  const note=document.getElementById('sw-accent-note');if(note)note.value=name+' ('+sw+')';
+  const prev=document.getElementById('sw-accent-preview');if(prev){prev.style.background=hex;prev.style.display='';}
+  const lbl=document.getElementById('sw-accent-label');if(lbl)lbl.textContent=name+' ('+sw+')';
+  const sel=document.getElementById('sw-accent-selected');if(sel)sel.style.display='flex';
+}
+
+function swClearAccent(){
+  const note=document.getElementById('sw-accent-note');if(note)note.value='';
+  const si=document.getElementById('sw-accent-search');if(si)si.value='';
+  const sel=document.getElementById('sw-accent-selected');if(sel)sel.style.display='none';
+}
+
+function swHideAccentDropdown(){
+  const dd=document.getElementById('sw-accent-dropdown');if(dd)dd.style.display='none';
+}
+
+// Post-job debrief — shown when marking job complete
+function showJobDebrief(jobId){
+  const job=jobs.find(j=>j.id===jobId);if(!job)return;
+  const bid=bids.find(b=>b.id===job.bid_id);
+  const roomScope=bid?.roomScopeMap||{};
+  const scopeRooms=Object.entries(roomScope).filter(([r,sc])=>Object.values(sc).some(e=>e&&e.active));
+  if(!scopeRooms.length){confirmMarkComplete(jobId);return;}
+  const ov=document.createElement('div');ov.className='zmodal-overlay';
+  const box=document.createElement('div');box.className='zmodal';
+  box.style.maxHeight='88vh';box.style.overflowY='auto';
+  let debriefRows='';
+  scopeRooms.forEach(([room,sc])=>{
+    const items=SCOPE_ITEMS.filter(s=>sc[s.id]&&sc[s.id].active);
+    if(!items.length)return;
+    debriefRows+=`<div style="margin-bottom:12px">
+      <div style="font-size:11px;font-weight:800;color:var(--text3);text-transform:uppercase;margin-bottom:6px">${room}</div>
+      ${items.map(s=>`<div style="display:flex;align-items:center;gap:10px;padding:6px 0;border-bottom:1px solid var(--border2)">
+        <div style="font-size:13px;flex:1">${s.icon||''} ${s.label}</div>
+        <input type="number" min="0" step="0.25" placeholder="hrs" inputmode="decimal"
+          data-room="${encodeURIComponent(room)}" data-scope="${s.id}"
+          style="width:64px;padding:5px;border-radius:var(--r);border:1px solid var(--border2);background:var(--bg2);color:var(--text);font-size:13px;text-align:center">
+      </div>`).join('')}
+    </div>`;
+  });
+  box.innerHTML=
+    `<div style="font-size:17px;font-weight:800;margin-bottom:4px">How'd the job go?</div>
+    <div style="font-size:12px;color:var(--text3);margin-bottom:14px;line-height:1.6">Optional — enter actual hours for each task. Over time this builds your personal benchmarks so future estimates get sharper. Skip anything you didn't track.</div>
+    ${debriefRows}
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:14px">
+      <button onclick="this.closest('.zmodal-overlay').remove();confirmMarkComplete(${jobId})" 
+        style="padding:12px;border-radius:var(--r);border:1px solid var(--border2);background:var(--bg2);font-size:14px;font-weight:600;cursor:pointer;font-family:inherit">Skip</button>
+      <button onclick="saveDebriefAndComplete(${jobId},this)" 
+        style="padding:12px;border-radius:var(--r);border:none;background:var(--blue);color:#fff;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit">Save & complete ✓</button>
+    </div>`;
+  ov.appendChild(box);document.body.appendChild(ov);
+  ov.addEventListener('click',e=>{if(e.target===ov){ov.remove();confirmMarkComplete(jobId);}});
+}
+
+function saveDebriefAndComplete(jobId,btn){
+  const box=btn.closest('.zmodal');
+  const inputs=box.querySelectorAll('input[data-room][data-scope]');
+  inputs.forEach(inp=>{
+    const room=decodeURIComponent(inp.dataset.room);
+    const scopeId=inp.dataset.scope;
+    const hrs=parseFloat(inp.value)||0;
+    if(!hrs)return;
+    if(!S.scopeHistory)S.scopeHistory={};
+    if(!S.scopeHistory[scopeId])S.scopeHistory[scopeId]=[];
+    S.scopeHistory[scopeId].push({hrs,ts:Date.now()});
+    // Keep last 20 entries per scope item
+    if(S.scopeHistory[scopeId].length>20)S.scopeHistory[scopeId]=S.scopeHistory[scopeId].slice(-20);
+  });
+  saveAll();
+  btn.closest('.zmodal-overlay').remove();
+  confirmMarkComplete(jobId);
 }
 
 function renderSurfBCurrent(){
@@ -7246,30 +7450,21 @@ function calcEst(){
     lines.push({label:_lineLabel,qty:s.qty,unit:t.unit,sub:cost,surfType:t.l,room:_roomBase,colorFinish:_afterDash});
   });
   SCOPE_ITEMS.forEach(sc=>{
-    // Per-room scope: aggregate hrs/cost across all rooms
-    const hasRoomScope=Object.keys(roomScopeMap).length>0&&
-      Object.values(roomScopeMap).some(r=>r[sc.id]&&r[sc.id].active);
-    if(hasRoomScope){
-      let totalHrs=0,totalCost=0;
-      Object.values(roomScopeMap).forEach(r=>{
-        const e=r[sc.id];if(!e||!e.active||!e.hrs)return;
-        totalHrs+=e.hrs;totalCost+=e.cost||Math.round(e.hrs*(e.rate||45)*100)/100;
+    // Auto-calculate scope cost from ratePerSqFt + flatRate — no hours needed
+    const roomsWithScope=Object.keys(roomScopeMap).filter(r=>roomScopeMap[r][sc.id]&&roomScopeMap[r][sc.id].active);
+    if(roomsWithScope.length>0){
+      let totalCost=0;
+      roomsWithScope.forEach(roomName=>{
+        // Get total sqft for this room from surfaces
+        const roomSqFt=estSurfaces.filter(s=>cleanRoomName(s.room)===roomName&&
+          (s.type==='walls'||s.type==='ceiling'||s.type==='ext_walls'||s.type==='deck'))
+          .reduce((sum,s)=>sum+(s.qty||0),0);
+        const roomCost=Math.round(((sc.ratePerSqFt||0)*roomSqFt+(sc.flatRate||0))*100)/100;
+        totalCost+=roomCost;
       });
-      if(totalHrs>0){
-        laborTotal+=totalCost;totalLaborHours+=totalHrs;
-        lines.push({label:sc.label+' ('+totalHrs+'h)',qty:totalHrs,unit:'hrs',sub:totalCost});
-      }
-    } else {
-      // Fall back to job-level scope
-      if(!scopeOn(sc.id))return;
-      const entry=scopeHrsStore[sc.id]||{};
-      const hrs=typeof entry==='object'?entry.hrs||0:entry||0;
-      const scopeRate=parseFloat(document.getElementById(sc.rateKey)?.value)||sc.defaultRate||45;
-      const rate=typeof entry==='object'&&entry.rate>0?entry.rate:scopeRate;
-      const cost=Math.round(hrs*rate*100)/100;
-      if(hrs>0||cost>0){
-        laborTotal+=cost;if(hrs>0)totalLaborHours+=hrs;
-        lines.push({label:sc.label+(hrs?' ('+hrs+'h)':''),qty:hrs||1,unit:hrs?'hrs':'flat',sub:cost});
+      if(totalCost>0){
+        laborTotal+=totalCost;
+        lines.push({label:sc.label,qty:roomsWithScope.length,unit:roomsWithScope.length>1?'rooms':'room',sub:totalCost,isScopeItem:true});
       }
     }
   });

@@ -11155,7 +11155,6 @@ function setJobFilter(f,btn){
 function renderJobsPage(){
   const el=document.getElementById('jobs-list');if(!el)return;
   const tk=todayKey();
-  // Gather all clients with won bids
   const JOB_STAGES=['active','signed','scheduled','balance_due','paid'];
   const filterToStages={
     all:JOB_STAGES,
@@ -11171,7 +11170,6 @@ function renderJobsPage(){
     const pa=getClientStage(a.id).priority||9,pb=getClientStage(b.id).priority||9;
     return pa-pb;
   });
-  // Badge: active + scheduled jobs
   const badge=document.getElementById('nb-jobs-badge');
   if(badge){
     const n=clients.filter(c=>['active','scheduled','signed'].includes(getClientStage(c.id).stage)).length;
@@ -11182,18 +11180,233 @@ function renderJobsPage(){
     const st=getClientStage(c.id);
     const wonBid=getClientBids(c.id).filter(b=>b.status==='Closed Won').sort((a,b)=>(b.bid_date||'').localeCompare(a.bid_date||''))[0];
     const nextJob=getClientJobs(c.id).filter(j=>j.eventType!=='estimate'&&j.status!=='canceled'&&j.start>=tk).sort((a,b)=>a.start.localeCompare(b.start))[0];
-    const sub=nextJob?'Starts '+nextJob.start:(wonBid?fmt(wonBid.amount):'');
-    return '<div onclick="openClientDetail('+c.id+')" style="display:flex;justify-content:space-between;align-items:center;padding:12px 0;border-bottom:1px solid var(--border);cursor:pointer">'+
+    const paid=wonBid?getBidPaid(wonBid.id):0;
+    const balance=wonBid?getBidBalance(wonBid):0;
+    const hasSurfaces=wonBid?.surfaces?.length>0;
+    return '<div onclick="openJobSheet('+c.id+')" style="display:flex;justify-content:space-between;align-items:center;padding:13px 0;border-bottom:1px solid var(--border);cursor:pointer;gap:10px">'+
       '<div style="min-width:0;flex:1">'+
-        '<div style="font-size:14px;font-weight:700">'+c.name+'</div>'+
-        '<div style="font-size:11px;color:var(--text3);margin-top:1px">'+c.addr.split(',')[0]+(sub?' · '+sub:'')+'</div>'+
+        '<div style="font-size:14px;font-weight:700;color:var(--text)">'+c.name+'</div>'+
+        '<div style="font-size:11px;color:var(--text3);margin-top:2px">'+
+          (c.addr?c.addr.split(',')[0]:'')+(nextJob?' · Starts '+nextJob.start:'')+
+        '</div>'+
+        (wonBid?
+          '<div style="display:flex;gap:8px;margin-top:5px;flex-wrap:wrap">'+
+            (paid>0?'<span style="font-size:10px;font-weight:700;background:var(--green-lt);color:var(--green-mid);padding:2px 7px;border-radius:10px">'+fmt(paid)+' paid</span>':
+                    '<span style="font-size:10px;font-weight:700;background:var(--amber-lt);color:#856404;padding:2px 7px;border-radius:10px">No deposit yet</span>')+
+            (balance>0.01?'<span style="font-size:10px;font-weight:700;background:#FEE8E8;color:#A32D2D;padding:2px 7px;border-radius:10px">'+fmt(balance)+' due</span>':'')+
+            (hasSurfaces?'<span style="font-size:10px;font-weight:600;background:var(--bg2);color:var(--text3);padding:2px 7px;border-radius:10px">📦 Supply list</span>':'')+
+          '</div>'
+        :'')+
       '</div>'+
-      '<div style="text-align:right;flex-shrink:0;margin-left:10px">'+
+      '<div style="text-align:right;flex-shrink:0">'+
         '<div style="font-size:11px;font-weight:700;color:'+st.color+'">'+st.label+'</div>'+
-        (wonBid&&st.stage!=='paid'?'<div style="font-size:11px;color:var(--text3)">'+fmt(wonBid.amount)+'</div>':'')+
+        (wonBid?'<div style="font-size:13px;font-weight:800;color:var(--text);margin-top:2px">'+fmt(wonBid.amount)+'</div>':'')+
       '</div>'+
     '</div>';
   }).join('');
+}
+
+function openJobSheet(clientId){
+  const c=getClientById(clientId);if(!c)return;
+  const tk=todayKey();
+  const wonBids=getClientBids(clientId).filter(b=>b.status==='Closed Won').sort((a,b)=>(b.bid_date||'').localeCompare(a.bid_date||''));
+  const bid=wonBids[0];
+  const allJobs=getClientJobs(clientId).filter(j=>j.eventType!=='estimate'&&j.status!=='canceled');
+  const nextJob=allJobs.filter(j=>j.start>=tk).sort((a,b)=>a.start.localeCompare(b.start))[0];
+  const paid=bid?getBidPaid(bid.id):0;
+  const balance=bid?getBidBalance(bid):0;
+  const total=bid?bid.amount:0;
+  const depositDue=bid?Math.round(total*.25*100)/100:0;
+  const st=getClientStage(clientId);
+
+  const ov=document.createElement('div');ov.className='zmodal-overlay';
+  const box=document.createElement('div');
+  box.style.cssText='background:var(--bg);border-radius:var(--rl);width:100%;max-width:560px;max-height:92vh;overflow:hidden;display:flex;flex-direction:column;box-shadow:0 8px 40px rgba(0,0,0,.25)';
+
+  // ── Header ──────────────────────────────────────────────────
+  const stageColors={active:'#2d6a4f',signed:'var(--blue-dk)',scheduled:'var(--blue-dk)',balance_due:'#A32D2D',paid:'#2d6a4f'};
+  const stageBgs={active:'#D1FAE5',signed:'var(--blue-lt)',scheduled:'var(--blue-lt)',balance_due:'#FEE8E8',paid:'#D1FAE5'};
+  const hdrColor=stageColors[st.stage]||'var(--blue-dk)';
+  const hdrBg=stageBgs[st.stage]||'var(--blue-lt)';
+
+  const hdr=document.createElement('div');
+  hdr.style.cssText='background:linear-gradient(135deg,#1a365d,#2a4a7f);color:#fff;padding:18px 20px 16px;flex-shrink:0';
+  hdr.innerHTML=
+    '<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px">'+
+      '<div style="min-width:0">'+
+        '<div style="font-size:19px;font-weight:800;line-height:1.1">'+c.name+'</div>'+
+        (c.addr?'<div style="font-size:12px;opacity:.8;margin-top:3px">📍 '+c.addr+'</div>':'')+
+      '</div>'+
+      '<button onclick="this.closest(\'.zmodal-overlay\').remove()" style="background:rgba(255,255,255,.2);border:none;color:#fff;font-size:18px;cursor:pointer;border-radius:50%;width:32px;height:32px;display:flex;align-items:center;justify-content:center;flex-shrink:0;line-height:1">✕</button>'+
+    '</div>'+
+    '<div style="display:flex;align-items:center;justify-content:space-between;margin-top:14px;flex-wrap:wrap;gap:8px">'+
+      '<span style="font-size:11px;font-weight:800;padding:4px 10px;border-radius:20px;background:rgba(255,255,255,.2);color:#fff">'+st.label+'</span>'+
+      '<div style="display:flex;gap:8px">'+
+        (c.phone?'<a href="tel:'+c.phone.replace(/\D/g,'')+'" style="background:rgba(255,255,255,.2);color:#fff;text-decoration:none;font-size:12px;font-weight:700;padding:5px 12px;border-radius:20px" onclick="event.stopPropagation()">📞 Call</a>':'')+
+        (c.addr?'<button onclick="openMapsForClient('+clientId+');event.stopPropagation()" style="background:rgba(255,255,255,.2);border:none;color:#fff;font-size:12px;font-weight:700;padding:5px 12px;border-radius:20px;cursor:pointer;font-family:inherit">🗺️ Drive</button>':'')+
+        '<button onclick="this.closest(\'.zmodal-overlay\').remove();openClientDetail('+clientId+')" style="background:rgba(255,255,255,.2);border:none;color:#fff;font-size:12px;font-weight:700;padding:5px 12px;border-radius:20px;cursor:pointer;font-family:inherit">Full record →</button>'+
+      '</div>'+
+    '</div>';
+  box.appendChild(hdr);
+
+  // ── Scrollable body ─────────────────────────────────────────
+  const body=document.createElement('div');
+  body.style.cssText='overflow-y:auto;padding:0;flex:1';
+
+  // ── Payment section ─────────────────────────────────────────
+  let payHtml='';
+  if(bid){
+    const pct=total>0?Math.min(100,Math.round(paid/total*100)):0;
+    const barColor=pct>=100?'var(--green-mid)':pct>0?'var(--blue)':'var(--border2)';
+    payHtml=
+      '<div style="padding:16px 20px;border-bottom:1px solid var(--border)">'+
+        '<div style="font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.06em;color:var(--text3);margin-bottom:10px">💰 Payment</div>'+
+        '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:12px">'+
+          '<div style="background:var(--bg2);border-radius:var(--r);padding:10px;text-align:center">'+
+            '<div style="font-size:10px;color:var(--text3);font-weight:600;margin-bottom:3px">Contract</div>'+
+            '<div style="font-size:16px;font-weight:800;color:var(--text)">'+fmt(total)+'</div>'+
+          '</div>'+
+          '<div style="background:'+(paid>0?'var(--green-lt)':'var(--bg2)')+';border-radius:var(--r);padding:10px;text-align:center">'+
+            '<div style="font-size:10px;color:var(--text3);font-weight:600;margin-bottom:3px">Received</div>'+
+            '<div style="font-size:16px;font-weight:800;color:'+(paid>0?'var(--green-mid)':'var(--text3)')+'">'+fmt(paid)+'</div>'+
+          '</div>'+
+          '<div style="background:'+(balance>0.01?'#FEE8E8':'var(--green-lt)')+';border-radius:var(--r);padding:10px;text-align:center">'+
+            '<div style="font-size:10px;color:var(--text3);font-weight:600;margin-bottom:3px">Balance</div>'+
+            '<div style="font-size:16px;font-weight:800;color:'+(balance>0.01?'#A32D2D':'var(--green-mid)')+'">'+fmt(balance)+'</div>'+
+          '</div>'+
+        '</div>'+
+        // Progress bar
+        '<div style="background:var(--border2);border-radius:20px;height:6px;overflow:hidden;margin-bottom:10px">'+
+          '<div style="width:'+pct+'%;height:100%;background:'+barColor+';border-radius:20px;transition:width .3s"></div>'+
+        '</div>'+
+        // Action buttons
+        '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">'+
+          (paid<depositDue&&balance>0.01?
+            '<button onclick="this.closest(\'.zmodal-overlay\').remove();openPayPanel('+bid.id+',\'deposit\')" style="padding:11px;border-radius:var(--r);border:none;background:var(--blue);color:#fff;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit">+ Log deposit</button>'
+          :balance>0.01?
+            '<button onclick="this.closest(\'.zmodal-overlay\').remove();openPayPanel('+bid.id+',\'final\')" style="padding:11px;border-radius:var(--r);border:none;background:var(--green-mid);color:#fff;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit">+ Log payment</button>'
+          :
+            '<div style="padding:11px;background:var(--green-lt);border-radius:var(--r);text-align:center;font-size:13px;font-weight:700;color:var(--green-mid)">✓ Paid in full</div>'
+          )+
+          '<button onclick="this.closest(\'.zmodal-overlay\').remove();openClientDetail('+clientId+');setTimeout(()=>setCDTab(\'bids\',document.getElementById(\'cdt-bids\')),200)" style="padding:11px;border-radius:var(--r);border:1px solid var(--border2);background:var(--bg2);font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;color:var(--text)">Payment history</button>'+
+        '</div>'+
+      '</div>';
+  }
+
+  // ── Schedule section ────────────────────────────────────────
+  let schedHtml='';
+  if(nextJob){
+    const dt=parseD(nextJob.start).toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'});
+    schedHtml=
+      '<div style="padding:14px 20px;border-bottom:1px solid var(--border)">'+
+        '<div style="font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.06em;color:var(--text3);margin-bottom:8px">📅 Schedule</div>'+
+        '<div style="background:var(--blue-lt);border-radius:var(--r);padding:10px 14px;display:flex;justify-content:space-between;align-items:center">'+
+          '<div>'+
+            '<div style="font-size:14px;font-weight:700;color:var(--blue-dk)">'+dt+(nextJob.time?' · '+fmtTime(nextJob.time):'')+'</div>'+
+            '<div style="font-size:11px;color:var(--blue);margin-top:2px">'+(nextJob.days||1)+' day'+(nextJob.days!==1?'s':'')+' est.</div>'+
+          '</div>'+
+          '<button onclick="this.closest(\'.zmodal-overlay\').remove();goPg(\'pg-schedule\')" style="padding:7px 12px;border-radius:var(--r);border:1px solid var(--blue);background:#fff;color:var(--blue-dk);font-size:12px;font-weight:700;cursor:pointer;font-family:inherit">Reschedule</button>'+
+        '</div>'+
+      '</div>';
+  } else if(bid&&st.stage==='signed'){
+    schedHtml=
+      '<div style="padding:14px 20px;border-bottom:1px solid var(--border)">'+
+        '<div style="font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.06em;color:var(--text3);margin-bottom:8px">📅 Schedule</div>'+
+        '<div style="background:var(--amber-lt);border-radius:var(--r);padding:10px 14px;display:flex;justify-content:space-between;align-items:center">'+
+          '<div style="font-size:13px;font-weight:600;color:#856404">Signed — not yet scheduled</div>'+
+          '<button onclick="this.closest(\'.zmodal-overlay\').remove();schedFromBid('+bid.id+')" style="padding:7px 12px;border-radius:var(--r);border:none;background:var(--blue);color:#fff;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit">Schedule →</button>'+
+        '</div>'+
+      '</div>';
+  }
+
+  // ── Materials / supply list section ─────────────────────────
+  let supplyHtml='';
+  if(bid&&bid.surfaces&&bid.surfaces.length){
+    // Build paint summary inline (no modal needed for quick view)
+    const allSwProds=Object.values(SW_PRODUCTS).flat();
+    const orderMap={};
+    bid.surfaces.forEach(s=>{
+      if(!s.qty)return;
+      const t=SURF_TYPES.find(x=>x.v===s.type);if(!t||t.unit!=='sq ft')return;
+      const spec=(s.room||'').indexOf(' — ')>-1?(s.room||'').split(' — ').slice(1).join(' — '):'';
+      const key=spec||'Paint';
+      if(!orderMap[key])orderMap[key]={sqFt:0,spec,cov:350};
+      orderMap[key].sqFt+=s.qty;
+      const prodName=spec.split(' · ')[0].trim();
+      const prod=allSwProds.find(p=>p.name===prodName);
+      if(prod)orderMap[key].cov=prod.cov||350;
+    });
+    const paintRows=Object.entries(orderMap).map(([key,od])=>{
+      const cans=Math.ceil(od.sqFt/od.cov*1.10);
+      const parts=od.spec.split(' · ');
+      const prod=parts[0]||'Paint';
+      const colorFinish=parts.slice(1).join(' · ')||od.spec;
+      const swMatch=od.spec.match(/SW \d+/i);
+      const swHex=swMatch&&_swColors?(_swColors.find(c=>c.sw.toLowerCase()===swMatch[0].toLowerCase())?.hex||''):'';
+      const dot=swHex?'<span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:'+swHex+';border:1px solid rgba(0,0,0,.15);margin-right:5px;vertical-align:middle;flex-shrink:0"></span>':'';
+      return '<div style="display:flex;align-items:center;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border2)">'+
+        '<div style="min-width:0;flex:1">'+
+          '<div style="font-size:12px;font-weight:700;color:var(--text)">'+prod+'</div>'+
+          '<div style="font-size:11px;color:var(--text3)">'+dot+colorFinish+'</div>'+
+        '</div>'+
+        '<div style="font-size:14px;font-weight:800;color:var(--blue-dk);flex-shrink:0;margin-left:10px">'+cans+' gal</div>'+
+      '</div>';
+    }).join('');
+
+    supplyHtml=
+      '<div style="padding:14px 20px;border-bottom:1px solid var(--border)">'+
+        '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">'+
+          '<div style="font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.06em;color:var(--text3)">📦 Materials</div>'+
+          '<button onclick="this.closest(\'.zmodal-overlay\').remove();showSupplyList('+bid.id+')" style="padding:5px 12px;border-radius:20px;border:none;background:#FFF0E8;color:#854F0B;font-size:11px;font-weight:700;cursor:pointer;font-family:inherit">Full supply list →</button>'+
+        '</div>'+
+        (paintRows||'<div style="font-size:12px;color:var(--text3)">No paint selected yet.</div>')+
+      '</div>';
+  }
+
+  // ── Scope summary ────────────────────────────────────────────
+  let scopeHtml='';
+  if(bid&&bid.roomScopeMap&&Object.keys(bid.roomScopeMap).length){
+    const allScope=[];
+    Object.entries(bid.roomScopeMap).forEach(([room,sc])=>{
+      SCOPE_ITEMS.filter(s=>sc[s.id]?.active).forEach(s=>{
+        if(!allScope.find(x=>x.id===s.id))allScope.push(s);
+      });
+    });
+    if(allScope.length){
+      scopeHtml=
+        '<div style="padding:14px 20px;border-bottom:1px solid var(--border)">'+
+          '<div style="font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.06em;color:var(--text3);margin-bottom:8px">🔧 Scope of work</div>'+
+          '<div style="display:flex;flex-wrap:wrap;gap:5px">'+
+          allScope.map(s=>'<span style="font-size:11px;background:var(--bg2);border:1px solid var(--border2);border-radius:20px;padding:3px 9px;color:var(--text2)">'+s.icon+' '+s.label+'</span>').join('')+
+          '</div>'+
+        '</div>';
+    }
+  }
+
+  // ── Job actions ──────────────────────────────────────────────
+  const jobActions=getClientJobs(clientId).filter(j=>j.eventType!=='estimate'&&j.status==='active');
+  let actionsHtml=
+    '<div style="padding:14px 20px">'+
+      '<div style="font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.06em;color:var(--text3);margin-bottom:10px">⚡ Actions</div>'+
+      '<div style="display:grid;gap:8px">'+
+        (jobActions.length?
+          jobActions.map(j=>'<button onclick="this.closest(\'.zmodal-overlay\').remove();markJobDone('+j.id+')" style="padding:12px;border-radius:var(--r);border:none;background:var(--green-mid);color:#fff;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;text-align:left">✓ Mark job complete — '+j.name+'</button>').join('')
+        :'')+
+        '<button onclick="this.closest(\'.zmodal-overlay\').remove();openClientDetail('+clientId+')" style="padding:12px;border-radius:var(--r);border:1px solid var(--border2);background:var(--bg2);font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;color:var(--text);text-align:left">📋 Full client record & history</button>'+
+      '</div>'+
+    '</div>';
+
+  body.innerHTML=payHtml+schedHtml+supplyHtml+scopeHtml+actionsHtml;
+  box.appendChild(body);
+  ov.appendChild(box);
+  ov.onclick=e=>{if(e.target===ov)ov.remove();};
+  document.body.appendChild(ov);
+}
+
+function openMapsForClient(clientId){
+  const c=getClientById(clientId);
+  if(!c||!c.addr)return zAlert('No address on file.');
+  window.open('https://maps.apple.com/?daddr='+encodeURIComponent(c.addr),'_blank');
 }
 
 // ── Money page ────────────────────────────────────────────────────────────

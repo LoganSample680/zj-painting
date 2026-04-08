@@ -5559,37 +5559,37 @@ function swOpenFullscreenColor(hex,name,sw){
 // ══ SW Product Lines ══════════════════════════════════════
 const SW_PRODUCTS={
   interior:[
-    {id:'pm700',  name:'ProMar 700',        sub:'Budget · rentals, basic repaint',           price:'$'},
-    {id:'pm400',  name:'ProMar 400',         sub:'Economy · fast flips, new construction',    price:'$'},
-    {id:'pm200',  name:'ProMar 200',         sub:'Standard · everyday residential',           price:'$$'},
-    {id:'pm200hp',name:'ProMar 200 HP',      sub:'Commercial grade · more durable than 200',  price:'$$'},
-    {id:'sp',     name:'SuperPaint',         sub:'Mid-grade · paint+primer, great coverage',  price:'$$'},
-    {id:'harm',   name:'Harmony',            sub:'Zero VOC · odor reducing, nurseries',       price:'$$'},
+    {id:'pm700',  name:'ProMar 700',        sub:'Budget · rentals, basic repaint',           price:'$',   retail:55,  contractor:20, cov:350},
+    {id:'pm400',  name:'ProMar 400',         sub:'Economy · fast flips, new construction',    price:'$',   retail:75,  contractor:25, cov:350},
+    {id:'pm200',  name:'ProMar 200',         sub:'Standard · everyday residential',           price:'$$',  retail:83,  contractor:32, cov:350},
+    {id:'pm200hp',name:'ProMar 200 HP',      sub:'Commercial grade · more durable than 200',  price:'$$',  retail:86,  contractor:34, cov:350},
+    {id:'sp',     name:'SuperPaint',         sub:'Mid-grade · paint+primer, great coverage',  price:'$$',  retail:65,  contractor:37, cov:400},
+    {id:'harm',   name:'Harmony',            sub:'Zero VOC · odor reducing, nurseries',       price:'$$',  retail:65,  contractor:37, cov:400},
     {id:'cash',   name:'Cashmere',           sub:'Smooth · luxury feel, flawless walls',      price:'$$$'},
     {id:'dur',    name:'Duration Home',      sub:'Durable · kids, pets, high traffic',        price:'$$$'},
     {id:'em',     name:'Emerald',            sub:'Top tier · best hide, washable',            price:'$$$$'},
     {id:'emde',   name:'Emerald Designer',   sub:'Best of best · flawless, burnish resistant',price:'$$$$'},
   ],
   ceiling:[
-    {id:'pm200c', name:'ProMar Ceiling',     sub:'Contractor ceiling paint · flat white',     price:'$'},
-    {id:'emin',   name:'Eminence Ceiling',   sub:'Self-priming · bright white, one-coat',     price:'$$'},
-    {id:'emceil', name:'Emerald (flat)',      sub:'Premium ceiling · tintable any color',      price:'$$$$'},
+    {id:'pm200c', name:'ProMar Ceiling',     sub:'Contractor ceiling paint · flat white',     price:'$',   retail:55,  contractor:22, cov:350},
+    {id:'emin',   name:'Eminence Ceiling',   sub:'Self-priming · bright white, one-coat',     price:'$$',  retail:37,  contractor:28, cov:400},
+    {id:'emceil', name:'Emerald (flat)',      sub:'Premium ceiling · tintable any color',      price:'$$$$',retail:74,  contractor:52, cov:400},
   ],
   exterior:[
-    {id:'a100',   name:'A-100 Exterior',     sub:'Budget exterior · good value',              price:'$'},
-    {id:'flx',    name:'FlexTemp',           sub:'Wide temp range · 35-120°F application',    price:'$$'},
-    {id:'spe',    name:'SuperPaint Ext.',    sub:'Standard · workhorse siding & trim',        price:'$$'},
-    {id:'dure',   name:'Duration Exterior',  sub:'Premium · 25yr warranty, self-priming',     price:'$$$'},
-    {id:'eme',    name:'Emerald Exterior',   sub:'Best · self-cleaning, color retention',     price:'$$$$'},
-    {id:'loxon',  name:'Loxon Masonry',      sub:'Masonry/concrete/stucco exterior',          price:'$$$'},
+    {id:'a100',   name:'A-100 Exterior',     sub:'Budget exterior · good value',              price:'$',   retail:49,  contractor:30, cov:350},
+    {id:'flx',    name:'FlexTemp',           sub:'Wide temp range · 35-120°F application',    price:'$$',  retail:75,  contractor:42, cov:350},
+    {id:'spe',    name:'SuperPaint Ext.',    sub:'Standard · workhorse siding & trim',        price:'$$',  retail:63,  contractor:38, cov:350},
+    {id:'dure',   name:'Duration Exterior',  sub:'Premium · 25yr warranty, self-priming',     price:'$$$', retail:81,  contractor:48, cov:400},
+    {id:'eme',    name:'Emerald Exterior',   sub:'Best · self-cleaning, color retention',     price:'$$$$',retail:86,  contractor:54, cov:400},
+    {id:'loxon',  name:'Loxon Masonry',      sub:'Masonry/concrete/stucco exterior',          price:'$$$', retail:70,  contractor:44, cov:300},
   ],
   trim:[
-    {id:'pm200t', name:'ProMar 200',         sub:'Standard trim & doors',                     price:'$$'},
-    {id:'ase',    name:'All Surface Enamel', sub:'Versatile enamel · doors, metal, wood',     price:'$$$'},
-    {id:'pclassw',name:'ProClassic WB',      sub:'Smooth trim & cabinetry · waterborne',      price:'$$$'},
-    {id:'pclassa',name:'ProClassic Alkyd',   sub:'Oil-based trim · ultra hard finish',        price:'$$$'},
-    {id:'emure',  name:'Emerald Urethane',   sub:'Best · doors, cabinets, furniture',         price:'$$$$'},
-    {id:'gallery',name:'Gallery Series',     sub:'Cabinet spray finish · factory-like',       price:'$$$$'},
+    {id:'pm200t', name:'ProMar 200',         sub:'Standard trim & doors',                     price:'$$',  retail:83,  contractor:32, cov:400},
+    {id:'ase',    name:'All Surface Enamel', sub:'Versatile enamel · doors, metal, wood',     price:'$$$', retail:50,  contractor:38, cov:400},
+    {id:'pclassw',name:'ProClassic WB',      sub:'Smooth trim & cabinetry · waterborne',      price:'$$$', retail:80,  contractor:48, cov:400},
+    {id:'pclassa',name:'ProClassic Alkyd',   sub:'Oil-based trim · ultra hard finish',        price:'$$$', retail:80,  contractor:48, cov:400},
+    {id:'emure',  name:'Emerald Urethane',   sub:'Best · doors, cabinets, furniture',         price:'$$$$',retail:95,  contractor:58, cov:400},
+    {id:'gallery',name:'Gallery Series',     sub:'Cabinet spray finish · factory-like',       price:'$$$$',retail:90,  contractor:55, cov:400},
   ],
 };
 const SW_PRODUCT_INFO={
@@ -5678,10 +5678,13 @@ function swRenderProductGrid(surfType){
 
 function swShowProductInfo(id){
   const info=SW_PRODUCT_INFO[id];if(!info)return;
+  // Enrich with contractor price + coverage from product catalog
+  const _pd=Object.values(SW_PRODUCTS).flat().find(p=>p.id===id);
+  if(_pd){info.contractorPrice=_pd.contractor;info.retailPrice=_pd.retail;info.coverage=_pd.cov;info.hasPrice=true;info.updated='Apr 2025';}
   const ov=document.createElement('div');
-  ov.style.cssText='position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.55);display:flex;align-items:flex-end;justify-content:center';
+  ov.style.cssText='position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.55);display:flex;align-items:center;justify-content:center;padding:20px';
   const sheet=document.createElement('div');
-  sheet.style.cssText='background:var(--bg);border-radius:var(--rl) var(--rl) 0 0;padding:20px 18px 36px;width:100%;max-width:600px;max-height:82vh;overflow-y:auto;box-shadow:0 -4px 24px rgba(0,0,0,.2)';
+  sheet.style.cssText='background:var(--bg);border-radius:var(--rl);padding:22px 20px 28px;width:100%;max-width:560px;max-height:88vh;overflow-y:auto;box-shadow:0 8px 40px rgba(0,0,0,.3)';
   const row=(icon,label,text)=>'<div style="background:var(--bg2);border-radius:var(--r);padding:10px 12px;margin-bottom:8px">'+
     '<div style="font-size:10px;font-weight:800;text-transform:uppercase;color:var(--text3);margin-bottom:3px">'+icon+' '+label+'</div>'+
     '<div style="font-size:12px;color:var(--text);line-height:1.6">'+text+'</div></div>';
@@ -5693,7 +5696,11 @@ function swShowProductInfo(id){
     row('🎯','When to use',info.when)+
     row('✅','What it\'s good at',info.good)+
     row('🚫','Not ideal for',info.notFor)+
-    row('🏠','Best jobs',info.jobs);
+    row('🏠','Best jobs',info.jobs)+
+    (info.hasPrice?'<div style="background:var(--green-lt);border-radius:var(--r);padding:10px 12px;margin-bottom:8px">'+
+      '<div style="font-size:10px;font-weight:800;text-transform:uppercase;color:var(--text3);margin-bottom:3px">💰 Pricing (contractor rate)</div>'+
+      '<div style="font-size:12px;color:var(--text);line-height:1.6">~$'+info.contractorPrice+'/gal contractor · ~$'+info.retailPrice+'/gal retail<br>Covers ~'+info.coverage+' sq ft/gal · <span style="color:var(--text3)">Prices updated '+info.updated+'</span></div>'+
+    '</div>':'');
   ov.appendChild(sheet);
   ov.onclick=(e)=>{if(e.target===ov)ov.remove();};
   document.body.appendChild(ov);

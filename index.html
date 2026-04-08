@@ -5591,6 +5591,33 @@ const SW_PRODUCTS={
     {id:'gallery',name:'Gallery Series',     sub:'Cabinet spray finish · factory-like',       price:'$$$$'},
   ],
 };
+const SW_PRODUCT_INFO={
+  pm700:{name:'ProMar 700',when:'Bare-bones budget jobs — apartment turnovers, storage units, basic new construction where the owner plans to repaint soon.',good:'Cheap, fast, acceptable coverage on fresh drywall.',notFor:'Anywhere a client expects to keep the paint long-term. Won\'t hold up to cleaning or scuffs.',jobs:'Rental flips, storage units, builder-grade new construction.'},
+  pm400:{name:'ProMar 400',when:'Slightly better than 700, still budget. Being phased out — hard to find in sheens other than flat.',good:'Fast application, economical on large commercial repaint.',notFor:'Any residential job where durability matters. Avoid on trim or high-touch surfaces.',jobs:'Large commercial spaces on tight budget, basic wall repaints.'},
+  pm200:{name:'ProMar 200 Zero VOC',when:'Your go-to standard residential repaint. Solid contractor workhorse — covers well, touches up cleanly, holds up to normal residential use.',good:'Zero VOC, antimicrobial, great contractor pricing, easy to work with. Good coverage and washability for the price.',notFor:'High-end homes where the client wants the absolute best. Not ideal for kitchens/baths where walls get scrubbed frequently.',jobs:'Standard bedroom, living room, hallway repaints. Most everyday residential.'},
+  pm200hp:{name:'ProMar 200 HP',when:'Commercial step-up from standard ProMar 200. More abrasion resistant — handles scrubbing and high traffic better.',good:'LEED certified, Greenguard Gold, harder finish than standard 200. Good for commercial clients who need durability specs.',notFor:'Overkill for standard residential — use regular ProMar 200 instead.',jobs:'Light commercial, offices, schools, multi-family common areas.'},
+  sp:{name:'SuperPaint Interior',when:'Mid-grade residential upgrade from ProMar 200. Paint-and-primer combo means better coverage in one coat on most repaints.',good:'Self-priming, excellent hide, very forgiving on color changes. Popular for its ease of use and consistent results.',notFor:'Not as durable as Duration or Emerald for scrubbing-heavy areas.',jobs:'Mid-range residential repaints, living rooms, bedrooms. Good choice when client wants better than standard but not premium pricing.'},
+  harm:{name:'Harmony',when:'Client has sensitivities, allergies, or is concerned about air quality. Nurseries, healthcare settings, anyone who reacts to paint fumes.',good:'Zero VOC, actively reduces household odors, Greenguard certified. Makes a great sales talking point on premium jobs.',notFor:'Not a durability upgrade — use Duration or Emerald if they need both air quality and toughness.',jobs:'Nurseries, bedrooms for sensitive clients, assisted living, any job where the client mentions smell concerns.'},
+  cash:{name:'Cashmere Interior',when:'Client wants that smooth, luxurious wall feel. Cashmere lays incredibly flat with almost no roller texture.',good:'Silky finish, excellent hide, minimal brush/roller marks. Looks stunning in living rooms and master bedrooms.',notFor:'Not as washable as Duration or Emerald — keep away from kitchens and kids rooms.',jobs:'Upscale living rooms, dining rooms, master suites. When the client says "I want it to look really smooth."'},
+  dur:{name:'Duration Home',when:'Family with kids, pets, or anyone who cleans their walls. Moisture resistant tech makes it the go-to for bathrooms.',good:'Lifetime warranty, cross-linking technology creates a tough washable film, excellent stain resistance. One of the best values at this price tier.',notFor:'Not necessary on low-traffic rooms like formal dining — save the client money and use SuperPaint there.',jobs:'Kitchens, bathrooms, kids rooms, hallways, any high-traffic area.'},
+  em:{name:'Emerald Interior',when:'Premium residential — when the client is investing in their home and wants the best hide, most washable, longest lasting finish.',good:'Best in class hide, self-priming, excellent washability, scrubbable. Makes color changes easier. Paint looks richer and deeper.',notFor:'Overkill for rental properties or budget-conscious clients.',jobs:'High-end residential repaints, accent walls, any room where color accuracy matters most.'},
+  emde:{name:'Emerald Designer Edition',when:'Governor\'s mansion level. Client has an interior designer involved, wants magazine-quality results.',good:'Best hide of any SW product, burnish resistant, superior color accuracy. The top of the line.',notFor:'Any job where budget is a concern.',jobs:'Luxury residential, high-end staging, designer-specified projects.'},
+  pm200c:{name:'ProMar Ceiling Paint',when:'Standard ceiling repaint where you just need a clean flat white fast.',good:'Contractor pricing, fast application, flat finish hides ceiling imperfections.',notFor:'If client wants a colored ceiling — use a wall paint in flat instead.',jobs:'Standard white ceiling on everyday residential repaint.'},
+  emin:{name:'Eminence Ceiling',when:'Upgrade from ProMar ceiling — self-priming, claimed one-coat coverage, higher LRV white.',good:'Very bright white (LRV 92), mold resistant, fast dry, doesn\'t splatter much. Makes ceilings look crisp.',notFor:'Colored ceilings — only comes in white.',jobs:'Any job where the client wants a noticeably bright clean ceiling.'},
+  emceil:{name:'Emerald (Flat)',when:'Colored ceiling, or when the client wants the absolute best ceiling finish. Tintable to any color.',good:'All the Emerald benefits — hide, washability — in flat sheen for ceilings.',notFor:'Budget jobs — expensive for a ceiling.',jobs:'Accent ceilings, colored ceilings, high-end master bedrooms.'},
+  a100:{name:'A-100 Exterior',when:'Budget exterior job. Rental property, cost-conscious client, or a surface that will be painted again in a few years.',good:'Economical, decent coverage, gets the job done.',notFor:'Anything the client wants to last 10+ years without repainting.',jobs:'Rental property exteriors, sheds, budget-constrained jobs.'},
+  flx:{name:'FlexTemp Exterior',when:'Painting in early spring or late fall when temperatures swing. Can apply in 35-120F — huge in Kansas weather.',good:'Wide application temperature range, resists fading and flaking, can go on vinyl.',notFor:'Summer peak season jobs where temperature isn\'t a concern — SuperPaint or Duration performs better.',jobs:'Spring/fall exterior work, any job where weather is unpredictable.'},
+  spe:{name:'SuperPaint Exterior',when:'Standard exterior repaint workhorse. Go-to product for most exterior siding and trim jobs.',good:'Paint and primer in one, excellent coverage, holds up to weather well. Easy to work with.',notFor:'If client is in a severe weather area or wants a long warranty — step up to Duration.',jobs:'Standard exterior house repaints — siding, fascia, exterior trim.'},
+  dure:{name:'Duration Exterior',when:'Client wants the job to last. 25-year limited warranty, self-priming, flexible film handles temperature cycling well.',good:'Excellent for Kansas freeze-thaw cycles. Resists cracking, peeling, blistering. One-coat on most repaints.',notFor:'Budget jobs — the price jump from SuperPaint may be hard to sell on a tight budget.',jobs:'Premium exterior repaints, cedar/wood siding, any job where durability is the selling point.'},
+  eme:{name:'Emerald Exterior',when:'Top of the line exterior. Self-cleaning formula means rain actually rinses the surface. Best color retention available.',good:'Advanced resin technology, excellent fade resistance, dirt-shedding surface stays looking fresh longer.',notFor:'Average jobs — reserve for high-end homes where the investment makes sense.',jobs:'High-end residential exteriors, historic homes, any job where the client wants the absolute best.'},
+  loxon:{name:'Loxon Masonry',when:'Painting concrete, brick, stucco, CMU block, or any masonry surface. Purpose-built for porous surfaces.',good:'Penetrates masonry, excellent adhesion, alkali resistant, waterproofing properties.',notFor:'Wood, vinyl, or standard drywall — wrong product for non-masonry.',jobs:'Foundation walls, brick exteriors, stucco homes, concrete block.'},
+  pm200t:{name:'ProMar 200 (Trim)',when:'Standard trim on everyday residential jobs.',good:'Cost effective, solid adhesion, good block resistance.',notFor:'High-end trim or cabinetry where you want a furniture-like finish.',jobs:'Standard interior doors, window trim, base/crown molding.'},
+  ase:{name:'All Surface Enamel',when:'Versatile hard enamel that works on wood, metal, masonry, and previously painted surfaces.',good:'Multi-surface, hard durable film, good for doors that get slammed and banged.',notFor:'Cabinetry or furniture where leveling and smoothness matter most.',jobs:'Exterior doors, metal railings, radiators, any mixed-surface trim situation.'},
+  pclassw:{name:'ProClassic Waterborne',when:'Smooth trim and cabinetry where you want a hard enamel finish without oil-based cleanup.',good:'Excellent flow and leveling — minimal brush marks. Cleans up with water. Great for painted cabinets.',notFor:'Exterior use — it\'s an interior product.',jobs:'Kitchen cabinets, bathroom vanities, built-ins, high-end trim work.'},
+  pclassa:{name:'ProClassic Alkyd (Oil)',when:'Old-school painters swear by it for trim. Oil-based means it self-levels beautifully and cures rock hard.',good:'Superior hardness when cured, outstanding flow and leveling. Some painters get a better finish than waterborne.',notFor:'DIY clients or anyone sensitive to VOCs. Longer dry time, solvent cleanup required.',jobs:'High-end trim, doors, cabinetry when a glass-smooth finish is the goal.'},
+  emure:{name:'Emerald Urethane Trim Enamel',when:'When the client wants the absolute best on their trim, doors, or cabinets. Urethane hardener makes it incredibly durable.',good:'Chip resistant, extremely hard finish, excellent flow and leveling, looks almost factory-sprayed when brushed carefully.',notFor:'Budget trim jobs — significant price premium.',jobs:'Custom cabinetry, front doors, built-ins, any trim where the client is paying for premium.'},
+  gallery:{name:'Gallery Series (Spray)',when:'Cabinet refinishing or millwork when you\'re spraying, not brushing. Factory-like finish in 30 minutes.',good:'Designed for spray application, dries in 30 min, recoat in 45 min. Outstanding hardness and flow.',notFor:'Brush or roller application — this is a spray product.',jobs:'Cabinet spray jobs, millwork, built-ins where you\'re set up with a sprayer.'},
+};
 const SURF_PRODUCT_TYPE={
   walls:'interior',ceiling:'ceiling',
   ext_walls:'exterior',ext_trim:'exterior',deck:'exterior',
@@ -5607,15 +5634,39 @@ function swRenderProductGrid(surfType){
     const btn=document.createElement('button');
     btn.type='button';
     btn.dataset.id=p.id;
-    btn.style.cssText='padding:8px 10px;border-radius:var(--r);border:1px solid var(--border2);background:var(--bg);cursor:pointer;font-family:inherit;text-align:left;transition:border .1s';
-    btn.innerHTML='<div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:2px">'+
+    btn.style.cssText='padding:8px 10px;border-radius:var(--r);border:1px solid var(--border2);background:var(--bg);cursor:pointer;font-family:inherit;text-align:left;transition:border .1s;position:relative';
+    btn.innerHTML='<div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:2px;padding-right:18px">'+
       '<span style="font-size:12px;font-weight:700;color:var(--text)">'+p.name+'</span>'+
       '<span style="font-size:11px;color:var(--text3)">'+p.price+'</span>'+
       '</div>'+
-      '<div style="font-size:10px;color:var(--text3);line-height:1.3">'+p.sub+'</div>';
+      '<div style="font-size:10px;color:var(--text3);line-height:1.3">'+p.sub+'</div>'+
+      (SW_PRODUCT_INFO[p.id]?'<span onclick="event.stopPropagation();swShowProductInfo(\''+p.id+'\')" style="position:absolute;top:6px;right:7px;font-size:14px;color:var(--text3);cursor:pointer;line-height:1" title="Learn more">ⓘ</span>':'');
     btn.onclick=()=>swSelectProduct(p,btn);
     grid.appendChild(btn);
   });
+}
+
+function swShowProductInfo(id){
+  const info=SW_PRODUCT_INFO[id];if(!info)return;
+  const ov=document.createElement('div');
+  ov.style.cssText='position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.55);display:flex;align-items:flex-end;justify-content:center';
+  const sheet=document.createElement('div');
+  sheet.style.cssText='background:var(--bg);border-radius:var(--rl) var(--rl) 0 0;padding:20px 18px 36px;width:100%;max-width:600px;max-height:82vh;overflow-y:auto;box-shadow:0 -4px 24px rgba(0,0,0,.2)';
+  const row=(icon,label,text)=>'<div style="background:var(--bg2);border-radius:var(--r);padding:10px 12px;margin-bottom:8px">'+
+    '<div style="font-size:10px;font-weight:800;text-transform:uppercase;color:var(--text3);margin-bottom:3px">'+icon+' '+label+'</div>'+
+    '<div style="font-size:12px;color:var(--text);line-height:1.6">'+text+'</div></div>';
+  sheet.innerHTML=
+    '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">'+
+      '<div style="font-size:16px;font-weight:800;color:var(--text)">'+info.name+'</div>'+
+      '<button type="button" onclick="this.closest(\'[style*=fixed]\').remove()" style="background:none;border:none;cursor:pointer;font-size:22px;color:var(--text3);padding:4px">✕</button>'+
+    '</div>'+
+    row('🎯','When to use',info.when)+
+    row('✅','What it\'s good at',info.good)+
+    row('🚫','Not ideal for',info.notFor)+
+    row('🏠','Best jobs',info.jobs);
+  ov.appendChild(sheet);
+  ov.onclick=(e)=>{if(e.target===ov)ov.remove();};
+  document.body.appendChild(ov);
 }
 
 function swSelectProduct(p,btn){

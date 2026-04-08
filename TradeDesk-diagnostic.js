@@ -1,361 +1,243 @@
-// ============================================================
-// TradeDesk Full Diagnostic — paste into browser console
-// Tests every major function, data flow, DOM, and Supabase
-// ============================================================
-(async function TD_FULL_TEST(){
+// ════════════════════════════════════════════════════════════════
+// TradeDesk Diagnostic v3 — paste into browser console
+// Tests all features added in recent sessions
+// ════════════════════════════════════════════════════════════════
+(async function(){
   const R=[];
-  const pass=(g,l,d='')=>R.push({g,s:'✅',l,d});
-  const fail=(g,l,d='')=>R.push({g,s:'❌',l,d});
-  const warn=(g,l,d='')=>R.push({g,s:'⚠️',l,d});
-  const grp=(n)=>console.log('%c── '+n+' ──','color:#185FA5;font-weight:800;font-size:12px');
+  let pass=0,warn=0,fail=0;
 
-  // ── 1. CORE DATA ARRAYS ─────────────────────────────────────
-  grp('1. Core Data');
-  const arrays={clients,bids,jobs,expenses,payments,mileage,income,liens};
-  Object.entries(arrays).forEach(([k,v])=>{
-    if(Array.isArray(v))pass('data',k,v.length+' records');
-    else fail('data',k,'NOT AN ARRAY');
-  });
-  if(typeof S==='object'&&S!==null)pass('data','S settings','keys: '+Object.keys(S).length);
-  else fail('data','S settings','MISSING');
+  const ok =(msg)=>{R.push('  ✓ '+msg);pass++;};
+  const wn =(msg)=>{R.push('  ⚠ '+msg);warn++;};
+  const er =(msg)=>{R.push('  ✗ '+msg);fail++;};
+  const hd =(msg)=>{R.push('\n── '+msg+' ──────────────────────');};
 
-  // ── 2. CRITICAL FUNCTIONS EXIST ─────────────────────────────
-  grp('2. Function Existence');
-  const mustExist=[
-    // Core
-    'saveAll','loadAll','goPg','closeTopModal','showToast','zAlert','zConfirm',
-    // Estimates
-    'calcEst','renderEstRunning','renderEstReview','renderEstSurfs','buildProposal',
-    'buildDescription','confirmContract','goEstStep','validateAndGoStep5',
-    'prefillEstimateRates','newEstimate','clearEstimatorForm','downloadProposalPDF',
-    'saveEstFullDraft','loadEstFullDraft','restoreEstFullDraft','clearEstFullDraft',
-    // Clients
-    'openClientDetail','openNewClient','saveClient','deleteClient','checkClientDupe',
-    'renderClientList','renderClientDetail','renderCDBids','renderCDTimeline',
-    // Jobs/Calendar
-    'markJobDone','confirmJobDone','scheduleJob','renderCalendar','getJobsOnDay',
-    'renderCalGrid','renderCalWeek','renderCalUpcoming',
-    // Payments/Collections
-    'openPayPanel','closePayPanel','selectPayType','logPayment','deletePay',
-    'getBidBalance','getBidPaid','openLienPanel','closeLienPanel','saveLien',
-    // Dashboard
-    'renderDash','renderLeadSources','renderPipeline','renderDashCollect',
-    'renderDashActiveLiens','fmtShort',
-    // Books/Expenses
-    'expProcessPhoto','expSave','closeExpenseFlow','openExpenseFlow',
-    'renderExpenses','addExpense','delExpense','exportReceiptImages',
-    'exportExpensesCSV','exportMileageCSV','exportTaxPDF','exportFullBackup',
-    // Mileage/Drive
-    'startDrive','endDrive','saveDriveTrip','renderAllMileage','addMileage',
-    // Settings
-    'saveSettings','loadSettingsForm','applySettings','getOwnerName','setOwnerName',
-    // Supabase
-    'supaEnabled','supaInit','supaSaveToCloud','supaLoadFromCloud','supaSignIn',
-    'supaSignUp','supaSignOut','supaSetStatus',
-    // Utilities
-    'fmt','fmtTime','fmtPhone','calcBrackets','getClientById','getClientBids',
-    'addDays','todayKey',
-  ];
-  mustExist.forEach(fn=>{
-    const exists=typeof window[fn]==='function'||
-      (function(){try{return eval('typeof '+fn)==='function'}catch(e){return false}})();
-    if(exists)pass('functions',fn);
-    else fail('functions',fn,'MISSING');
-  });
+  // ── 1. Core globals ─────────────────────────────────────────
+  hd('Core globals');
+  ['clients','bids','jobs','estSurfaces','roomScopeMap','_swColors','SW_PRODUCTS','SW_FAMILIES','SCOPE_ITEMS','SURF_TYPES']
+    .forEach(k=>window[k]!==undefined?ok(k+' declared'):er(k+' MISSING'));
 
-  // ── 3. DOM ELEMENTS ─────────────────────────────────────────
-  grp('3. DOM Elements');
-  const mustExistDOM=[
-    // Pages
-    'pg-dash','pg-clients','pg-est','pg-leads','pg-cal','pg-taxes','pg-tracker',
-    'pg-settings','pg-client-detail',
-    // Estimate steps
-    'est-s1','est-s2','est-s3','est-s4','est-s5','est-s6','est-s7',
-    // Estimate fields
-    'e-cname','e-cphone','e-caddr','e-paint','e-days','e-cond',
-    'e-r-walls','e-r-ceil','e-r-trim','e-r-door','e-r-win',
-    // Nav
-    'nav-user-name','nav-user-avatar','nav-user-role','supa-status',
-    // Dashboard
-    'dash-kpi','dash-collect','dash-sources',
-    // Settings
-    'set-bname','set-bphone','set-owner-name','set-labor-rate',
-    // Books
-    'tr-t-income','tr-t-expenses','tr-t-mileage','tr-t-jobs','tr-t-summary',
-    // Signature
-    'sig-canvas','sig-typed','sig-pname','confirm-btn',
-  ];
-  mustExistDOM.forEach(id=>{
-    if(document.getElementById(id))pass('dom','#'+id);
-    else fail('dom','#'+id,'MISSING FROM DOM');
-  });
+  // ── 2. SW Color data ─────────────────────────────────────────
+  hd('SW Color catalog');
+  try {
+    const colors = await swLoadColors();
+    if(colors&&colors.length>=1500) ok('sw-colors.json loaded — '+colors.length+' colors');
+    else er('sw-colors.json loaded but only '+((colors&&colors.length)||0)+' colors');
 
-  // ── 4. ESTIMATE FLOW (dry run) ───────────────────────────────
-  grp('4. Estimate Flow');
-  try{
-    // Step 1 validation
-    const s1=runStep1Validation?runStep1Validation():null;
-    pass('estimate','runStep1Validation','callable');
-  }catch(e){fail('estimate','runStep1Validation',e.message);}
-  try{
-    const {lines,bid,laborTotal,matTotal,final}=calcEst();
-    if(typeof final==='number')pass('estimate','calcEst','returns final: $'+final.toFixed(2));
-    else fail('estimate','calcEst','no final value returned');
-  }catch(e){fail('estimate','calcEst',e.message);}
-  try{
-    renderEstRunning();
-    pass('estimate','renderEstRunning','no error');
-  }catch(e){fail('estimate','renderEstRunning',e.message);}
-  try{
-    renderEstReview();
-    pass('estimate','renderEstReview','no error');
-  }catch(e){fail('estimate','renderEstReview',e.message);}
-  try{
-    buildDescription();
-    pass('estimate','buildDescription','no error');
-  }catch(e){fail('estimate','buildDescription',e.message);}
-  try{
-    prefillEstimateRates();
-    const walls=document.getElementById('e-r-walls')?.value;
-    if(walls&&parseFloat(walls)>0)pass('estimate','prefillEstimateRates','walls: $'+walls+'/sqft');
-    else warn('estimate','prefillEstimateRates','rates not filling — check settings');
-  }catch(e){fail('estimate','prefillEstimateRates',e.message);}
+    const fams={};colors.forEach(c=>{fams[c.family]=(fams[c.family]||0)+1;});
+    const blacks=fams.black||0;
+    blacks>=10?ok('Black family: '+blacks+' colors'):er('Black family: '+blacks+' colors (expected ≥10)');
 
-  // ── 5. CLIENT FUNCTIONS ──────────────────────────────────────
-  grp('5. Client Functions');
-  try{
-    const c=clients[0];
-    if(c){
-      const found=getClientById(c.id);
-      if(found&&found.id===c.id)pass('clients','getClientById','found: '+found.name);
-      else fail('clients','getClientById','returned wrong record');
-      const bidsForC=getClientBids(c.id);
-      pass('clients','getClientBids',bidsForC.length+' bids');
-      const jobsForC=getClientJobs(c.id);
-      pass('clients','getClientJobs',jobsForC.length+' jobs');
-    }else warn('clients','getClientById','no clients to test with');
-  }catch(e){fail('clients','client functions',e.message);}
-  try{
-    checkClientDupe('');
-    pass('clients','checkClientDupe','no error on empty');
-  }catch(e){fail('clients','checkClientDupe',e.message);}
+    const key=['white','gray','beige','brown','blue','green','teal','orange','red','pink','purple','yellow','black'];
+    const missing=key.filter(f=>!fams[f]);
+    missing.length===0?ok('All 13 color families present'):er('Missing families: '+missing.join(', '));
 
-  // ── 6. PAYMENT MATH ─────────────────────────────────────────
-  grp('6. Payment Math');
-  try{
-    const wonBids=bids.filter(b=>b.status==='Closed Won');
-    if(wonBids.length){
-      const b=wonBids[0];
-      const paid=getBidPaid(b.id);
-      const bal=getBidBalance(b);
-      if(typeof paid==='number'&&typeof bal==='number'){
-        pass('payments','getBidPaid/Balance','paid: $'+paid.toFixed(2)+', balance: $'+bal.toFixed(2));
-        if(Math.abs((paid+bal)-b.amount)>0.02)fail('payments','math check','paid+balance ≠ total: '+paid+'+'+bal+'≠'+b.amount);
-        else pass('payments','math check','paid+balance = total ✓');
-      }else fail('payments','getBidPaid/Balance','returned non-numbers');
-    }else warn('payments','getBidPaid/Balance','no Closed Won bids to test');
-  }catch(e){fail('payments','payment math',e.message);}
+    const repose=colors.find(c=>c.name==='Repose Gray');
+    repose?ok('Repose Gray found — '+repose.sw+' '+repose.family):er('Repose Gray not found');
+    const tricorn=colors.find(c=>c.name==='Tricorn Black');
+    tricorn&&tricorn.family==='black'?ok('Tricorn Black tagged as black'):er('Tricorn Black family = '+(tricorn?.family||'NOT FOUND'));
+  } catch(e) { er('swLoadColors threw: '+e.message); }
 
-  // ── 7. DASHBOARD RENDER ──────────────────────────────────────
-  grp('7. Dashboard');
-  try{
-    renderDash();
-    pass('dashboard','renderDash','no error');
-    const kpi=document.getElementById('dash-kpi');
-    if(kpi&&kpi.innerHTML.length>50)pass('dashboard','KPI cards','rendered');
-    else warn('dashboard','KPI cards','may be empty');
-  }catch(e){fail('dashboard','renderDash',e.message);}
-  try{
-    renderLeadSources();
-    pass('dashboard','renderLeadSources','no error');
-  }catch(e){fail('dashboard','renderLeadSources',e.message);}
+  // ── 3. SW Products ───────────────────────────────────────────
+  hd('SW Products catalog');
+  const allProds=Object.values(SW_PRODUCTS).flat();
+  allProds.length>=20?ok(allProds.length+' products across all categories'):er('Only '+allProds.length+' products');
+  ['interior','ceiling','exterior','trim'].forEach(cat=>
+    SW_PRODUCTS[cat]?.length>=2?ok('Category '+cat+': '+SW_PRODUCTS[cat].length+' products'):er('Category '+cat+' missing or empty'));
+  const pm200=allProds.find(p=>p.id==='pm200');
+  pm200?.cov>=300?ok('ProMar 200 has coverage rate: '+pm200.cov+' sf/gal'):er('ProMar 200 missing coverage rate');
+  pm200?.contractor>=25?ok('ProMar 200 contractor price: $'+pm200.contractor):er('ProMar 200 missing contractor price');
+  const emure=allProds.find(p=>p.id==='emure');
+  emure?ok('Emerald Urethane present ($'+emure.contractor+' contractor)'):er('Emerald Urethane missing');
 
-  // ── 8. NAVIGATION ───────────────────────────────────────────
-  grp('8. Navigation');
-  const pages=['pg-dash','pg-clients','pg-leads','pg-cal','pg-taxes','pg-tracker','pg-settings'];
-  pages.forEach(pg=>{
-    try{
-      goPg(pg);
-      const el=document.getElementById(pg);
-      if(el&&el.classList.contains('active'))pass('nav','goPg('+pg+')','active');
-      else warn('nav','goPg('+pg+')','page exists but may not be active');
-    }catch(e){fail('nav','goPg('+pg+')',e.message);}
-  });
-  // Return to dash
-  try{goPg('pg-dash');}catch(e){}
-
-  // ── 9. SETTINGS ─────────────────────────────────────────────
-  grp('9. Settings');
-  try{
-    loadSettingsForm();
-    pass('settings','loadSettingsForm','no error');
-    const ownerName=getOwnerName();
-    if(ownerName&&ownerName!=='My Account')pass('settings','getOwnerName',ownerName);
-    else warn('settings','getOwnerName','not set — go to Settings → Your name');
-    if(S.bname)pass('settings','business name',S.bname);
-    else warn('settings','business name','not set');
-    if(S.rWalls&&parseFloat(S.rWalls)>0)pass('settings','rate card','walls: $'+S.rWalls);
-    else warn('settings','rate card','no wall rate set');
-  }catch(e){fail('settings','settings functions',e.message);}
-
-  // ── 10. FORMAT FUNCTIONS ─────────────────────────────────────
-  grp('10. Formatters');
-  try{
-    const f1=fmt(1234.56);
-    if(f1==='$1,234.56')pass('format','fmt','$1,234.56 ✓');
-    else fail('format','fmt','expected $1,234.56 got '+f1);
-  }catch(e){fail('format','fmt',e.message);}
-  try{
-    const fs1=fmtShort(1234567);
-    if(fs1.includes('M'))pass('format','fmtShort millions',fs1+' ✓');
-    else fail('format','fmtShort millions','expected M suffix got '+fs1);
-    const fs2=fmtShort(45200);
-    if(fs2.includes('K'))pass('format','fmtShort thousands',fs2+' ✓');
-    else fail('format','fmtShort thousands','expected K suffix got '+fs2);
-  }catch(e){fail('format','fmtShort',e.message);}
-  try{
-    const t=todayKey();
-    if(/\d{4}-\d{2}-\d{2}/.test(t))pass('format','todayKey',t);
-    else fail('format','todayKey','wrong format: '+t);
-  }catch(e){fail('format','todayKey',e.message);}
-  try{
-    const d=addDays('2025-01-01',5);
-    if(d==='2025-01-06')pass('format','addDays','2025-01-01 +5 = '+d+' ✓');
-    else fail('format','addDays','expected 2025-01-06 got '+d);
-  }catch(e){fail('format','addDays',e.message);}
-
-  // ── 11. LOCALSTORAGE ────────────────────────────────────────
-  grp('11. localStorage');
-  try{
-    const keys={'zp3_clients':'clients','zp3_bids':'bids','zp3_jobs':'jobs',
-      'zp3_pay':'payments','zp3_exp':'expenses','zp3_mil':'mileage','zp3_S':'settings'};
-    let totalKB=0;
-    Object.entries(keys).forEach(([k,label])=>{
-      const v=localStorage.getItem(k);
-      const kb=v?Math.round(v.length/1024):0;
-      totalKB+=kb;
-      if(v)pass('storage',label+' ('+k+')',kb+'KB');
-      else warn('storage',label+' ('+k+')','empty — may not have saved yet');
-    });
-    pass('storage','total localStorage',totalKB+'KB');
-    if(totalKB>4000)warn('storage','size warning',totalKB+'KB — approaching iOS limit');
-    // Receipt image cache
-    const rcptKeys=Object.keys(localStorage).filter(k=>k.startsWith('zp3_rcpt_'));
-    if(rcptKeys.length)pass('storage','receipt cache',rcptKeys.length+' images cached locally');
-    // Test write/read
-    localStorage.setItem('zp3_test','ok');
-    if(localStorage.getItem('zp3_test')==='ok')pass('storage','read/write test','✓');
-    else fail('storage','read/write test','localStorage not working');
-    localStorage.removeItem('zp3_test');
-  }catch(e){fail('storage','localStorage',e.message);}
-
-  // ── 12. SUPABASE ────────────────────────────────────────────
-  grp('12. Supabase');
-  try{
-    if(supaEnabled()){
-      pass('supabase','config','URL and key present');
-      if(_supa){
-        pass('supabase','client','initialized');
-        const{data:{session},error:se}=await _supa.auth.getSession();
-        if(se)fail('supabase','getSession',se.message);
-        else if(session){
-          pass('supabase','session','signed in as '+session.user.email);
-          // Test DB read
-          const{data,error}=await _supa.from('zj_data')
-            .select('user_id,updated_at,receipt_images')
-            .eq('user_id',session.user.id).maybeSingle();
-          if(error)fail('supabase','DB read',error.message);
-          else if(data){
-            pass('supabase','DB read','row found, last sync: '+(data.updated_at?.slice(0,19)||'unknown'));
-            // Check receipt_images column
-            if('receipt_images' in data)pass('supabase','receipt_images column','exists ✓');
-            else fail('supabase','receipt_images column','MISSING — run: ALTER TABLE zj_data ADD COLUMN receipt_images text default \'{}\'');
-          }else warn('supabase','DB read','no row yet — will create on first save');
-          // Test auth user metadata
-          if(session.user.email)pass('supabase','user email',session.user.email);
-        }else warn('supabase','session','not signed in — cloud sync inactive');
-      }else fail('supabase','client','_supa is null — init failed');
-    }else warn('supabase','config','SUPA_URL or SUPA_KEY not set — cloud sync disabled');
-  }catch(e){fail('supabase','supabase',e.message);}
-
-  // ── 13. EXPENSE/RECEIPT INTEGRITY ───────────────────────────
-  grp('13. Expenses & Receipts');
-  try{
-    const withPhoto=expenses.filter(e=>e.receipt_img);
-    const withFlag=expenses.filter(e=>e.receipt_img_local&&!e.receipt_img);
-    const withReceipt=expenses.filter(e=>e.receipt==='Yes — photo stored');
-    pass('expenses','total',expenses.length+' expenses');
-    if(withPhoto.length)pass('expenses','with receipt photo',withPhoto.length+' expenses have images');
-    if(withFlag.length)warn('expenses','stale receipt flags',withFlag.length+' have old receipt_img_local flag — re-save to fix');
-    if(withReceipt.length!==withPhoto.length)warn('expenses','receipt field mismatch',
-      withReceipt.length+' say "Yes" but '+withPhoto.length+' have actual images');
-    // Check expense categories
-    const missingCat=expenses.filter(e=>!e.cat);
-    if(missingCat.length)warn('expenses','missing categories',missingCat.length+' expenses have no IRS category');
-    // Check for missing dates
-    const missingDate=expenses.filter(e=>!e.date);
-    if(missingDate.length)fail('expenses','missing dates',missingDate.length+' expenses have no date');
-    else pass('expenses','all dates present','✓');
-  }catch(e){fail('expenses','expense integrity',e.message);}
-
-  // ── 14. BID/JOB INTEGRITY ───────────────────────────────────
-  grp('14. Bid & Job Integrity');
-  try{
-    const orphanBids=bids.filter(b=>!getClientById(b.client_id));
-    if(orphanBids.length)warn('integrity','orphan bids',orphanBids.length+' bids with no matching client');
-    else pass('integrity','bid-client links','all bids have valid clients ✓');
-    const orphanJobs=jobs.filter(j=>j.client_id&&!getClientById(j.client_id));
-    if(orphanJobs.length)warn('integrity','orphan jobs',orphanJobs.length+' jobs with no matching client');
-    else pass('integrity','job-client links','all jobs have valid clients ✓');
-    const draftBids=bids.filter(b=>b.draft);
-    if(draftBids.length)warn('integrity','draft bids',draftBids.length+' draft bids lingering — may be from abandoned estimates');
-    const negBals=bids.filter(b=>b.status==='Closed Won'&&getBidBalance(b)<-0.01);
-    if(negBals.length)warn('integrity','overpaid bids',negBals.length+' bids show negative balance (overpaid)');
-    else pass('integrity','bid balances','no negative balances ✓');
-  }catch(e){fail('integrity','bid/job integrity',e.message);}
-
-  // ── 15. EXPORT FUNCTIONS ────────────────────────────────────
-  grp('15. Export Functions');
-  ['exportExpensesCSV','exportMileageCSV','exportTaxPDF','exportFullBackup','exportReceiptImages']
-    .forEach(fn=>{
-      if(typeof window[fn]==='function'||
-        (function(){try{return eval('typeof '+fn)==='function'}catch(e){return false}})()){
-        pass('exports',fn,'defined ✓');
-      }else fail('exports',fn,'MISSING');
-    });
-
-  // ── 16. SAVEALL ROUNDTRIP ────────────────────────────────────
-  grp('16. Save/Load Roundtrip');
-  try{
-    const clientsBefore=clients.length;
-    saveAll();
-    loadAll();
-    const clientsAfter=clients.length;
-    if(clientsBefore===clientsAfter)pass('roundtrip','saveAll/loadAll',clientsBefore+' clients preserved ✓');
-    else fail('roundtrip','saveAll/loadAll','lost '+(clientsBefore-clientsAfter)+' clients!');
-  }catch(e){fail('roundtrip','saveAll/loadAll',e.message);}
-
-  // ── FINAL REPORT ─────────────────────────────────────────────
-  const groups={};
-  R.forEach(r=>{if(!groups[r.g])groups[r.g]=[];groups[r.g].push(r);});
-  const fails=R.filter(r=>r.s==='❌');
-  const warns=R.filter(r=>r.s==='⚠️');
-  const passes=R.filter(r=>r.s==='✅');
-
-  console.log('\n%c════════════ RESULTS ════════════','font-weight:800;font-size:14px;color:#185FA5');
-  console.log('%c✅ '+passes.length+' passed   ⚠️ '+warns.length+' warnings   ❌ '+fails.length+' failed',
-    'font-size:13px;font-weight:700;color:'+(fails.length?'#A32D2D':warns.length?'#D97706':'#3B8C2A'));
-
-  if(fails.length){
-    console.log('%c\nFAILED — fix these:','color:#A32D2D;font-weight:800;font-size:12px');
-    fails.forEach(r=>console.log('  ❌ ['+r.g+'] '+r.l+(r.d?' — '+r.d:'')));
+  // ── 4. SW Product Info ───────────────────────────────────────
+  hd('SW Product info bubbles');
+  typeof SW_PRODUCT_INFO==='object'?ok('SW_PRODUCT_INFO declared'):er('SW_PRODUCT_INFO MISSING');
+  if(typeof SW_PRODUCT_INFO==='object'){
+    const ids=Object.keys(SW_PRODUCT_INFO);
+    ids.length>=15?ok(ids.length+' products have info entries'):wn('Only '+ids.length+' info entries');
+    const pm=SW_PRODUCT_INFO.pm200;
+    pm?.when&&pm?.good&&pm?.notFor&&pm?.jobs?ok('ProMar 200 info complete'):er('ProMar 200 info incomplete');
   }
-  if(warns.length){
-    console.log('%c\nWARNINGS — review these:','color:#D97706;font-weight:800;font-size:12px');
-    warns.forEach(r=>console.log('  ⚠️  ['+r.g+'] '+r.l+(r.d?' — '+r.d:'')));
-  }
-  if(!fails.length&&!warns.length){
-    console.log('%c\n🎉 All clear — app is healthy!','color:#3B8C2A;font-weight:800;font-size:14px');
-  }
-  return{passed:passes.length,warnings:warns.length,failed:fails.length,details:R};
+
+  // ── 5. Scope items ───────────────────────────────────────────
+  hd('Scope items');
+  SCOPE_ITEMS.length>=10?ok(SCOPE_ITEMS.length+' scope items'):er('Only '+SCOPE_ITEMS.length+' scope items');
+  const sand=SCOPE_ITEMS.find(s=>s.id==='sand');
+  sand?.ratePerSqFt>=0?ok('Sand has ratePerSqFt: $'+sand.ratePerSqFt):er('Sand missing ratePerSqFt');
+  const popcorn=SCOPE_ITEMS.find(s=>s.id==='popcorn');
+  popcorn?ok('Popcorn removal scope item present'):er('Popcorn removal missing');
+  const wallpaper=SCOPE_ITEMS.find(s=>s.id==='wallpaper');
+  wallpaper?ok('Wallpaper removal scope item present'):er('Wallpaper removal missing');
+  SCOPE_ITEMS.every(s=>s.hint)?ok('All scope items have hints'):er('Some scope items missing hints');
+  SCOPE_ITEMS.every(s=>s.icon)?ok('All scope items have icons'):er('Some scope items missing icons');
+  SCOPE_ITEMS.every(s=>s.clientDesc)?ok('All scope items have clientDesc'):er('Some scope items missing clientDesc');
+
+  // ── 6. DOM elements — estimate flow ─────────────────────────
+  hd('Estimate DOM — step A');
+  ['surf-room-name','surf-room-sqft','surf-step-a','surf-step-b','surf-scope-first',
+   'surf-measure-color-wrap','surf-scope-first-grid'].forEach(id=>
+    document.getElementById(id)?ok('#'+id+' exists'):er('#'+id+' MISSING'));
+
+  hd('Estimate DOM — step B color browser');
+  ['sw-state-family','sw-state-swatches','sw-family-grid','sw-swatch-grid',
+   'sw-search-input','sw-selected-pill','sw-selected-hex','sw-selected-finish',
+   'sw-accent-wrap','sw-accent-search','sw-accent-note','sw-accent-dropdown'].forEach(id=>
+    document.getElementById(id)?ok('#'+id+' exists'):er('#'+id+' MISSING'));
+
+  hd('Estimate DOM — product selector');
+  ['sw-product-grid','sw-selected-product','sw-product-grid-hdr'].forEach(id=>
+    document.getElementById(id)?ok('#'+id+' exists'):er('#'+id+' MISSING'));
+
+  // ── 7. Functions ─────────────────────────────────────────────
+  hd('Key functions');
+  ['swLoadColors','swInitFamilyGrid','swShowFamily','swBackToFamilies','swSearch',
+   'swSelectColor','swOpenFullscreenColor','swSelectFinish','swRenderProductGrid',
+   'swSelectProduct','swShowProductInfo','swResetProduct','swGetProductName',
+   'swAccentSearch','swAccentSelect','swClearAccent',
+   'goSurfStepB','goSurfScopeToMeasure','renderSurfBCurrent','saveSurfBAndNext',
+   'finishRoom','showRoomSavedState','editRoomSurfs','addAnotherRoom',
+   'buildScopeGrid','toggleScopeRoom',
+   'calcEst','renderEstReview','renderEstRunning','buildProposal',
+   'saveAndExitEstimate','showJobDebrief','saveDebriefAndComplete',
+   'showSupplyList','supplyCheckAll','supplyUncheckAll',
+   'swRefreshPrices','confirmMarkComplete'
+  ].forEach(fn=>typeof window[fn]==='function'?ok('fn: '+fn):er('fn: '+fn+' MISSING'));
+
+  // ── 8. calcEst — paint order calc ───────────────────────────
+  hd('calcEst — paint order');
+  try {
+    // Inject test surfaces
+    const _saved=[...estSurfaces];
+    estSurfaces=[
+      {id:1,type:'walls',qty:280,room:'Test Room — ProMar 200 · Accessible Beige (SW 7036) [Eggshell]'},
+      {id:2,type:'ceiling',qty:200,room:'Test Room — Eminence Ceiling · Pure White (SW 7005) [Flat]'},
+    ];
+    const result=calcEst();
+    result.paintLines?.length>=1?ok('calcEst returns paintLines: '+result.paintLines.length+' entries'):er('calcEst paintLines empty');
+    result.paintLines?.every(pl=>pl.wholeCans>=1)?ok('All paintLines have wholeCans'):er('paintLines missing wholeCans');
+    result.paintLines?.every(pl=>pl.cov>=300)?ok('All paintLines have coverage rate'):er('paintLines missing cov');
+    result.coats>=1?ok('coats returned: '+result.coats):er('coats not returned from calcEst');
+    // Check ProMar 200 uses 350 cov not 400
+    const wallLine=result.paintLines?.find(pl=>pl.spec?.includes('ProMar 200'));
+    wallLine?.cov===350?ok('ProMar 200 uses correct 350 sf/gal coverage'):wn('ProMar 200 coverage: '+(wallLine?.cov||'not found')+' (expected 350)');
+    estSurfaces=_saved;
+  } catch(e) { er('calcEst threw: '+e.message); }
+
+  // ── 9. Scope auto-pricing ────────────────────────────────────
+  hd('Scope auto-pricing (no hours)');
+  try {
+    const _savedSurfs=[...estSurfaces];
+    const _savedScope=JSON.parse(JSON.stringify(roomScopeMap));
+    estSurfaces=[{id:1,type:'walls',qty:300,room:'Test Room — ProMar 200 · Agreeable Gray (SW 7029) [Eggshell]'}];
+    roomScopeMap={'Test Room':{sand:{active:true},spackle:{active:true}}};
+    const r=calcEst();
+    const sandLine=r.lines?.find(l=>l.label==='Sanding');
+    const spackleLine=r.lines?.find(l=>l.label==='Spackle & patch');
+    sandLine?.sub>0?ok('Sanding auto-priced: $'+sandLine.sub):er('Sanding not in lines or $0');
+    spackleLine?.sub>0?ok('Spackle auto-priced: $'+spackleLine.sub):er('Spackle not in lines or $0');
+    estSurfaces=_savedSurfs;
+    roomScopeMap=_savedScope;
+  } catch(e) { er('Scope pricing threw: '+e.message); }
+
+  // ── 10. Settings page ────────────────────────────────────────
+  hd('Settings — SW price refresh');
+  ['sw-price-table','sw-price-refresh-btn','sw-price-refresh-status','sw-price-updated',
+   'spp-pm200','spp-sp','spp-dur','spp-em','spp-dure','spp-emure'].forEach(id=>
+    document.getElementById(id)?ok('#'+id+' exists'):er('#'+id+' MISSING'));
+  typeof swRefreshPrices==='function'?ok('swRefreshPrices function exists'):er('swRefreshPrices MISSING');
+
+  // ── 11. Save & exit ──────────────────────────────────────────
+  hd('Save & exit bid flow');
+  document.getElementById('est-s5')?ok('#est-s5 exists'):er('#est-s5 MISSING');
+  const exitBtn=[...document.querySelectorAll('#est-s5 button')].find(b=>b.textContent.includes('Save bid'));
+  exitBtn?ok('"Save bid & exit" button exists in step 5'):er('"Save bid & exit" button MISSING from step 5');
+  const s6Exit=[...document.querySelectorAll('#est-s6 button')].find(b=>b.textContent.includes('Not signing'));
+  s6Exit?ok('"Not signing now" button exists in step 6'):er('"Not signing now" button MISSING from step 6');
+  typeof saveAndExitEstimate==='function'?ok('saveAndExitEstimate function exists'):er('saveAndExitEstimate MISSING');
+
+  // ── 12. Post-job debrief ──────────────────────────────────────
+  hd('Post-job debrief');
+  typeof showJobDebrief==='function'?ok('showJobDebrief function exists'):er('showJobDebrief MISSING');
+  typeof saveDebriefAndComplete==='function'?ok('saveDebriefAndComplete exists'):er('saveDebriefAndComplete MISSING');
+  typeof confirmMarkComplete==='function'?ok('confirmMarkComplete alias exists'):er('confirmMarkComplete MISSING');
+
+  // ── 13. Supply list ──────────────────────────────────────────
+  hd('Supply list');
+  typeof showSupplyList==='function'?ok('showSupplyList function exists'):er('showSupplyList MISSING');
+  typeof supplyCheckAll==='function'?ok('supplyCheckAll exists'):er('supplyCheckAll MISSING');
+  // Test supply list builds without error on a mock bid
+  try {
+    const mockBid={
+      id:99999,client_id:null,
+      surfaces:[
+        {id:1,type:'walls',qty:280,room:'LR — ProMar 200 · Accessible Beige (SW 7036) [Eggshell]'},
+        {id:2,type:'ceiling',qty:200,room:'LR — Eminence Ceiling · Pure White (SW 7005) [Flat]'},
+        {id:3,type:'trim',qty:80,room:'LR — ProClassic WB · Extra White (SW 6001) [Semi-Gloss]'},
+      ],
+      roomScopeMap:{'LR':{sand:{active:true},spackle:{active:true},caulk:{active:true}}},
+    };
+    bids.push(mockBid);
+    showSupplyList(99999);
+    const modal=document.querySelector('.zmodal-overlay');
+    if(modal){
+      const checks=modal.querySelectorAll('.supply-check');
+      checks.length>=10?ok('Supply list renders: '+checks.length+' checkable items'):wn('Supply list has only '+checks.length+' items');
+      const paintSection=modal.innerHTML.includes('Paint');
+      const prepSection=modal.innerHTML.includes('Prep');
+      const toolsSection=modal.innerHTML.includes('Tools');
+      paintSection&&prepSection&&toolsSection?ok('All 3 sections present (Paint, Prep, Tools)'):wn('Missing sections in supply list');
+      const galText=modal.innerHTML.includes('gal');
+      galText?ok('Gallon quantities shown in paint section'):er('No gallon quantities found');
+      modal.remove();
+    } else {
+      er('Supply list modal did not render');
+    }
+    bids=bids.filter(b=>b.id!==99999);
+  } catch(e){ er('showSupplyList threw: '+e.message); bids=bids.filter(b=>b.id!==99999); }
+
+  // ── 14. Proposal paint order section ─────────────────────────
+  hd('Proposal — paint order summary');
+  try {
+    const _saved=[...estSurfaces];
+    estSurfaces=[{id:1,type:'walls',qty:280,room:'LR — ProMar 200 · Accessible Beige (SW 7036) [Eggshell]'}];
+    // Ensure paint supply is on
+    const ps=document.getElementById('e-customer-paint');if(ps)ps.value='';
+    buildProposal();
+    const prop=document.getElementById('est-proposal');
+    const hasPaintOrder=prop?.innerHTML?.includes('Paint Order Summary');
+    hasPaintOrder?ok('Proposal contains Paint Order Summary section'):er('Proposal MISSING Paint Order Summary');
+    const hasGallons=prop?.innerHTML?.includes('gal');
+    hasGallons?ok('Proposal shows gallon quantities'):er('Proposal missing gallon quantities');
+    const hasCoverage=prop?.innerHTML?.includes('sq ft/gal');
+    hasCoverage?ok('Proposal shows coverage rate'):er('Proposal missing coverage rate');
+    estSurfaces=_saved;
+  } catch(e){ er('buildProposal threw: '+e.message); }
+
+  // ── 15. Accent wall search DOM ───────────────────────────────
+  hd('Accent wall search');
+  ['sw-accent-search','sw-accent-dropdown','sw-accent-note','sw-accent-selected',
+   'sw-accent-preview','sw-accent-label'].forEach(id=>
+    document.getElementById(id)?ok('#'+id+' exists'):er('#'+id+' MISSING'));
+  ['swAccentSearch','swAccentSelect','swClearAccent','swHideAccentDropdown'].forEach(fn=>
+    typeof window[fn]==='function'?ok('fn: '+fn):er('fn: '+fn+' MISSING'));
+
+  // ── 16. Scope-first flow ─────────────────────────────────────
+  hd('Scope-first flow');
+  document.getElementById('surf-scope-first')?ok('#surf-scope-first exists'):er('#surf-scope-first MISSING');
+  document.getElementById('surf-measure-color-wrap')?ok('#surf-measure-color-wrap exists'):er('#surf-measure-color-wrap MISSING');
+  typeof goSurfScopeToMeasure==='function'?ok('goSurfScopeToMeasure exists'):er('goSurfScopeToMeasure MISSING');
+  // Check scope-first is hidden by default (step A not in B yet)
+  const sf=document.getElementById('surf-scope-first');
+  sf&&sf.style.display==='none'?ok('surf-scope-first hidden by default'):wn('surf-scope-first display: '+(sf?.style.display||'unknown'));
+
+  // ── Summary ──────────────────────────────────────────────────
+  R.push('\n════════════════════════════════════════');
+  R.push('  '+pass+' passed  '+warn+' warnings  '+fail+' failed');
+  R.push('════════════════════════════════════════');
+
+  console.log('%cTradeDesk Diagnostic v3','font-size:16px;font-weight:bold;color:#185FA5');
+  console.log(R.join('\n'));
+  if(fail>0) console.warn(fail+' failures — check items marked ✗ above');
+  if(warn>0) console.info(warn+' warnings — check items marked ⚠ above');
+  return {pass,warn,fail};
 })();

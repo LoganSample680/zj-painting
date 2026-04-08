@@ -40,7 +40,7 @@
     'getBidBalance','getBidPaid','openLienPanel','closeLienPanel','saveLien',
     // Dashboard
     'renderDash','renderLeadSources','renderPipeline','renderDashCollect',
-    'renderDashActiveLines','fmtShort',
+    'renderDashActiveLiens','fmtShort',
     // Books/Expenses
     'expProcessPhoto','expSave','closeExpenseFlow','openExpenseFlow',
     'renderExpenses','addExpense','delExpense','exportReceiptImages',

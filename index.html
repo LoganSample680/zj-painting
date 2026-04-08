@@ -8116,7 +8116,7 @@ function buildDescription(){
   return html;
 }
 function buildProposal(){
-  const{final,adj,laborTotal,matTotal,flatAdd}=calcEst();
+  const{final,adj,laborTotal,matTotal,flatAdd,paintLines,coats}=calcEst();
   const adjReason=v('est-adj-reason');
   const bname=v('e-bname')||S.bname||"ZJ's Painting & Special Coatings";
   const bphone=v('e-bphone')||S.bphone||'';

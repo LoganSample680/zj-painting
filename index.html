@@ -983,7 +983,23 @@ input:checked+.dm-slider:before{transform:translateX(22px)}</style>
             <div style="font-size:12px;color:var(--text3);margin-bottom:12px;line-height:1.6">Check anything that needs doing in this room. These will auto-calculate into your price — no hours needed.</div>
             <div class="sg" id="surf-scope-first-grid"></div>
           </div>
-          <button class="btn btn-p btn-full" onclick="goSurfScopeToMeasure()" style="font-size:15px;padding:14px">
+          <div id="surf-paint-supply-wrap" style="margin-top:14px;padding:14px;background:var(--bg);border:1px solid var(--border2);border-radius:var(--rl)">
+            <div style="font-size:12px;font-weight:800;color:var(--text);margin-bottom:8px">🎨 Who's supplying the paint?</div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+              <button type="button" id="paint-sup-zach" onclick="setPaintSupply('zach')"
+                style="padding:11px 8px;border-radius:var(--r);border:2px solid var(--blue);background:var(--blue-lt);font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;color:var(--blue-dk)">
+                🪣 I'm supplying
+              </button>
+              <button type="button" id="paint-sup-cust" onclick="setPaintSupply('customer')"
+                style="padding:11px 8px;border-radius:var(--r);border:2px solid var(--border2);background:var(--bg2);font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;color:var(--text)">
+                🏠 Client supplies
+              </button>
+            </div>
+            <div id="paint-supply-note" style="display:none;margin-top:8px;font-size:11px;color:#856404;background:var(--amber-lt);border:1px solid var(--amber);border-radius:var(--r);padding:8px 10px;line-height:1.6">
+              ⚠️ Paint cost removed from estimate. No warranty on finish quality — client assumes all responsibility for paint performance.
+            </div>
+          </div>
+          <button class="btn btn-p btn-full" onclick="goSurfScopeToMeasure()" style="font-size:15px;padding:14px;margin-top:12px">
             Measurements &#8594;
           </button>
         </div>
@@ -1130,18 +1146,8 @@ input:checked+.dm-slider:before{transform:translateX(22px)}</style>
         <span id="est-final-disp" style="font-size:24px;font-weight:700;color:var(--blue)"></span>
       </div>
     </div>
-    <div class="card" id="paint-picker-card"><div class="card-hd">Who's supplying the paint?</div>
-      <input type="hidden" id="e-customer-paint-hidden">
-      <select id="paint-supply-sel" onchange="onPaintSupplyChange(this.value)" onload="onPaintSupplyChange(this.value)" style="font-size:15px;font-weight:600;padding:12px;border-radius:var(--r);border:1px solid var(--border2);background:var(--bg2);color:var(--text);width:100%;margin-bottom:8px">
-        <option value="interior">I'm supplying paint</option>
-        <option value="customer">Customer supplies paint</option>
-      </select>
-      <div id="paint-supply-note" style="display:none;font-size:11px;color:#856404;background:var(--amber-lt);border:1px solid var(--amber);border-radius:var(--r);padding:8px 10px;line-height:1.6">
-        Paint cost removed from estimate. No warranty provided on finish quality — client assumes responsibility.
-      </div>
       <input type="hidden" id="e-paint" value="">
       <input type="hidden" id="e-customer-paint">
-    </div>
     <div class="card">
       <div class="f">
         <label>Est. days to complete <span style="color:#A32D2D">*</span></label>
@@ -6210,6 +6216,14 @@ function goSurfStepB(){
   const measureWrap=document.getElementById('surf-measure-color-wrap');
   if(scopeFirst)scopeFirst.style.display='';
   if(measureWrap)measureWrap.style.display='none';
+  // Sync paint supply buttons to current state
+  const _cpv=document.getElementById('e-customer-paint')?.value;
+  const _isc=_cpv==='1';
+  const _zb=document.getElementById('paint-sup-zach');
+  const _cb=document.getElementById('paint-sup-cust');
+  if(_zb){_zb.style.borderColor=_isc?'var(--border2)':'var(--blue)';_zb.style.background=_isc?'var(--bg2)':'var(--blue-lt)';_zb.style.color=_isc?'var(--text)':'var(--blue-dk)';}
+  if(_cb){_cb.style.borderColor=_isc?'#A32D2D':'var(--border2)';_cb.style.background=_isc?'#FEE8E8':'var(--bg2)';_cb.style.color=_isc?'#A32D2D':'var(--text)';}
+  const _sn=document.getElementById('paint-supply-note');if(_sn)_sn.style.display=_isc?'block':'none';
   // Render scope grid for this room (no sqft yet, show flat rates only)
   const sg=document.getElementById('surf-scope-first-grid');
   if(sg){
@@ -6232,12 +6246,31 @@ function goSurfStepB(){
   }
 }
 
+function setPaintSupply(who){
+  const isCustomer=who==='customer';
+  const paintEl=document.getElementById('e-paint');
+  const custEl=document.getElementById('e-customer-paint');
+  if(paintEl)paintEl.value=isCustomer?'customer':'interior';
+  if(custEl)custEl.value=isCustomer?'1':'';
+  const zachBtn=document.getElementById('paint-sup-zach');
+  const custBtn=document.getElementById('paint-sup-cust');
+  if(zachBtn){zachBtn.style.borderColor=isCustomer?'var(--border2)':'var(--blue)';zachBtn.style.background=isCustomer?'var(--bg2)':'var(--blue-lt)';zachBtn.style.color=isCustomer?'var(--text)':'var(--blue-dk)';}
+  if(custBtn){custBtn.style.borderColor=isCustomer?'#A32D2D':'var(--border2)';custBtn.style.background=isCustomer?'#FEE8E8':'var(--bg2)';custBtn.style.color=isCustomer?'#A32D2D':'var(--text)';}
+  const note=document.getElementById('paint-supply-note');
+  if(note)note.style.display=isCustomer?'block':'none';
+  renderEstRunning();saveEstFullDraft();
+}
+
 function goSurfScopeToMeasure(){
   const scopeFirst=document.getElementById('surf-scope-first');
   const measureWrap=document.getElementById('surf-measure-color-wrap');
   if(scopeFirst)scopeFirst.style.display='none';
   if(measureWrap)measureWrap.style.display='';
-  swInitFamilyGrid();
+  const isCustomer=document.getElementById('e-customer-paint')?.value==='1';
+  ['sw-product-grid-hdr','sw-product-grid','sw-selected-product','sw-state-family','sw-state-swatches',
+   'sw-family-grid','sw-swatch-grid','sw-search-wrap','sw-selected-pill','sw-finish-grid','sw-accent-wrap']
+    .forEach(id=>{const el=document.getElementById(id);if(el)el.style.display=isCustomer?'none':'';});
+  if(!isCustomer){swInitFamilyGrid();}
   renderSurfBCurrent();
 }
 
@@ -7775,8 +7808,8 @@ function calcEst(){
   // Round to nearest $100 for clean pricing (e.g. $617→$600, $650→$700)
   const final=Math.round(finalRaw/25)*25||finalRaw;
   // Floor materials at 18% of total so it looks reasonable vs bid size
-  const matFinal=Math.max(matTotal,Math.round(final*0.18*100)/100);
-  return{lines,laborTotal:laborWithContingency,matTotal:matFinal,flatAdd,scopeFlats,colorAdd:0,travel:0,base,bid:final,adj,final,
+  const matFinal=customerPaint?matTotal:Math.max(matTotal,Math.round(final*0.18*100)/100);
+  return{lines,laborTotal:laborWithContingency,matTotal:matFinal,customerPaint,flatAdd,scopeFlats,colorAdd:0,travel:0,base,bid:final,adj,final,
     profit:0,margin:0,paintLines,totalPaintSqFt,coats,totalLaborHours,laborRate:R.walls,paintCostPerGal,R};
 }
 function renderEstRunning(){
@@ -8314,30 +8347,6 @@ function buildProposal(){
     <div style="font-size:10px;font-weight:800;text-transform:uppercase;color:#92400E;margin-bottom:4px">⚠ Weather Notice — Exterior Work</div>
     <div style="font-size:11px;color:#92400E;line-height:1.7">Exterior painting is weather-dependent. Start dates and completion timelines may shift based on temperature, rain, or high winds. Paint will not be applied to wet or damp surfaces. If surfaces were pressure washed, a minimum 48-hour dry time is required before painting begins. ${getBusinessName()} will communicate any weather-related delays promptly and reschedule at the earliest suitable date at no additional charge.</div>
   </div>`:''}
-  ${!customerPaint&&paintLines.length?`
-  <div style="padding:16px 24px;border-top:1px solid #e2e8f0;background:#f0f7ff">
-    <div style="font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.08em;color:#1a365d;margin-bottom:10px">🎨 Paint Order Summary</div>
-    <div style="display:grid;grid-template-columns:1fr auto auto auto;gap:4px 16px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#718096;padding-bottom:6px;border-bottom:1px solid #e2e8f0;margin-bottom:8px">
-      <span>Product · Color · Finish</span><span style="text-align:right">Sq Ft</span><span style="text-align:right">Gallons</span><span style="text-align:right">Cans</span>
-    </div>
-    ${paintLines.map(pl=>{
-      const parts=pl.spec.split(' · ');
-      const prod=parts[0]||'';
-      const colorFinish=parts.slice(1).join(' · ')||pl.spec;
-      const swMatch=pl.spec.match(/SW \d+/i);
-      const swHex=swMatch&&_swColors?(_swColors.find(c=>c.sw.toLowerCase()===swMatch[0].toLowerCase())?.hex||''):'';
-      const dot=swHex?'<span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:'+swHex+';border:1px solid rgba(0,0,0,.15);margin-right:4px;vertical-align:middle;flex-shrink:0"></span>':'';
-      return '<div style="display:grid;grid-template-columns:1fr auto auto auto;gap:4px 16px;padding:6px 0;border-bottom:1px solid #e8f0f8;align-items:center">'+
-        '<div><div style="font-size:11px;font-weight:700;color:#1a365d">'+prod+'</div>'+
-        '<div style="font-size:11px;color:#4a5568">'+dot+colorFinish+'</div>'+
-        '<div style="font-size:10px;color:#a0aec0">'+pl.cov+' sq ft/gal coverage</div></div>'+
-        '<div style="text-align:right;font-size:11px;color:#4a5568">'+pl.sqFt.toLocaleString()+'</div>'+
-        '<div style="text-align:right;font-size:11px;color:#4a5568">'+pl.gals.toFixed(1)+'</div>'+
-        '<div style="text-align:right;font-size:13px;font-weight:800;color:#1a365d">'+pl.wholeCans+'</div>'+
-      '</div>';
-    }).join('')}
-    <div style="font-size:10px;color:#718096;margin-top:8px;line-height:1.6">Quantities include 10% waste factor. Gallons rounded up to nearest whole can. Verify coverage with your SW rep for dark or high-hide colors.</div>
-  </div>`:''}
   <div style="padding:20px 24px;display:grid;grid-template-columns:1fr 1fr;gap:20px;border-top:3px solid #1a365d;background:#f8fafc">
     <div>
       <div style="font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.08em;color:#1a365d;margin-bottom:10px">Payment Terms</div>
@@ -8608,21 +8617,30 @@ function saveAndExitEstimate(){
   const days=parseInt(document.getElementById('e-days')?.value)||2;
   const ss={};SCOPE_ITEMS.forEach(s=>{ss[s.id]=!!scopeOn(s.id);});
 
+  // Leads page is client-driven — ensure a client record exists
+  let clientId=estLinkedClientId;
+  if(!clientId&&cname.trim()&&cname!=='Client'){
+    const existing=clients.find(c=>c.name.toLowerCase()===cname.trim().toLowerCase()&&c.phone===cphone);
+    if(existing){clientId=existing.id;}
+    else{
+      const nc={id:Date.now(),name:cname.trim(),phone:cphone,addr:caddr,notes:'',created:todayKey()};
+      clients.unshift(nc);clientId=nc.id;estLinkedClientId=clientId;
+    }
+  }
   if(lastCreatedBidId){
-    // Update existing bid
     const b=bids.find(x=>x.id===lastCreatedBidId);
     if(b){
       b.amount=final;b.status=b.status==='Closed Won'?'Closed Won':'Pending';
       if(!b.followup)b.followup=addDays(todayKey(),3);
+      if(clientId&&!b.client_id)b.client_id=clientId;
       b.surfaces=[...estSurfaces];b.roomScopeMap=JSON.parse(JSON.stringify(roomScopeMap));
     }
-  } else if(estLinkedClientId||cname){
-    // Create new bid
-    const c=estLinkedClientId?getClientById(estLinkedClientId):null;
+  } else {
+    const c=clientId?getClientById(clientId):null;
     const followup=addDays(todayKey(),3);
     const newBid={
       id:Date.now(),
-      client_id:estLinkedClientId||null,
+      client_id:clientId||null,
       client_name:c?c.name:cname,
       name:cname,phone:cphone,addr:caddr,
       bid_date:todayKey(),followup,

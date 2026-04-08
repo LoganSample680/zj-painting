@@ -2275,7 +2275,7 @@ function _doOpenEstimate(c){
     ['est-adj-reason','inc-notes'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
     scopeActiveMap={};scopeHrsStore={};roomScopeMap={};
   SCOPE_ITEMS.forEach(s=>{const cb=document.getElementById('est-sc-'+s.id),tog=document.getElementById('est-st-'+s.id);if(cb){cb.checked=false;if(tog)tog.classList.remove('on');}});
-    const epEl=document.getElementById('e-paint');if(epEl)epEl.value='interior';const pSel=document.getElementById('paint-supply-sel');if(pSel)pSel.value='interior';
+    const epEl=document.getElementById('e-paint');if(epEl)epEl.value='interior';const custEl2=document.getElementById('e-customer-paint');if(custEl2)custEl2.value='';
     document.querySelectorAll('#paint-picker .surf-type-btn').forEach(b=>b.classList.remove('active-surf-btn'));
     const edEl=document.getElementById('e-days');
     if(edEl){edEl.value='';edEl.style.borderColor='#A32D2D';edEl.style.background='var(--red-lt)';}
@@ -4971,9 +4971,7 @@ function openEditBid(bidId){
     }
     if(b.paint){
       const el=document.getElementById('e-paint');if(el)el.value=b.paint;
-      const sel=document.getElementById('paint-supply-sel');
-      if(sel)sel.value=b.paint==='customer'?'customer':(b.paint||'interior');
-      onPaintSupplyChange(b.paint==='customer'?'customer':(b.paint||'interior'));
+      setPaintSupply(b.paint==='customer'?'customer':'zach');
     }
     if(b.colors!==undefined){const el=document.getElementById('e-colors');if(el){el.value=b.colors;el.style.borderColor='var(--border2)';el.style.background='var(--bg2)';}}
     const adj=document.getElementById('est-adj');if(adj)adj.value=0;
@@ -7504,10 +7502,7 @@ function selectCond(val, btn){
   checkStep2Ready();saveEstFullDraft();
 }
 function selectPaint(key,btn){
-  // Legacy — now handled by onPaintSupplyChange
-  const sel=document.getElementById('paint-supply-sel');
-  if(sel)sel.value=key;
-  onPaintSupplyChange(key);
+  setPaintSupply(key==='customer'?'customer':'zach');
 }
 function onPaintSupplyChange(val){
   const isCustomer=val==='customer';
@@ -7517,8 +7512,6 @@ function onPaintSupplyChange(val){
   if(custEl)custEl.value=isCustomer?'1':'';
   const note=document.getElementById('paint-supply-note');
   if(note)note.style.display=isCustomer?'block':'none';
-  const card=document.getElementById('paint-picker-card');
-  if(card)card.style.border='';
   checkStep1Ready();renderEstRunning();renderEstReview();saveEstFullDraft();
 }
 function onCustomerPaintChange(){
@@ -7661,9 +7654,7 @@ function restoreEstFullDraft(d){
   if(d.roomScopeMap)roomScopeMap=JSON.parse(JSON.stringify(d.roomScopeMap));
   if(d.paint){
     const el=document.getElementById('e-paint');if(el)el.value=d.paint;
-    const sel=document.getElementById('paint-supply-sel');
-    if(sel)sel.value=d.paint==='customer'?'customer':(d.paint||'interior');
-    onPaintSupplyChange(d.paint==='customer'?'customer':(d.paint||'interior'));
+    setPaintSupply(d.paint==='customer'?'customer':'zach');
   }
   if(d.cond){
     const condMap={'1.0':'good','1.2':'fair','1.5':'poor'};
@@ -7836,7 +7827,7 @@ function renderEstRunning(){
   el.innerHTML=html;
 }
 function renderEstReview(){
-  const{lines,base,adj,final,laborTotal,matTotal,totalLaborHours,laborRate,paintCostPerGal,paintLines,totalPaintSqFt,coats}=calcEst();
+  const{lines,base,adj,final,laborTotal,matTotal,totalLaborHours,laborRate,paintCostPerGal,paintLines,totalPaintSqFt,coats,customerPaint}=calcEst();
   const el=document.getElementById('est-review');if(!el)return;
   if(!estSurfaces.length&&!lines.length){el.innerHTML='<div class="empty">No surfaces added yet.</div>';return;}
 
@@ -7934,8 +7925,13 @@ function renderEstReview(){
     '<div class="met"><div class="met-l">Total</div><div class="met-v" style="color:var(--green-mid);font-size:18px">'+fmt(final)+'</div></div>'+
   '</div>';
 
-  // Paint order summary
-  if(paintLines.length){
+  // Paint order summary (Zach-only — not on proposal)
+  if(customerPaint){
+    html+='<div style="background:var(--amber-lt);border:1px solid var(--amber);border-radius:var(--r);padding:10px 12px;margin-bottom:12px">'+
+      '<div style="font-size:11px;font-weight:700;color:#856404">🏠 Client supplies paint — no paint order needed.</div>'+
+      '<div style="font-size:11px;color:#856404;margin-top:2px">Paint cost excluded from bid. No warranty on finish quality.</div>'+
+    '</div>';
+  } else if(paintLines.length){
     html+='<div style="background:var(--blue-lt);border-radius:var(--r);padding:12px;margin-bottom:12px">'+
       '<div style="font-size:11px;font-weight:800;text-transform:uppercase;color:var(--blue-dk);margin-bottom:8px">🎨 Paint order</div>'+
       '<div style="display:grid;grid-template-columns:1fr auto auto;gap:3px 10px;font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;margin-bottom:6px">'+
@@ -8696,10 +8692,9 @@ function checkStep1Ready(){
   const nm=(document.getElementById('e-cname')?.value||'').trim();
   const ph=(document.getElementById('e-cphone')?.value||'').trim();
   const addr=(document.getElementById('e-caddr')?.value||'').trim();
-  // If paint hidden field is empty but select shows a value, sync it
-  const sel=document.getElementById('paint-supply-sel');
+  // Default paint to 'interior' if not yet set (Zach supplies by default)
   const paintEl=document.getElementById('e-paint');
-  if(paintEl&&sel&&!paintEl.value)paintEl.value=sel.value||'interior';
+  if(paintEl&&!paintEl.value)paintEl.value='interior';
   const paint=paintEl?.value||'';
   const days=parseInt(document.getElementById('e-days')?.value)||0;
   const ready=!!(nm&&ph&&addr&&paint&&days>=1);
@@ -8729,13 +8724,10 @@ function markFieldFilled(el){
 }
 
 function validateAndGoStep5(){
-  const customerPaintChecked=document.getElementById('e-customer-paint')?.checked||false;
-  const paint=document.getElementById('e-paint')?.value||'';
-  if(!paint&&!customerPaintChecked){
-    const card=document.getElementById('paint-picker-card');
-    if(card){card.style.border='2px solid #A32D2D';card.scrollIntoView&&card.scrollIntoView({behavior:'smooth',block:'center'});}
-    zAlert('Select a paint type, or check "Customer supplies paint".',{title:'Required'});return;
-  }
+  // Paint supply is now set during scope walkthrough — e-paint will be 'interior' or 'customer'
+  // Default to interior if somehow not set
+  const paintEl=document.getElementById('e-paint');
+  if(paintEl&&!paintEl.value)paintEl.value='interior';
   const days=parseInt(document.getElementById('e-days')?.value)||0;
   if(!days||days<1){
     const el=document.getElementById('e-days');
@@ -8812,15 +8804,9 @@ function goEstStep(n){
   if(n===2&&estStep<2&&!document.getElementById('e-cond')?.value){applyDefaultScope();}
   if(n===4){
     if(!estSurfaces.length){zAlert('Add at least one room and surface before reviewing.',{title:'No surfaces yet'});return;}
-    // Init paint dropdown if not already set
-    const pSel=document.getElementById('paint-supply-sel');
+    // Ensure paint supply defaults to interior if not yet set
     const pVal=document.getElementById('e-paint')?.value;
-    if(pSel&&!pSel.value&&!pVal){pSel.value='interior';onPaintSupplyChange('interior');}
-    else if(pSel&&pVal&&pSel.value!==pVal){pSel.value=pVal==='customer'?'customer':(pVal||'interior');}
-    // Auto-select exterior if job has exterior surfaces
-    if(pSel&&!pVal&&estSurfaces.some(s=>s.type==='ext_walls'||s.type==='ext_trim'||s.type==='deck')){
-      pSel.value='exterior';onPaintSupplyChange('exterior');
-    }
+    if(!pVal){const pEl=document.getElementById('e-paint');if(pEl)pEl.value='interior';}
     renderEstReview();
   }
   if(n===5){const d=document.getElementById('est-desc-text');if(d&&!d.value.trim())d.value=buildDescription();buildProposal();setTimeout(initEstNotesCanvas,100);}

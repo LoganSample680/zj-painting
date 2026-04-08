@@ -7490,15 +7490,45 @@ function calcEst(){
       }
     }
   });
-  let matTotal=0;const paintLines=[];const colorGals={};let totalPaintSqFt=0;
+  // ── Per-product paint quantity calc ─────────────────────────
+  // Helper: get coverage rate from product name stored in room string
+  const _allSwProds=Object.values(SW_PRODUCTS).flat();
+  function _prodCov(roomStr){
+    const spec=(roomStr||'').indexOf(' — ')>-1?(roomStr||'').split(' — ').slice(1).join(' — '):'';
+    const prodName=spec.split(' · ')[0].trim();
+    if(!prodName)return COVERAGE();
+    const p=_allSwProds.find(x=>x.name===prodName||x.name.toLowerCase()===prodName.toLowerCase());
+    return p?.cov||COVERAGE();
+  }
+  function _prodContractorPrice(roomStr){
+    const spec=(roomStr||'').indexOf(' — ')>-1?(roomStr||'').split(' — ').slice(1).join(' — '):'';
+    const prodName=spec.split(' · ')[0].trim();
+    if(!prodName)return paintCostPerGal;
+    const p=_allSwProds.find(x=>x.name===prodName||x.name.toLowerCase()===prodName.toLowerCase());
+    return p?.contractor||paintCostPerGal;
+  }
+
+  let matTotal=0;const paintLines=[];
+  // Group by product+color combo (each unique product+color = separate order line)
+  const orderMap={};
+  let totalPaintSqFt=0;
   estSurfaces.forEach(s=>{
     if(!s.qty)return;const t=SURF_TYPES.find(x=>x.v===s.type);if(!t||t.unit!=='sq ft')return;
-    const c=s.room||'Paint';if(!colorGals[c])colorGals[c]=0;colorGals[c]+=s.qty;totalPaintSqFt+=s.qty;
+    totalPaintSqFt+=s.qty;
+    const spec=(s.room||'').indexOf(' — ')>-1?(s.room||'').split(' — ').slice(1).join(' — '):'';
+    const key=spec||'Paint';
+    if(!orderMap[key])orderMap[key]={sqFt:0,cov:_prodCov(s.room),price:_prodContractorPrice(s.room),spec,surfaces:[]};
+    orderMap[key].sqFt+=s.qty;
+    orderMap[key].surfaces.push({type:s.type,qty:s.qty});
   });
-  Object.entries(colorGals).forEach(([color,sqFt])=>{
-    const gals=Math.ceil(sqFt*coats/cov*1.10*2)/2;
-    const cost=customerPaint?0:Math.round(gals*paintCostPerGal*matMark*100)/100;
-    matTotal+=cost;paintLines.push({color,sqFt:Math.round(sqFt),gals,cost,customerPaint});
+  Object.entries(orderMap).forEach(([key,od])=>{
+    // Round up to nearest half-gallon, add 10% waste
+    const rawGals=od.sqFt*coats/od.cov*1.10;
+    const gals=Math.ceil(rawGals*2)/2; // nearest 0.5
+    const wholeCans=Math.ceil(gals); // SW sells whole gallons
+    const cost=customerPaint?0:Math.round(wholeCans*od.price*matMark*100)/100;
+    matTotal+=cost;
+    paintLines.push({color:key,spec:od.spec,sqFt:Math.round(od.sqFt),gals,wholeCans,cost,customerPaint,cov:od.cov});
   });
   const flatAdd=0;const scopeFlats=[];
   const adjPct=parseInt(v('est-adj'))||0;
@@ -7633,6 +7663,31 @@ function renderEstReview(){
     '<div class="met"><div class="met-l">Materials</div><div class="met-v" style="color:var(--blue)">'+fmt(matTotal)+'</div></div>'+
     '<div class="met"><div class="met-l">Total</div><div class="met-v" style="color:var(--green-mid);font-size:18px">'+fmt(final)+'</div></div>'+
   '</div>';
+
+  // Paint order summary
+  if(paintLines.length){
+    html+='<div style="background:var(--blue-lt);border-radius:var(--r);padding:12px;margin-bottom:12px">'+
+      '<div style="font-size:11px;font-weight:800;text-transform:uppercase;color:var(--blue-dk);margin-bottom:8px">🎨 Paint order</div>'+
+      '<div style="display:grid;grid-template-columns:1fr auto auto;gap:3px 10px;font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;margin-bottom:6px">'+
+        '<span>Product · Color · Finish</span><span style="text-align:right">Sq Ft</span><span style="text-align:right">Cans</span>'+
+      '</div>'+
+      paintLines.map(pl=>{
+        const parts=pl.spec.split(' · ');
+        const prod=parts[0]||'';
+        const colorFinish=parts.slice(1).join(' · ')||pl.spec;
+        const swMatch=pl.spec.match(/SW \d+/i);
+        const swHex=swMatch&&_swColors?(_swColors.find(c=>c.sw.toLowerCase()===swMatch[0].toLowerCase())?.hex||''):'';
+        const dot=swHex?'<span style="display:inline-block;width:9px;height:9px;border-radius:2px;background:'+swHex+';border:1px solid rgba(0,0,0,.1);margin-right:3px;vertical-align:middle"></span>':'';
+        return '<div style="display:grid;grid-template-columns:1fr auto auto;gap:3px 10px;padding:5px 0;border-bottom:1px solid var(--border2);align-items:start">'+
+          '<div><div style="font-size:11px;font-weight:700;color:var(--text)">'+prod+'</div>'+
+          '<div style="font-size:11px;color:var(--text3)">'+dot+colorFinish+'</div></div>'+
+          '<div style="text-align:right;font-size:11px;color:var(--text2)">'+pl.sqFt.toLocaleString()+'</div>'+
+          '<div style="text-align:right;font-size:13px;font-weight:800;color:var(--blue)">'+pl.wholeCans+' gal</div>'+
+        '</div>';
+      }).join('')+
+      '<div style="font-size:10px;color:var(--text3);margin-top:6px">Includes 10% waste · '+coats+' coat'+(coats>1?'s':'')+' · Verify with SW rep for dark colors</div>'+
+    '</div>';
+  }
 
   el.innerHTML=html;
   const fd=document.getElementById('est-final-disp');if(fd)fd.textContent=fmt(final);
@@ -8025,6 +8080,30 @@ function buildProposal(){
   ${estSurfaces.some(s=>s.type==='ext_walls'||s.type==='ext_trim'||s.type==='deck')?`<div style="padding:10px 16px;background:#FEF3C7;border-top:1px solid #D97706;border-bottom:1px solid #D97706">
     <div style="font-size:10px;font-weight:800;text-transform:uppercase;color:#92400E;margin-bottom:4px">⚠ Weather Notice — Exterior Work</div>
     <div style="font-size:11px;color:#92400E;line-height:1.7">Exterior painting is weather-dependent. Start dates and completion timelines may shift based on temperature, rain, or high winds. Paint will not be applied to wet or damp surfaces. If surfaces were pressure washed, a minimum 48-hour dry time is required before painting begins. ${getBusinessName()} will communicate any weather-related delays promptly and reschedule at the earliest suitable date at no additional charge.</div>
+  </div>`:''}
+  ${!customerPaint&&paintLines.length?`
+  <div style="padding:16px 24px;border-top:1px solid #e2e8f0;background:#f0f7ff">
+    <div style="font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.08em;color:#1a365d;margin-bottom:10px">🎨 Paint Order Summary</div>
+    <div style="display:grid;grid-template-columns:1fr auto auto auto;gap:4px 16px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#718096;padding-bottom:6px;border-bottom:1px solid #e2e8f0;margin-bottom:8px">
+      <span>Product · Color · Finish</span><span style="text-align:right">Sq Ft</span><span style="text-align:right">Gallons</span><span style="text-align:right">Cans</span>
+    </div>
+    ${paintLines.map(pl=>{
+      const parts=pl.spec.split(' · ');
+      const prod=parts[0]||'';
+      const colorFinish=parts.slice(1).join(' · ')||pl.spec;
+      const swMatch=pl.spec.match(/SW \d+/i);
+      const swHex=swMatch&&_swColors?(_swColors.find(c=>c.sw.toLowerCase()===swMatch[0].toLowerCase())?.hex||''):'';
+      const dot=swHex?'<span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:'+swHex+';border:1px solid rgba(0,0,0,.15);margin-right:4px;vertical-align:middle;flex-shrink:0"></span>':'';
+      return '<div style="display:grid;grid-template-columns:1fr auto auto auto;gap:4px 16px;padding:6px 0;border-bottom:1px solid #e8f0f8;align-items:center">'+
+        '<div><div style="font-size:11px;font-weight:700;color:#1a365d">'+prod+'</div>'+
+        '<div style="font-size:11px;color:#4a5568">'+dot+colorFinish+'</div>'+
+        '<div style="font-size:10px;color:#a0aec0">'+pl.cov+' sq ft/gal coverage</div></div>'+
+        '<div style="text-align:right;font-size:11px;color:#4a5568">'+pl.sqFt.toLocaleString()+'</div>'+
+        '<div style="text-align:right;font-size:11px;color:#4a5568">'+pl.gals.toFixed(1)+'</div>'+
+        '<div style="text-align:right;font-size:13px;font-weight:800;color:#1a365d">'+pl.wholeCans+'</div>'+
+      '</div>';
+    }).join('')}
+    <div style="font-size:10px;color:#718096;margin-top:8px;line-height:1.6">Quantities include 10% waste factor. Gallons rounded up to nearest whole can. Verify coverage with your SW rep for dark or high-hide colors.</div>
   </div>`:''}
   <div style="padding:20px 24px;display:grid;grid-template-columns:1fr 1fr;gap:20px;border-top:3px solid #1a365d;background:#f8fafc">
     <div>

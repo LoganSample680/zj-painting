@@ -916,13 +916,32 @@ input:checked+.dm-slider:before{transform:translateX(22px)}</style>
         </div>
 
         <div style="margin-bottom:12px">
-          <label style="font-size:11px;font-weight:700;color:var(--text3);display:block;margin-bottom:6px">Paint color(s) <span style="color:#A32D2D">*</span></label>
-          <div id="surf-colors-list" style="display:flex;flex-direction:column;gap:6px;margin-bottom:6px">
-            <input id="surf-color" placeholder="SW Accessible Beige, White..." class="surf-color-entry"
-              style="font-size:13px;padding:8px 12px;border-radius:var(--r);border:1px solid var(--border2);background:var(--bg2);color:var(--text);width:100%;box-sizing:border-box"
-              oninput="surfColor=this.value">
+          <label style="font-size:11px;font-weight:700;color:var(--text3);display:block;margin-bottom:6px">Paint color <span style="color:#A32D2D">*</span></label>
+          <div style="position:relative">
+            <div style="display:flex;gap:6px;align-items:center">
+              <div id="sw-color-preview" style="width:36px;height:36px;border-radius:var(--r);border:1px solid var(--border2);flex-shrink:0;background:#eee;cursor:pointer" onclick="swOpenFullscreen()" title="Tap to preview full screen"></div>
+              <input id="surf-color" class="surf-color-entry" autocomplete="off" placeholder="Search SW color name or number..."
+                style="font-size:13px;padding:8px 12px;border-radius:var(--r);border:1px solid var(--border2);background:var(--bg2);color:var(--text);flex:1;box-sizing:border-box"
+                oninput="swSearch(this.value);surfColor=this.value" onfocus="swSearch(this.value)" onblur="setTimeout(swHideDropdown,200)">
+              <button type="button" id="sw-clear-btn" onclick="swClearColor()" style="display:none;padding:7px 9px;border-radius:var(--r);border:1px solid var(--border2);background:var(--bg2);font-size:12px;cursor:pointer;font-family:inherit;color:var(--text3);flex-shrink:0">✕</button>
+            </div>
+            <div id="sw-dropdown" style="display:none;position:absolute;top:100%;left:0;right:0;z-index:500;margin-top:2px;background:var(--bg);border:1px solid var(--border2);border-radius:var(--r);box-shadow:0 4px 20px rgba(0,0,0,.15);max-height:280px;overflow-y:auto"></div>
           </div>
-          <button onclick="addSurfColorField()" style="font-size:11px;color:var(--blue-dk);background:var(--blue-lt);border:1px solid var(--blue);border-radius:var(--r);padding:4px 10px;cursor:pointer;font-family:inherit;font-weight:700">+ Add color</button>
+          <div style="margin-top:10px">
+            <label style="font-size:11px;font-weight:700;color:var(--text3);display:block;margin-bottom:5px">Finish</label>
+            <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:4px" id="sw-finish-grid">
+              <button type="button" class="sw-finish-btn sw-finish-active" data-finish="Flat" onclick="swSelectFinish(this)" style="padding:7px 4px;border-radius:var(--r);border:2px solid var(--blue);background:var(--blue-lt);color:var(--blue-dk);font-size:11px;font-weight:700;cursor:pointer;font-family:inherit">Flat</button>
+              <button type="button" class="sw-finish-btn" data-finish="Matte" onclick="swSelectFinish(this)" style="padding:7px 4px;border-radius:var(--r);border:1px solid var(--border2);background:var(--bg2);font-size:11px;font-weight:600;cursor:pointer;font-family:inherit;color:var(--text)">Matte</button>
+              <button type="button" class="sw-finish-btn" data-finish="Eggshell" onclick="swSelectFinish(this)" style="padding:7px 4px;border-radius:var(--r);border:1px solid var(--border2);background:var(--bg2);font-size:11px;font-weight:600;cursor:pointer;font-family:inherit;color:var(--text)">Eggshell</button>
+              <button type="button" class="sw-finish-btn" data-finish="Satin" onclick="swSelectFinish(this)" style="padding:7px 4px;border-radius:var(--r);border:1px solid var(--border2);background:var(--bg2);font-size:11px;font-weight:600;cursor:pointer;font-family:inherit;color:var(--text)">Satin</button>
+              <button type="button" class="sw-finish-btn" data-finish="Semi-Gloss" onclick="swSelectFinish(this)" style="padding:7px 4px;border-radius:var(--r);border:1px solid var(--border2);background:var(--bg2);font-size:11px;font-weight:600;cursor:pointer;font-family:inherit;color:var(--text)">Semi-Gloss</button>
+              <button type="button" class="sw-finish-btn" data-finish="Gloss" onclick="swSelectFinish(this)" style="padding:7px 4px;border-radius:var(--r);border:1px solid var(--border2);background:var(--bg2);font-size:11px;font-weight:600;cursor:pointer;font-family:inherit;color:var(--text)">Gloss</button>
+            </div>
+            <div style="font-size:10px;color:var(--text3);margin-top:5px;line-height:1.6"><strong>Flat/Matte</strong> — ceilings, low traffic &nbsp;·&nbsp; <strong>Eggshell</strong> — living areas &nbsp;·&nbsp; <strong>Satin</strong> — kitchens, baths &nbsp;·&nbsp; <strong>Semi-Gloss/Gloss</strong> — trim, doors, cabinets</div>
+          </div>
+          <input type="hidden" id="sw-selected-hex" value="">
+          <input type="hidden" id="sw-selected-finish" value="Flat">
+          <div id="surf-colors-list" style="display:none"></div>
         </div>
 
         <div style="margin-bottom:14px">
@@ -5274,6 +5293,135 @@ function setRoomScope(roomName,id,active,hrs,rate){
 }
 let surfJobType='interior', surfColor='', surfRoom='';
 let _currentScopeRoom='';  // room name currently shown in scope grid
+
+// ── SW Color Search ──────────────────────────────────────────
+let _swColors=null,_swFinish='Flat';
+async function swLoadColors(){
+  if(_swColors)return _swColors;
+  try{const r=await fetch('sw-colors.json');_swColors=await r.json();}
+  catch(e){_swColors=[
+    {sw:'SW 7008',name:'Alabaster',hex:'#EDE9DD'},
+    {sw:'SW 7015',name:'Repose Gray',hex:'#CCC9C0'},
+    {sw:'SW 7029',name:'Agreeable Gray',hex:'#C9C3BA'},
+    {sw:'SW 7036',name:'Accessible Beige',hex:'#D1C7B8'},
+    {sw:'SW 7005',name:'Pure White',hex:'#F3F0E7'},
+    {sw:'SW 7069',name:'Iron Ore',hex:'#3B3D3E'},
+    {sw:'SW 6244',name:'Naval',hex:'#273C53'},
+    {sw:'SW 7643',name:'Peppercorn',hex:'#595650'},
+  ];}
+  return _swColors;
+}
+async function swSearch(val){
+  const dd=document.getElementById('sw-dropdown');if(!dd)return;
+  const q=(val||'').trim().toLowerCase();
+  if(!q||q.length<2){dd.style.display='none';return;}
+  const colors=await swLoadColors();
+  const matches=colors.filter(c=>
+    c.name.toLowerCase().includes(q)||c.sw.toLowerCase().replace('sw ','').includes(q.replace(/sw\s*/i,'').trim())
+  ).slice(0,20);
+  if(!matches.length){dd.style.display='none';return;}
+  dd.innerHTML='';
+  matches.forEach(c=>{
+    const row=document.createElement('div');
+    row.style.cssText='display:flex;align-items:center;gap:10px;padding:10px 12px;cursor:pointer;border-bottom:1px solid var(--border)';
+    row.onmouseover=()=>row.style.background='var(--bg2)';
+    row.onmouseout=()=>row.style.background='';
+    // Swatch — tap for fullscreen
+    const swatch=document.createElement('div');
+    swatch.style.cssText='width:40px;height:40px;border-radius:8px;background:'+c.hex+';flex-shrink:0;border:1px solid rgba(0,0,0,.1);cursor:zoom-in';
+    swatch.title='Tap to preview full screen';
+    swatch.onclick=(e)=>{e.stopPropagation();swOpenFullscreenColor(c.hex,c.name,c.sw);};
+    // Info
+    const info=document.createElement('div');
+    info.style.cssText='flex:1;min-width:0';
+    info.innerHTML='<div style="font-size:13px;font-weight:700;color:var(--text)">'+c.name+'</div><div style="font-size:11px;color:var(--text3)">'+c.sw+' &nbsp;·&nbsp; '+c.hex.toUpperCase()+'</div>';
+    // Hint
+    const hint=document.createElement('div');
+    hint.style.cssText='font-size:10px;color:var(--text3);text-align:right;flex-shrink:0;line-height:1.4';
+    hint.innerHTML='<span style="font-size:15px">⬛</span><br>tap to<br>preview';
+    hint.onclick=(e)=>{e.stopPropagation();swOpenFullscreenColor(c.hex,c.name,c.sw);};
+    row.appendChild(swatch);row.appendChild(info);row.appendChild(hint);
+    row.onclick=()=>swSelectColor(c.sw,c.name,c.hex);
+    dd.appendChild(row);
+  });
+  dd.style.display='block';
+}
+function swHideDropdown(){const d=document.getElementById('sw-dropdown');if(d)d.style.display='none';}
+function swSelectColor(sw,name,hex){
+  const inp=document.getElementById('surf-color');
+  const prev=document.getElementById('sw-color-preview');
+  const hexH=document.getElementById('sw-selected-hex');
+  const clrBtn=document.getElementById('sw-clear-btn');
+  const dd=document.getElementById('sw-dropdown');
+  if(inp)inp.value=name+' ('+sw+')';
+  if(prev){prev.style.background=hex;prev.style.border='2px solid var(--green)';}
+  if(hexH)hexH.value=hex;
+  if(clrBtn)clrBtn.style.display='';
+  if(dd)dd.style.display='none';
+  surfColor=name+' ('+sw+')';
+}
+function _swResetColorUI(){
+  const inp=document.getElementById('surf-color');if(inp)inp.value='';
+  const prev=document.getElementById('sw-color-preview');if(prev){prev.style.background='#eee';prev.style.border='1px solid var(--border2)';}
+  const hexH=document.getElementById('sw-selected-hex');if(hexH)hexH.value='';
+  const clrBtn=document.getElementById('sw-clear-btn');if(clrBtn)clrBtn.style.display='none';
+  const finH=document.getElementById('sw-selected-finish');if(finH)finH.value='Flat';
+  _swFinish='Flat';
+  document.querySelectorAll('.sw-finish-btn').forEach((b,i)=>{
+    if(i===0){b.style.border='2px solid var(--blue)';b.style.background='var(--blue-lt)';b.style.color='var(--blue-dk)';b.style.fontWeight='700';}
+    else{b.style.border='1px solid var(--border2)';b.style.background='var(--bg2)';b.style.color='var(--text)';b.style.fontWeight='600';}
+  });
+  const dd=document.getElementById('sw-dropdown');if(dd)dd.style.display='none';
+}
+function swClearColor(){
+  const inp=document.getElementById('surf-color');
+  const prev=document.getElementById('sw-color-preview');
+  const hexH=document.getElementById('sw-selected-hex');
+  const clrBtn=document.getElementById('sw-clear-btn');
+  if(inp){inp.value='';inp.focus();}
+  if(prev){prev.style.background='#eee';prev.style.border='1px solid var(--border2)';}
+  if(hexH)hexH.value='';
+  if(clrBtn)clrBtn.style.display='none';
+  surfColor='';
+}
+function swSelectFinish(btn){
+  document.querySelectorAll('.sw-finish-btn').forEach(b=>{
+    b.style.border='1px solid var(--border2)';b.style.background='var(--bg2)';b.style.color='var(--text)';b.style.fontWeight='600';
+  });
+  btn.style.border='2px solid var(--blue)';btn.style.background='var(--blue-lt)';btn.style.color='var(--blue-dk)';btn.style.fontWeight='700';
+  _swFinish=btn.dataset.finish;
+  const h=document.getElementById('sw-selected-finish');if(h)h.value=_swFinish;
+}
+function swOpenFullscreen(){
+  const hex=document.getElementById('sw-selected-hex')?.value;
+  const name=document.getElementById('surf-color')?.value||'';
+  if(!hex){swLoadColors().then(()=>{});return;}
+  swOpenFullscreenColor(hex,name,'');
+}
+function swOpenFullscreenColor(hex,name,sw){
+  const existing=document.getElementById('sw-fullscreen-ov');if(existing)existing.remove();
+  const ov=document.createElement('div');
+  ov.id='sw-fullscreen-ov';
+  ov.style.cssText='position:fixed;inset:0;z-index:9999;background:'+hex+';display:flex;flex-direction:column;align-items:center;justify-content:center;cursor:pointer';
+  const r=parseInt(hex.slice(1,3),16),g=parseInt(hex.slice(3,5),16),b2=parseInt(hex.slice(5,7),16);
+  const lum=(0.299*r+0.587*g+0.114*b2)/255;
+  const tc=lum>0.55?'rgba(0,0,0,0.75)':'rgba(255,255,255,0.9)';
+  const bc=lum>0.55?'rgba(0,0,0,0.15)':'rgba(255,255,255,0.25)';
+  ov.innerHTML=
+    '<div style="text-align:center;padding:32px;pointer-events:none">'+
+      '<div style="font-size:28px;font-weight:800;color:'+tc+';letter-spacing:-.3px;margin-bottom:6px">'+name.replace(/ \(SW.*\)/,'')+'</div>'+
+      (sw?'<div style="font-size:18px;color:'+tc+';margin-bottom:4px;font-weight:600">'+sw+'</div>':'')+
+      '<div style="font-size:13px;color:'+tc+';font-family:monospace;opacity:.8;margin-bottom:8px">'+hex.toUpperCase()+'</div>'+
+      '<div style="font-size:12px;color:'+tc+';opacity:.6">Tap anywhere to close</div>'+
+    '</div>'+
+    '<button id="sw-use-btn" style="position:fixed;bottom:48px;left:50%;transform:translateX(-50%);padding:16px 40px;border-radius:32px;border:2px solid '+bc+';background:'+bc+';color:'+tc+';font-size:16px;font-weight:800;cursor:pointer;font-family:inherit;backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);white-space:nowrap">✓ Use this color</button>';
+  ov.onclick=(e)=>{if(e.target===ov||e.target.closest('div[style*="pointer-events:none"]'))ov.remove();};
+  document.getElementById('sw-use-btn')&&document.getElementById('sw-use-btn').addEventListener('click',(e)=>{e.stopPropagation();swSelectColor(sw,name.replace(/ \(SW.*\)/,'').trim(),hex);ov.remove();});
+  document.body.appendChild(ov);
+  // Wire use button after append
+  const useBtn=ov.querySelector('#sw-use-btn');
+  if(useBtn)useBtn.onclick=(e)=>{e.stopPropagation();swSelectColor(sw,name.replace(/ \(SW.*\)/,'').trim(),hex);ov.remove();};
+}
 function addSurfColorField(){
   const list=document.getElementById('surf-colors-list');if(!list)return;
   const inp=document.createElement('input');
@@ -5282,7 +5430,9 @@ function addSurfColorField(){
   list.appendChild(inp);inp.focus();
 }
 function getSurfColors(){
-  return [...document.querySelectorAll('.surf-color-entry')].map(i=>i.value.trim()).filter(Boolean);
+  const swInp=document.getElementById('surf-color');
+  if(swInp&&swInp.value.trim())return[swInp.value.trim()];
+  return[...document.querySelectorAll('.surf-color-entry')].map(i=>i.value.trim()).filter(Boolean);
 }
 let surfType='walls', surfDoorOpt='trim', surfWinOpt='trim', surfCabOpt='uppers', surfCount=1; // compat
 let surfWhatSelected=[]; // which surface types toggled on for current room
@@ -5547,7 +5697,8 @@ function adjSurfBCount(d){
 
 function saveSurfBAndNext(){
   const type=surfBQueue[surfBIdx];
-  const colorNote=surfColor?' — '+surfColor:'';
+  const _finish=document.getElementById('sw-selected-finish')?.value||_swFinish||'';
+  const colorNote=surfColor?' — '+surfColor+(_finish?' ['+_finish+']':''):'';
   const prefix=surfJobType==='exterior'?'[Ext] ':'';
 
   if(type==='walls'||type==='ext_walls'||type==='ceiling'||type==='deck'){
@@ -5592,7 +5743,7 @@ function finishRoom(){
   saveSurfDraft();renderSurfRoomsLogged();
   const btn=document.getElementById('est-s3-next-btn');
   if(btn){btn.disabled=false;btn.style.background='var(--blue)';btn.style.color='#fff';btn.style.borderColor='var(--blue)';btn.style.cursor='pointer';}
-  surfWhatSelected=[];surfBQueue=[];surfBIdx=0;surfBMeasurements={};surfColor='';surfRoom='';
+  surfWhatSelected=[];surfBQueue=[];surfBIdx=0;surfBMeasurements={};surfColor='';surfRoom='';_swResetColorUI();
   updateSurfWhatUI();
   const rooms=new Set(estSurfaces.map(s=>cleanRoomName(s.room)));
   const roomCount=rooms.size;
@@ -5633,6 +5784,8 @@ function showRoomSavedState(roomCount){
         const recentSurfs=estSurfaces.filter(s=>cleanRoomName(s.room)===recentRoom);
         if(!recentSurfs.length)return '';
         const SURF_LABELS2={walls:'Walls',ceiling:'Ceiling',trim:'Trim',doors:'Doors',windows:'Windows',cabinets:'Cabinets',ext_walls:'Siding',ext_trim:'Ext trim',deck:'Deck'};
+        // Show color swatch if color was selected
+        const roomColor=(recentSurfs[0]?.room||'').split(' — ')[1]?.replace(/\s*\[.*\]/,'').trim()||'';
         return '<div style="background:var(--bg2);border-radius:var(--r);padding:10px 12px;margin-bottom:10px">'+
           '<div style="font-size:11px;font-weight:700;color:var(--text3);margin-bottom:6px">'+recentRoom+'</div>'+
           recentSurfs.map(s=>'<div style="display:flex;justify-content:space-between;font-size:12px;padding:2px 0"><span style="color:var(--text2)">'+(SURF_LABELS2[s.type]||s.type)+'</span><span style="font-weight:700">'+s.qty.toLocaleString()+(s.type==='trim'||s.type==='ext_trim'?' lf':' sf')+'</span></div>').join('')+
@@ -5659,6 +5812,7 @@ function addAnotherRoom(){
   const rn=document.getElementById('surf-room-name');
   if(rn){rn.value='';rn.style.borderColor='#A32D2D';rn.style.background='var(--red-lt)';}
   const sc=document.getElementById('surf-color');if(sc)sc.value='';
+  _swResetColorUI();
   document.querySelectorAll('.surf-what-btn').forEach(b=>{
     b.style.borderColor='';b.style.background='';b.style.color='';
   });
@@ -6748,6 +6902,8 @@ function renderEstRunning(){
   if(!lines.length){el.innerHTML='<div class="empty">Add surfaces to see pricing.</div>';return;}
   let html='<div style="display:grid;grid-template-columns:1fr auto auto;gap:4px 12px;font-size:12px">';
   lines.forEach(l=>{
+    // Extract hex from surface color if available
+    const surfHex=_swColors?(_swColors.find(c=>l.label.includes(c.name))?.hex||''):'';
     html+='<span>'+l.label+'</span><span style="color:var(--text3)">'+l.qty.toLocaleString()+' '+l.unit+'</span><span style="font-weight:700;text-align:right">'+fmt(l.sub)+'</span>';
   });
   html+='</div><hr><div style="display:flex;justify-content:space-between;font-size:15px;font-weight:700"><span>Estimated bid</span><span style="color:var(--blue)">'+fmt(bid)+'</span></div>';

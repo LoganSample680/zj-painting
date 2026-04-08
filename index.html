@@ -915,34 +915,10 @@ input:checked+.dm-slider:before{transform:translateX(22px)}</style>
             oninput="onSurfRoomName(this)">
         </div>
 
-        <div style="margin-bottom:12px">
-          <label style="font-size:11px;font-weight:700;color:var(--text3);display:block;margin-bottom:6px">Paint color <span style="color:#A32D2D">*</span></label>
-          <div style="position:relative">
-            <div style="display:flex;gap:6px;align-items:center">
-              <div id="sw-color-preview" style="width:36px;height:36px;border-radius:var(--r);border:1px solid var(--border2);flex-shrink:0;background:#eee;cursor:pointer" onclick="swOpenFullscreen()" title="Tap to preview full screen"></div>
-              <input id="surf-color" class="surf-color-entry" autocomplete="off" placeholder="Search SW color name or number..."
-                style="font-size:13px;padding:8px 12px;border-radius:var(--r);border:1px solid var(--border2);background:var(--bg2);color:var(--text);flex:1;box-sizing:border-box"
-                oninput="swSearch(this.value);surfColor=this.value" onfocus="swSearch(this.value)" onblur="setTimeout(swHideDropdown,200)">
-              <button type="button" id="sw-clear-btn" onclick="swClearColor()" style="display:none;padding:7px 9px;border-radius:var(--r);border:1px solid var(--border2);background:var(--bg2);font-size:12px;cursor:pointer;font-family:inherit;color:var(--text3);flex-shrink:0">✕</button>
-            </div>
-            <div id="sw-dropdown" style="display:none;position:absolute;top:100%;left:0;right:0;z-index:500;margin-top:2px;background:var(--bg);border:1px solid var(--border2);border-radius:var(--r);box-shadow:0 4px 20px rgba(0,0,0,.15);max-height:280px;overflow-y:auto"></div>
-          </div>
-          <div style="margin-top:10px">
-            <label style="font-size:11px;font-weight:700;color:var(--text3);display:block;margin-bottom:5px">Finish</label>
-            <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:4px" id="sw-finish-grid">
-              <button type="button" class="sw-finish-btn sw-finish-active" data-finish="Flat" onclick="swSelectFinish(this)" style="padding:7px 4px;border-radius:var(--r);border:2px solid var(--blue);background:var(--blue-lt);color:var(--blue-dk);font-size:11px;font-weight:700;cursor:pointer;font-family:inherit">Flat</button>
-              <button type="button" class="sw-finish-btn" data-finish="Matte" onclick="swSelectFinish(this)" style="padding:7px 4px;border-radius:var(--r);border:1px solid var(--border2);background:var(--bg2);font-size:11px;font-weight:600;cursor:pointer;font-family:inherit;color:var(--text)">Matte</button>
-              <button type="button" class="sw-finish-btn" data-finish="Eggshell" onclick="swSelectFinish(this)" style="padding:7px 4px;border-radius:var(--r);border:1px solid var(--border2);background:var(--bg2);font-size:11px;font-weight:600;cursor:pointer;font-family:inherit;color:var(--text)">Eggshell</button>
-              <button type="button" class="sw-finish-btn" data-finish="Satin" onclick="swSelectFinish(this)" style="padding:7px 4px;border-radius:var(--r);border:1px solid var(--border2);background:var(--bg2);font-size:11px;font-weight:600;cursor:pointer;font-family:inherit;color:var(--text)">Satin</button>
-              <button type="button" class="sw-finish-btn" data-finish="Semi-Gloss" onclick="swSelectFinish(this)" style="padding:7px 4px;border-radius:var(--r);border:1px solid var(--border2);background:var(--bg2);font-size:11px;font-weight:600;cursor:pointer;font-family:inherit;color:var(--text)">Semi-Gloss</button>
-              <button type="button" class="sw-finish-btn" data-finish="Gloss" onclick="swSelectFinish(this)" style="padding:7px 4px;border-radius:var(--r);border:1px solid var(--border2);background:var(--bg2);font-size:11px;font-weight:600;cursor:pointer;font-family:inherit;color:var(--text)">Gloss</button>
-            </div>
-            <div style="font-size:10px;color:var(--text3);margin-top:5px;line-height:1.6"><strong>Flat/Matte</strong> — ceilings, low traffic &nbsp;·&nbsp; <strong>Eggshell</strong> — living areas &nbsp;·&nbsp; <strong>Satin</strong> — kitchens, baths &nbsp;·&nbsp; <strong>Semi-Gloss/Gloss</strong> — trim, doors, cabinets</div>
-          </div>
-          <input type="hidden" id="sw-selected-hex" value="">
-          <input type="hidden" id="sw-selected-finish" value="Flat">
-          <div id="surf-colors-list" style="display:none"></div>
-        </div>
+        <input type="hidden" id="surf-color" class="surf-color-entry" value="">
+        <input type="hidden" id="sw-selected-hex" value="">
+        <input type="hidden" id="sw-selected-finish" value="">
+        <div id="surf-colors-list" style="display:none"></div>
 
         <div style="margin-bottom:14px">
           <label style="font-size:11px;font-weight:700;color:var(--text3);display:block;margin-bottom:8px">What needs painting? <span style="font-weight:400;opacity:.6">Select all that apply</span></label>
@@ -1003,7 +979,32 @@ input:checked+.dm-slider:before{transform:translateX(22px)}</style>
         
         <div id="surf-b-subopts" style="margin-bottom:12px;display:none"></div>
 
-        <button class="btn btn-p btn-full" id="surf-b-next-btn" onclick="saveSurfBAndNext()" style="font-size:15px;padding:14px">
+        <!-- Per-surface color + finish -->
+        <div style="margin-top:14px;padding:12px;background:var(--bg2);border-radius:var(--rl);border:1px solid var(--border2)">
+          <div style="font-size:11px;font-weight:800;text-transform:uppercase;color:var(--text3);margin-bottom:8px">Color &amp; Finish for this surface</div>
+          <div style="display:flex;gap:6px;align-items:center;margin-bottom:8px">
+            <div id="sw-color-preview" style="width:36px;height:36px;border-radius:var(--r);border:1px solid var(--border2);flex-shrink:0;background:#eee;cursor:pointer;transition:border .2s" onclick="swOpenFullscreen()" title="Preview full screen"></div>
+            <div style="flex:1;position:relative">
+              <input id="surf-color-b" class="surf-color-entry" autocomplete="off" placeholder="Search SW color name or #..."
+                style="font-size:13px;padding:8px 10px;border-radius:var(--r);border:1px solid var(--border2);background:var(--bg);color:var(--text);width:100%;box-sizing:border-box"
+                oninput="swSearch(this.value,'b')" onfocus="swSearch(this.value,'b')" onblur="setTimeout(swHideDropdown,200)">
+              <div id="sw-dropdown" style="display:none;position:absolute;top:100%;left:0;right:0;z-index:500;margin-top:2px;background:var(--bg);border:1px solid var(--border2);border-radius:var(--r);box-shadow:0 4px 20px rgba(0,0,0,.15);max-height:240px;overflow-y:auto"></div>
+            </div>
+            <button type="button" id="sw-clear-btn" onclick="swClearColor()" style="display:none;padding:7px 9px;border-radius:var(--r);border:1px solid var(--border2);background:var(--bg);font-size:12px;cursor:pointer;font-family:inherit;color:var(--text3);flex-shrink:0">✕</button>
+          </div>
+          <div style="display:grid;grid-template-columns:repeat(6,1fr);gap:3px" id="sw-finish-grid">
+            <button type="button" class="sw-finish-btn" data-finish="Flat" onclick="swSelectFinish(this)" style="padding:6px 2px;border-radius:var(--r);border:1px solid var(--border2);background:var(--bg);font-size:10px;font-weight:600;cursor:pointer;font-family:inherit;color:var(--text)">Flat</button>
+            <button type="button" class="sw-finish-btn" data-finish="Matte" onclick="swSelectFinish(this)" style="padding:6px 2px;border-radius:var(--r);border:1px solid var(--border2);background:var(--bg);font-size:10px;font-weight:600;cursor:pointer;font-family:inherit;color:var(--text)">Matte</button>
+            <button type="button" class="sw-finish-btn" data-finish="Eggshell" onclick="swSelectFinish(this)" style="padding:6px 2px;border-radius:var(--r);border:1px solid var(--border2);background:var(--bg);font-size:10px;font-weight:600;cursor:pointer;font-family:inherit;color:var(--text)">Eggshell</button>
+            <button type="button" class="sw-finish-btn" data-finish="Satin" onclick="swSelectFinish(this)" style="padding:6px 2px;border-radius:var(--r);border:1px solid var(--border2);background:var(--bg);font-size:10px;font-weight:600;cursor:pointer;font-family:inherit;color:var(--text)">Satin</button>
+            <button type="button" class="sw-finish-btn" data-finish="Semi-Gloss" onclick="swSelectFinish(this)" style="padding:6px 2px;border-radius:var(--r);border:1px solid var(--border2);background:var(--bg);font-size:10px;font-weight:600;cursor:pointer;font-family:inherit;color:var(--text)">Semi-Gloss</button>
+            <button type="button" class="sw-finish-btn" data-finish="Gloss" onclick="swSelectFinish(this)" style="padding:6px 2px;border-radius:var(--r);border:1px solid var(--border2);background:var(--bg);font-size:10px;font-weight:600;cursor:pointer;font-family:inherit;color:var(--text)">Gloss</button>
+          </div>
+          <input type="hidden" id="sw-selected-hex" value="">
+          <input type="hidden" id="sw-selected-finish" value="">
+        </div>
+
+        <button class="btn btn-p btn-full" id="surf-b-next-btn" onclick="saveSurfBAndNext()" style="font-size:15px;padding:14px;margin-top:10px">
           Next &#8594;
         </button>
       </div>
@@ -5311,7 +5312,7 @@ async function swLoadColors(){
   ];}
   return _swColors;
 }
-async function swSearch(val){
+async function swSearch(val,target){
   const dd=document.getElementById('sw-dropdown');if(!dd)return;
   const q=(val||'').trim().toLowerCase();
   if(!q||q.length<2){dd.style.display='none';return;}
@@ -5348,7 +5349,7 @@ async function swSearch(val){
 }
 function swHideDropdown(){const d=document.getElementById('sw-dropdown');if(d)d.style.display='none';}
 function swSelectColor(sw,name,hex){
-  const inp=document.getElementById('surf-color');
+  const inp=document.getElementById('surf-color-b')||document.getElementById('surf-color');
   const prev=document.getElementById('sw-color-preview');
   const hexH=document.getElementById('sw-selected-hex');
   const clrBtn=document.getElementById('sw-clear-btn');
@@ -5430,7 +5431,7 @@ function addSurfColorField(){
   list.appendChild(inp);inp.focus();
 }
 function getSurfColors(){
-  const swInp=document.getElementById('surf-color');
+  const swInp=document.getElementById('surf-color-b')||document.getElementById('surf-color');
   if(swInp&&swInp.value.trim())return[swInp.value.trim()];
   return[...document.querySelectorAll('.surf-color-entry')].map(i=>i.value.trim()).filter(Boolean);
 }
@@ -5514,14 +5515,7 @@ function goSurfStepB(){
     if(rn){rn.focus();rn.style.borderColor='#A32D2D';rn.style.background='var(--red-lt)';}
     return;
   }
-  const colors=getSurfColors();
-  if(!colors.length){
-    const colorEl=document.getElementById('surf-color');
-    if(colorEl){colorEl.style.borderColor='#A32D2D';colorEl.style.background='var(--red-lt)';colorEl.focus();}
-    zAlert('Enter at least one paint color.',{title:'Required'});return;
-  }
-  surfColor=colors.join(', ');
-  document.querySelectorAll('.surf-color-entry').forEach(el=>{el.style.borderColor='var(--green)';el.style.background='var(--green-lt)';});
+  surfColor='';
   if(surfWhatSelected.length===0){
     zAlert('Select at least one surface to paint.',{title:'Nothing selected'});return;
   }
@@ -5535,6 +5529,8 @@ function goSurfStepB(){
 }
 
 function renderSurfBCurrent(){
+  // Reset color+finish for each new surface type
+  _swResetColorUI();
   const type=surfBQueue[surfBIdx];
   const label=SURF_LABELS[type]||type;
   const total=surfBQueue.length;
@@ -5696,9 +5692,21 @@ function adjSurfBCount(d){
 }
 
 function saveSurfBAndNext(){
+  // Require color and finish
+  const _colorVal=(document.getElementById('surf-color-b')?.value||'').trim();
+  const _finishVal=(document.getElementById('sw-selected-finish')?.value||'').trim();
+  if(!_colorVal){
+    const el=document.getElementById('surf-color-b');
+    if(el){el.style.borderColor='#A32D2D';el.style.background='var(--red-lt)';el.focus();}
+    zAlert('Enter a color for this surface.',{title:'Color required'});return;
+  }
+  if(!_finishVal){
+    zAlert('Select a finish for this surface.',{title:'Finish required'});return;
+  }
   const type=surfBQueue[surfBIdx];
   const _finish=document.getElementById('sw-selected-finish')?.value||_swFinish||'';
-  const colorNote=surfColor?' — '+surfColor+(_finish?' ['+_finish+']':''):'';
+  const _surfColorVal=(document.getElementById('surf-color-b')?.value||surfColor||'').trim();
+  const colorNote=_surfColorVal?' — '+_surfColorVal+(_finish?' ['+_finish+']':''):'  ';
   const prefix=surfJobType==='exterior'?'[Ext] ':'';
 
   if(type==='walls'||type==='ext_walls'||type==='ceiling'||type==='deck'){

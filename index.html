@@ -481,6 +481,7 @@ input:checked+.dm-slider:before{transform:translateX(22px)}</style>
       </div>
       <button class="btn btn-sm btn-r" onclick="goPg('pg-money')">Collect →</button>
     </div>
+    <div id="dash-followups" style="display:none;border-top:1px solid var(--border);padding-top:10px;margin-top:4px"></div>
     <div id="dash-fu" style="display:none"></div>
     <div id="dash-collect" style="display:none"></div>
   </div>
@@ -1519,6 +1520,7 @@ input:checked+.dm-slider:before{transform:translateX(22px)}</style>
       <div class="f"><label>Phone</label><input id="set-bphone" type="tel" maxlength="12" oninput="fmtPhone(this)"></div>
       <div class="f"><label>License / insured</label><input id="set-blic"></div>
       <div class="f"><label>Reply-to email</label><input type="email" id="set-bemail" placeholder="zach@yourpainting.com"></div>
+      <div class="f"><label>Google review link <span style="font-size:10px;font-weight:400;color:var(--text3)">(sent to clients after job completion)</span></label><input type="url" id="set-review-url" placeholder="https://g.page/r/..."></div>
       <div class="f" style="grid-column:1/-1" id="settings-vehicles-section">
         <label>Vehicles <span style="font-size:10px;color:var(--text3);font-weight:400">(IRS log requires vehicle description per trip)</span></label>
         <div id="set-vehicles-list" style="margin-bottom:8px"></div>
@@ -2084,10 +2086,11 @@ function loadSettingsForm(){
   sf('set-labor-rate',S.laborRate||45);sf('set-owner-name',getOwnerName()||'');sf('set-bname',S.bname);sf('set-state',S.state||'KS');
   if(S.state){const lbl=document.getElementById('set-state-label');const info=STATE_TAX[S.state];if(lbl&&info)lbl.textContent=info.name+' tax rates';}sf('set-stripe-pk',S.stripePk||'');sf('set-bphone',S.bphone);sf('set-blic',S.blic);sf('set-bemail',S.bemail||'');sf('set-veh',S.veh);
   sf('set-margin',S.margin);sf('set-cov',S.cov);sf('set-p1',S.p1);sf('set-p2',S.p2);sf('set-p3',S.p3);sf('set-mm',S.mm);sf('set-r-walls',S.rWalls||1.50);sf('set-r-ceil',S.rCeil||1.25);sf('set-r-trim',S.rTrim||1.75);sf('set-r-door',S.rDoor||85);sf('set-r-win',S.rWin||45);sf('set-r-ext',S.rExt||1.60);sf('set-r-deck',S.rDeck||1.25);
+  sf('set-review-url',S.reviewUrl||'');
 }
 function saveSettings(){
   const gf=id=>parseFloat(v(id))||0,gs=id=>v(id);
-  setOwnerName(gs('set-owner-name')||getOwnerName()||'');S={...S,goalMonthly:gf('set-goal-monthly')||0,irsRate:gf('set-irs')||.670,taxYear:parseInt(v('set-year'))||2024,fedSingle:gf('set-fs')||14600,fedMFJ:gf('set-fm')||29200,fedMFS:gf('set-fms')||14600,fedHOH:gf('set-fh')||21900,b10:gf('set-b10')||11600,b12:gf('set-b12')||47150,b22:gf('set-b22')||100525,b24:gf('set-b24')||191950,b32:gf('set-b32')||243725,b35:gf('set-b35')||609350,ksLow:gf('set-ksl')||3.1,ksTop:gf('set-kst')||33000,ksHigh:gf('set-ksh')||5.7,ksStdS:gf('set-kss')||3500,ksStdM:gf('set-ksm')||8000,laborRate:gf('set-labor-rate')||45,bname:gs('set-bname'),bphone:gs('set-bphone'),blic:gs('set-blic'),state:gs('set-state')||S.state||'',bemail:gs('set-bemail'),veh:gs('set-veh'),stripePk:gs('set-stripe-pk')||'',vehicles:S.vehicles||[],margin:gf('set-margin')||25,cov:gf('set-cov')||350,p1:gf('set-p1')||35,p2:gf('set-p2')||58,p3:gf('set-p3')||82,mm:gf('set-mm')||20,rWalls:gf('set-r-walls')||1.50,rCeil:gf('set-r-ceil')||1.25,rTrim:gf('set-r-trim')||1.75,rDoor:gf('set-r-door')||85,rWin:gf('set-r-win')||45,rExt:gf('set-r-ext')||1.60,rDeck:gf('set-r-deck')||1.25};
+  setOwnerName(gs('set-owner-name')||getOwnerName()||'');S={...S,goalMonthly:gf('set-goal-monthly')||0,irsRate:gf('set-irs')||.670,taxYear:parseInt(v('set-year'))||2024,fedSingle:gf('set-fs')||14600,fedMFJ:gf('set-fm')||29200,fedMFS:gf('set-fms')||14600,fedHOH:gf('set-fh')||21900,b10:gf('set-b10')||11600,b12:gf('set-b12')||47150,b22:gf('set-b22')||100525,b24:gf('set-b24')||191950,b32:gf('set-b32')||243725,b35:gf('set-b35')||609350,ksLow:gf('set-ksl')||3.1,ksTop:gf('set-kst')||33000,ksHigh:gf('set-ksh')||5.7,ksStdS:gf('set-kss')||3500,ksStdM:gf('set-ksm')||8000,laborRate:gf('set-labor-rate')||45,bname:gs('set-bname'),bphone:gs('set-bphone'),blic:gs('set-blic'),state:gs('set-state')||S.state||'',bemail:gs('set-bemail'),veh:gs('set-veh'),stripePk:gs('set-stripe-pk')||'',vehicles:S.vehicles||[],margin:gf('set-margin')||25,cov:gf('set-cov')||350,p1:gf('set-p1')||35,p2:gf('set-p2')||58,p3:gf('set-p3')||82,mm:gf('set-mm')||20,rWalls:gf('set-r-walls')||1.50,rCeil:gf('set-r-ceil')||1.25,rTrim:gf('set-r-trim')||1.75,rDoor:gf('set-r-door')||85,rWin:gf('set-r-win')||45,rExt:gf('set-r-ext')||1.60,rDeck:gf('set-r-deck')||1.25,reviewUrl:gs('set-review-url')||''};
   applySettings();saveAll();
   const el=document.getElementById('set-saved');if(el){el.style.display='block';setTimeout(()=>el.style.display='none',3000);}
 }
@@ -2468,6 +2471,7 @@ function renderDash(){
   renderLeadSources();
   renderDashToday();
   renderDashCollect();
+  renderDashFollowups();
   // Update new nav badges
   const _owing=bids.filter(b=>b.status==='Closed Won'&&getBidBalance(b)>0.01);
   const _cl=document.getElementById('qa-collect-label');
@@ -2837,6 +2841,38 @@ function renderDashCollect(){
       '</div>'+
     '</div>'
   ).join('');
+}
+
+function renderDashFollowups(){
+  const el=document.getElementById('dash-followups');if(!el)return;
+  const tk=todayKey();
+  const dueBids=bids.filter(b=>b.status==='Pending'&&b.followup&&b.followup<=tk);
+  if(!dueBids.length){el.style.display='none';el.innerHTML='';return;}
+  el.style.display='block';
+  el.innerHTML=
+    '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">'+
+      '<div>'+
+        '<div style="font-size:13px;font-weight:700;color:var(--amber)">⏰ Follow-ups due ('+dueBids.length+')</div>'+
+        '<div style="font-size:11px;color:var(--text3)">Bids waiting on a response</div>'+
+      '</div>'+
+      '<button class="btn btn-sm" onclick="goPg(\'pg-leads\');setTimeout(()=>setLeadFilter(\'follow_up\',document.getElementById(\'lft-follow_up\')),100)" style="border-color:var(--amber);color:var(--amber)">View all →</button>'+
+    '</div>'+
+    dueBids.slice(0,3).map(b=>{
+      const c=getClientById(b.client_id);
+      const name=c?c.name:(b.client_name||'Client');
+      const daysOut=Math.floor((new Date(tk+'T12:00')-new Date(b.followup+'T12:00'))/86400000);
+      const overdue=daysOut>0?daysOut+'d overdue':'Due today';
+      return '<div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:1px solid var(--border)">'+
+        '<div style="min-width:0">'+
+          '<div style="font-size:13px;font-weight:600">'+name+'</div>'+
+          '<div style="font-size:11px;color:'+(daysOut>0?'#A32D2D':'var(--amber)')+'">'+overdue+' · '+fmt(b.amount)+'</div>'+
+        '</div>'+
+        '<div style="display:flex;gap:6px;flex-shrink:0">'+
+          (c&&c.phone?'<a href="sms:'+c.phone.replace(/\D/g,'')+'&body='+encodeURIComponent('Hi '+c.name.split(' ')[0]+', just checking in on the estimate I sent over — any questions?')+'" style="padding:5px 10px;border-radius:20px;background:var(--amber-lt);color:#856404;font-size:11px;font-weight:700;text-decoration:none">Text</a>':'')+
+        '</div>'+
+      '</div>';
+    }).join('')+
+    (dueBids.length>3?'<div style="font-size:11px;color:var(--text3);padding-top:6px">+'+( dueBids.length-3)+' more — tap View all</div>':'');
 }
 
 function checkGoalPrompt(){
@@ -4209,6 +4245,35 @@ function confirmJobDone(jobId){
       setTimeout(()=>setCDTab('bids',document.getElementById('cdt-bids')),200);
     },100);
   }
+  // Review request prompt — show after a delay so payment panel opens first
+  if(S.reviewUrl){
+    setTimeout(()=>showReviewRequestPrompt(j.client_id),800);
+  }
+}
+function showReviewRequestPrompt(clientId){
+  const c=getClientById(clientId);if(!c)return;
+  const firstName=c.name.split(' ')[0];
+  const reviewUrl=S.reviewUrl||'';
+  const msg='Hi '+firstName+', thank you so much for choosing '+((S.bname||'us'))+' — it was a pleasure working with you! If you have a moment, we\'d really appreciate a quick Google review: '+reviewUrl;
+  const overlay=document.createElement('div');overlay.className='zmodal-overlay';
+  const box=document.createElement('div');box.className='zmodal';
+  box.innerHTML=
+    '<div style="text-align:center;font-size:22px;margin-bottom:8px">⭐</div>'+
+    '<div class="zmodal-title" style="text-align:center">Request a review?</div>'+
+    '<div style="font-size:13px;color:var(--text2);margin-bottom:12px;line-height:1.5">Send '+firstName+' a text asking for a Google review while the job is fresh.</div>'+
+    '<textarea id="review-msg-text" style="width:100%;min-height:90px;font-size:12px;padding:10px;border-radius:var(--r);border:1px solid var(--border2);background:var(--bg2);color:var(--text);font-family:inherit;resize:none;box-sizing:border-box">'+msg+'</textarea>'+
+    '<div class="zmodal-btns" style="gap:8px;margin-top:12px">'+
+      '<button onclick="this.closest(\'.zmodal-overlay\').remove()" style="padding:11px;border-radius:var(--r);border:1px solid var(--border2);background:var(--bg2);font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;flex:1">Skip</button>'+
+      '<button onclick="_sendReviewRequest(\''+c.phone+'\');this.closest(\'.zmodal-overlay\').remove()" style="padding:11px;border-radius:var(--r);border:none;background:#FFC107;color:#1a1a1a;font-size:13px;font-weight:800;cursor:pointer;font-family:inherit;flex:1">⭐ Send text</button>'+
+    '</div>';
+  overlay.appendChild(box);
+  document.body.appendChild(overlay);
+  overlay.addEventListener('click',e=>{if(e.target===overlay)overlay.remove();});
+}
+function _sendReviewRequest(phone){
+  const msg=document.getElementById('review-msg-text')?.value||'';
+  if(!phone||!msg)return;
+  window.location.href='sms:'+phone.replace(/\D/g,'')+'&body='+encodeURIComponent(msg);
 }
 // Alias called by post-job debrief after saving hours
 function showSupplyList(bidId){
@@ -8005,6 +8070,40 @@ function renderEstReview(){
     '<div class="met"><div class="met-l">Total</div><div class="met-v" style="color:var(--green-mid);font-size:18px">'+fmt(final)+'</div></div>'+
   '</div>';
 
+  // ── Pricing health indicator ──────────────────────────────
+  if(final>0&&totalLaborHours>0){
+    const effRate=final/totalLaborHours;
+    const matPct=Math.round(matTotal/final*100);
+    const isHealthy=effRate>=55&&matPct<=35;
+    const isTight=effRate>=40&&effRate<55;
+    const isLow=effRate<40||matPct>45;
+    const color=isLow?'#A32D2D':isTight?'#856404':'var(--green-mid)';
+    const bg=isLow?'#FEF0F0':isTight?'#FFFBF0':'#F0FBF0';
+    const border=isLow?'#E24B4A':isTight?'var(--amber)':'#97C459';
+    const label=isLow?'Underpriced — adjust before sending':isTight?'Tight margin — review before sending':'Priced well';
+    const icon=isLow?'⚠️':isTight?'⚡':'✓';
+    html+='<div style="background:'+bg+';border:1px solid '+border+';border-radius:var(--rl);padding:11px 14px;margin-bottom:12px">'+
+      '<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px">'+
+        '<div style="font-size:12px;font-weight:800;color:'+color+'">'+icon+' '+label+'</div>'+
+        '<div style="font-size:12px;color:'+color+';font-weight:700">'+fmt(effRate)+'/hr effective</div>'+
+      '</div>'+
+      '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;margin-top:8px">'+
+        '<div style="text-align:center;background:rgba(255,255,255,.6);border-radius:var(--r);padding:6px">'+
+          '<div style="font-size:10px;color:var(--text3);font-weight:700;text-transform:uppercase">Effective rate</div>'+
+          '<div style="font-size:14px;font-weight:800;color:'+color+'">'+fmt(effRate)+'/hr</div>'+
+        '</div>'+
+        '<div style="text-align:center;background:rgba(255,255,255,.6);border-radius:var(--r);padding:6px">'+
+          '<div style="font-size:10px;color:var(--text3);font-weight:700;text-transform:uppercase">Materials</div>'+
+          '<div style="font-size:14px;font-weight:800;color:var(--text)">'+matPct+'% of bid</div>'+
+        '</div>'+
+        '<div style="text-align:center;background:rgba(255,255,255,.6);border-radius:var(--r);padding:6px">'+
+          '<div style="font-size:10px;color:var(--text3);font-weight:700;text-transform:uppercase">After materials</div>'+
+          '<div style="font-size:14px;font-weight:800;color:var(--green-mid)">'+fmt(final-matTotal)+'</div>'+
+        '</div>'+
+      '</div>'+
+    '</div>';
+  }
+
   // Paint order summary (Zach-only — not on proposal)
   if(customerPaint){
     html+='<div style="background:var(--amber-lt);border:1px solid var(--amber);border-radius:var(--r);padding:10px 12px;margin-bottom:12px">'+
@@ -11367,6 +11466,7 @@ function openJobSheet(clientId){
       '<div style="display:flex;gap:8px">'+
         (c.phone?'<a href="tel:'+c.phone.replace(/\D/g,'')+'" style="background:rgba(255,255,255,.2);color:#fff;text-decoration:none;font-size:12px;font-weight:700;padding:5px 12px;border-radius:20px" onclick="event.stopPropagation()">📞 Call</a>':'')+
         (c.addr?'<button onclick="openMapsForClient('+clientId+');event.stopPropagation()" style="background:rgba(255,255,255,.2);border:none;color:#fff;font-size:12px;font-weight:700;padding:5px 12px;border-radius:20px;cursor:pointer;font-family:inherit">🗺️ Drive</button>':'')+
+        (c.phone?'<button onclick="sendOMWText('+clientId+');event.stopPropagation()" style="background:rgba(255,200,0,.3);border:none;color:#fff;font-size:12px;font-weight:700;padding:5px 12px;border-radius:20px;cursor:pointer;font-family:inherit">🚗 OMW</button>':'')+
         '<button onclick="this.closest(\'.zmodal-overlay\').remove();openClientDetail('+clientId+')" style="background:rgba(255,255,255,.2);border:none;color:#fff;font-size:12px;font-weight:700;padding:5px 12px;border-radius:20px;cursor:pointer;font-family:inherit">Full record →</button>'+
       '</div>'+
     '</div>';
@@ -11506,6 +11606,59 @@ function openJobSheet(clientId){
     }
   }
 
+  // ── Before / After photos ────────────────────────────────────
+  const jobForPhotos=allJobs.sort((a,b)=>b.start.localeCompare(a.start))[0];
+  const photoJobId=jobForPhotos?jobForPhotos.id:null;
+  const existingPhotos=jobForPhotos?(jobForPhotos.photos||[]):[];
+  const beforePhotos=existingPhotos.filter(p=>p.type==='before');
+  const afterPhotos=existingPhotos.filter(p=>p.type==='after');
+  let photosHtml='';
+  if(photoJobId){
+    const renderThumb=(p,idx,type)=>'<div style="position:relative;width:80px;height:80px;flex-shrink:0">'+
+      '<img src="'+p.data+'" style="width:80px;height:80px;object-fit:cover;border-radius:var(--r);border:2px solid '+(type==='before'?'var(--amber)':'var(--green-mid)')+'">'+
+      '<button onclick="deleteJobPhoto('+photoJobId+','+idx+',\''+type+'\');this.closest(\'.zmodal-overlay\').remove();openJobSheet('+clientId+')" '+
+        'style="position:absolute;top:2px;right:2px;background:rgba(0,0,0,.6);border:none;color:#fff;border-radius:50%;width:18px;height:18px;font-size:10px;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0;line-height:1">✕</button>'+
+    '</div>';
+    photosHtml=
+      '<div style="padding:14px 20px;border-bottom:1px solid var(--border)">'+
+        '<div style="font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.06em;color:var(--text3);margin-bottom:10px">📸 Job photos</div>'+
+        '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">'+
+          '<div>'+
+            '<div style="font-size:11px;font-weight:700;color:var(--amber);margin-bottom:6px;text-transform:uppercase;letter-spacing:.04em">Before ('+beforePhotos.length+')</div>'+
+            '<div style="display:flex;gap:6px;flex-wrap:wrap;min-height:40px">'+
+              beforePhotos.map((p,i)=>renderThumb(p,i,'before')).join('')+
+            '</div>'+
+            '<label style="display:inline-flex;align-items:center;gap:5px;margin-top:6px;padding:7px 12px;border-radius:var(--r);border:1px dashed var(--amber);color:var(--amber);font-size:11px;font-weight:700;cursor:pointer;background:var(--amber-lt)">'+
+              '<input type="file" accept="image/*" capture="environment" onchange="addJobPhoto('+photoJobId+',this,\'before\');this.closest(\'.zmodal-overlay\').remove();setTimeout(()=>openJobSheet('+clientId+'),600)" style="display:none">+ Before</label>'+
+          '</div>'+
+          '<div>'+
+            '<div style="font-size:11px;font-weight:700;color:var(--green-mid);margin-bottom:6px;text-transform:uppercase;letter-spacing:.04em">After ('+afterPhotos.length+')</div>'+
+            '<div style="display:flex;gap:6px;flex-wrap:wrap;min-height:40px">'+
+              afterPhotos.map((p,i)=>renderThumb(p,i,'after')).join('')+
+            '</div>'+
+            '<label style="display:inline-flex;align-items:center;gap:5px;margin-top:6px;padding:7px 12px;border-radius:var(--r);border:1px dashed var(--green-mid);color:var(--green-mid);font-size:11px;font-weight:700;cursor:pointer;background:var(--green-lt)">'+
+              '<input type="file" accept="image/*" capture="environment" onchange="addJobPhoto('+photoJobId+',this,\'after\');this.closest(\'.zmodal-overlay\').remove();setTimeout(()=>openJobSheet('+clientId+'),600)" style="display:none">+ After</label>'+
+          '</div>'+
+        '</div>'+
+      '</div>';
+  }
+
+  // ── Visit notes ──────────────────────────────────────────────
+  const latestJob=allJobs.filter(j=>j.status!=='canceled').sort((a,b)=>b.start.localeCompare(a.start))[0];
+  const visitNotesJobId=latestJob?latestJob.id:null;
+  const visitNotesVal=latestJob?(latestJob.visitNotes||''):'';
+  let visitNotesHtml='';
+  if(visitNotesJobId){
+    visitNotesHtml=
+      '<div style="padding:14px 20px;border-bottom:1px solid var(--border)">'+
+        '<div style="font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.06em;color:var(--text3);margin-bottom:8px">📝 Job notes</div>'+
+        '<textarea id="visit-notes-ta" placeholder="Site conditions, instructions for crew, client requests, punch list..." '+
+          'style="width:100%;min-height:75px;font-size:13px;padding:10px;border-radius:var(--r);border:1px solid var(--border2);background:var(--bg2);color:var(--text);font-family:inherit;resize:none;box-sizing:border-box;line-height:1.5" '+
+          'onblur="saveVisitNotes('+visitNotesJobId+',this.value)">'+visitNotesVal+'</textarea>'+
+        '<div style="font-size:10px;color:var(--text3);margin-top:4px">Auto-saves when you tap out</div>'+
+      '</div>';
+  }
+
   // ── Job actions ──────────────────────────────────────────────
   const jobActions=getClientJobs(clientId).filter(j=>j.eventType!=='estimate'&&j.status==='active');
   let actionsHtml=
@@ -11515,11 +11668,12 @@ function openJobSheet(clientId){
         (jobActions.length?
           jobActions.map(j=>'<button onclick="this.closest(\'.zmodal-overlay\').remove();markJobDone('+j.id+')" style="padding:12px;border-radius:var(--r);border:none;background:var(--green-mid);color:#fff;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;text-align:left">✓ Mark job complete — '+j.name+'</button>').join('')
         :'')+
+        (bid?'<button onclick="this.closest(\'.zmodal-overlay\').remove();showChangeOrderModal('+bid.id+','+clientId+')" style="padding:12px;border-radius:var(--r);border:1.5px solid var(--blue);background:var(--blue-lt);font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;color:var(--blue-dk);text-align:left">📋 Change order — adjust scope or price</button>':'')+
         '<button onclick="this.closest(\'.zmodal-overlay\').remove();openClientDetail('+clientId+')" style="padding:12px;border-radius:var(--r);border:1px solid var(--border2);background:var(--bg2);font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;color:var(--text);text-align:left">📋 Full client record & history</button>'+
       '</div>'+
     '</div>';
 
-  body.innerHTML=payHtml+schedHtml+supplyHtml+scopeHtml+actionsHtml;
+  body.innerHTML=payHtml+schedHtml+supplyHtml+scopeHtml+photosHtml+visitNotesHtml+actionsHtml;
   box.appendChild(body);
   ov.appendChild(box);
   ov.onclick=e=>{if(e.target===ov)ov.remove();};
@@ -11530,6 +11684,105 @@ function openMapsForClient(clientId){
   const c=getClientById(clientId);
   if(!c||!c.addr)return zAlert('No address on file.');
   window.open('https://maps.apple.com/?daddr='+encodeURIComponent(c.addr),'_blank');
+}
+function sendOMWText(clientId){
+  const c=getClientById(clientId);
+  if(!c||!c.phone)return;
+  const firstName=c.name.split(' ')[0];
+  const biz=S.bname||'us';
+  const msg='Hi '+firstName+', this is '+biz+' — I\'m on my way! I\'ll be there shortly.';
+  window.location.href='sms:'+c.phone.replace(/\D/g,'')+'&body='+encodeURIComponent(msg);
+}
+function addJobPhoto(jobId,input,type){
+  const file=input.files[0];if(!file)return;
+  const reader=new FileReader();
+  reader.onload=e=>{
+    const j=jobs.find(x=>x.id===jobId);if(!j)return;
+    if(!j.photos)j.photos=[];
+    j.photos.push({type,data:e.target.result,ts:new Date().toISOString()});
+    saveAll();
+    showToast((type==='before'?'Before':'After')+' photo saved','📸');
+  };
+  reader.readAsDataURL(file);
+}
+function deleteJobPhoto(jobId,idx,type){
+  const j=jobs.find(x=>x.id===jobId);if(!j||!j.photos)return;
+  const typePhotos=j.photos.filter(p=>p.type===type);
+  const photoToRemove=typePhotos[idx];
+  if(photoToRemove)j.photos=j.photos.filter(p=>p!==photoToRemove);
+  saveAll();
+}
+function saveVisitNotes(jobId,val){
+  const j=jobs.find(x=>x.id===jobId);if(!j)return;
+  j.visitNotes=val.trim();
+  saveAll();
+  showToast('Notes saved','📝');
+}
+function showChangeOrderModal(bidId,clientId){
+  const b=bids.find(x=>x.id===bidId);if(!b)return;
+  const overlay=document.createElement('div');overlay.className='zmodal-overlay';
+  const box=document.createElement('div');box.className='zmodal';
+  box.innerHTML=
+    '<div style="font-size:17px;font-weight:800;margin-bottom:4px">Change Order</div>'+
+    '<div style="font-size:13px;color:var(--text3);margin-bottom:14px">Current contract: <strong>'+fmt(b.amount)+'</strong></div>'+
+    '<div class="f" style="margin-bottom:10px">'+
+      '<label style="font-size:11px;font-weight:700;color:var(--text3)">Description of change <span style="color:#A32D2D">*</span></label>'+
+      '<textarea id="co-desc" placeholder="e.g. Added master bedroom ceiling, customer requested accent wall in living room..." '+
+        'style="width:100%;min-height:70px;font-size:13px;padding:10px;border-radius:var(--r);border:1px solid var(--border2);background:var(--bg2);color:var(--text);font-family:inherit;resize:none;box-sizing:border-box"></textarea>'+
+    '</div>'+
+    '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:14px">'+
+      '<button id="co-add-btn" onclick="setCOType(\'add\')" style="padding:10px;border-radius:var(--r);border:2px solid var(--border2);background:var(--bg2);font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;color:var(--text)">+ Add to contract</button>'+
+      '<button id="co-sub-btn" onclick="setCOType(\'sub\')" style="padding:10px;border-radius:var(--r);border:2px solid var(--border2);background:var(--bg2);font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;color:var(--text)">− Reduce contract</button>'+
+    '</div>'+
+    '<div id="co-amount-wrap" style="display:none;margin-bottom:14px">'+
+      '<div class="f">'+
+        '<label style="font-size:11px;font-weight:700;color:var(--text3)">Amount ($) <span style="color:#A32D2D">*</span></label>'+
+        '<input type="number" id="co-amount" min="0" step="25" placeholder="0" inputmode="decimal" '+
+          'style="font-size:22px;font-weight:700;padding:10px;border-radius:var(--r);border:1px solid var(--border2);background:var(--bg2);width:100%;box-sizing:border-box;color:var(--text);text-align:center" '+
+          'oninput="_previewCO('+bidId+')">'+
+      '</div>'+
+      '<div id="co-preview" style="font-size:13px;font-weight:700;text-align:center;min-height:20px;margin-top:8px"></div>'+
+    '</div>'+
+    '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">'+
+      '<button onclick="this.closest(\'.zmodal-overlay\').remove()" style="padding:12px;border-radius:var(--r);border:1px solid var(--border2);background:var(--bg2);font-size:14px;font-weight:600;cursor:pointer;font-family:inherit">Cancel</button>'+
+      '<button onclick="confirmChangeOrder('+bidId+','+clientId+')" style="padding:12px;border-radius:var(--r);border:none;background:var(--blue);color:#fff;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit">Save change order</button>'+
+    '</div>';
+  overlay.appendChild(box);document.body.appendChild(overlay);
+  overlay.addEventListener('click',e=>{if(e.target===overlay)overlay.remove();});
+}
+let _coType=null;
+function setCOType(t){
+  _coType=t;
+  const ab=document.getElementById('co-add-btn');const sb=document.getElementById('co-sub-btn');const aw=document.getElementById('co-amount-wrap');
+  if(ab){ab.style.borderColor=t==='add'?'var(--blue)':'var(--border2)';ab.style.background=t==='add'?'var(--blue-lt)':'var(--bg2)';}
+  if(sb){sb.style.borderColor=t==='sub'?'#A32D2D':'var(--border2)';sb.style.background=t==='sub'?'#FEE8E8':'var(--bg2)';}
+  if(aw){aw.style.display='';setTimeout(()=>{const a=document.getElementById('co-amount');if(a){a.focus();a.select();}},60);}
+}
+function _previewCO(bidId){
+  const b=bids.find(x=>x.id===bidId);if(!b)return;
+  const amt=parseFloat(document.getElementById('co-amount')?.value)||0;
+  const pr=document.getElementById('co-preview');if(!pr||!amt)return;
+  const newTotal=_coType==='add'?b.amount+amt:Math.max(0,b.amount-amt);
+  const arrow=_coType==='add'?'↑':'↓';
+  const color=_coType==='add'?'var(--blue)':'var(--green-mid)';
+  pr.innerHTML='<span style="color:var(--text3)">'+fmt(b.amount)+'</span> <span style="color:'+color+'">'+arrow+' '+fmt(newTotal)+'</span>';
+}
+function confirmChangeOrder(bidId,clientId){
+  const b=bids.find(x=>x.id===bidId);if(!b)return;
+  const desc=(document.getElementById('co-desc')?.value||'').trim();
+  const amt=parseFloat(document.getElementById('co-amount')?.value||0)||0;
+  if(!desc||desc.length<5){const el=document.getElementById('co-desc');if(el){el.style.borderColor='#A32D2D';el.focus();}zAlert('Describe the change (at least 5 characters).',{title:'Description required'});return;}
+  if(!_coType){zAlert('Select whether this adds to or reduces the contract.',{title:'Direction required'});return;}
+  if(amt<=0){const el=document.getElementById('co-amount');if(el){el.style.borderColor='#A32D2D';el.focus();}zAlert('Enter the dollar amount.',{title:'Amount required'});return;}
+  const delta=_coType==='add'?amt:-amt;
+  b.amount=Math.max(0,Math.round((b.amount+delta)*100)/100);
+  if(!b.changeOrders)b.changeOrders=[];
+  b.changeOrders.push({type:_coType,amount:amt,desc,ts:new Date().toISOString()});
+  _coType=null;
+  saveAll();renderDash();renderJobsPage();
+  document.querySelector('.zmodal-overlay')?.remove();
+  showToast('Change order saved — contract updated to '+fmt(b.amount),'📋');
+  setTimeout(()=>openJobSheet(clientId),300);
 }
 
 // ── Money page ────────────────────────────────────────────────────────────

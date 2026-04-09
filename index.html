@@ -2266,7 +2266,7 @@ function _doOpenEstimate(c){
     document.querySelectorAll('#paint-picker .surf-type-btn').forEach(b=>b.classList.remove('active-surf-btn'));
     const edEl=document.getElementById('e-days');
     if(edEl){edEl.value='';edEl.style.borderColor='#A32D2D';edEl.style.background='var(--red-lt)';}
-    const ecEl=document.getElementById('e-cond');if(ecEl)ecEl.value='';
+    const ecEl=document.getElementById('e-cond');if(ecEl)ecEl.value='1.0';
   const wknd=document.getElementById('e-allow-weekend');if(wknd)wknd.checked=false;
     document.querySelectorAll('[id^=cond-]').forEach(b=>b.classList.remove('active-surf-btn'));
     // Mark client fields as filled (they came from record) — clears red borders
@@ -7612,15 +7612,7 @@ function runStep1Validation(){
   }
   return true;
 }
-function runStep2Validation(){
-  const cond=document.getElementById('e-cond')?.value||'';
-  if(!cond){
-    const card=document.getElementById('cond-picker-card');
-    if(card){card.style.border='2px solid #A32D2D';card.scrollIntoView&&card.scrollIntoView({behavior:'smooth',block:'center'});}
-    zAlert('Select the property condition.',{title:'Required'});return false;
-  }
-  return true;
-}
+function runStep2Validation(){return true;}
 
 // ── Full estimator draft: all step 1+2 fields survive navigation ─────────
 function saveEstFullDraft(){

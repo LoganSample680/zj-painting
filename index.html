@@ -859,14 +859,14 @@ input:checked+.dm-slider:before{transform:translateX(22px)}</style>
       <div style="background:var(--blue-lt);border:1px solid var(--blue);border-radius:var(--r);padding:10px 12px;margin-top:8px">
         <div style="font-size:12px;font-weight:700;color:var(--blue-dk);margin-bottom:8px">💰 Rates for this job — adjust per client profile</div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">
-          <div><label style="font-size:10px;font-weight:700;color:var(--text3);display:block;margin-bottom:3px">Walls ($/sf)</label><input type="number" id="e-r-walls" step="0.05" style="font-size:16px;font-weight:700;padding:7px;border-radius:var(--r);border:1px solid var(--border2);background:var(--bg);color:var(--text);width:100%;box-sizing:border-box" oninput="renderEstRunning&&renderEstRunning()"></div>
-          <div><label style="font-size:10px;font-weight:700;color:var(--text3);display:block;margin-bottom:3px">Ceiling ($/sf)</label><input type="number" id="e-r-ceil" step="0.05" style="font-size:16px;font-weight:700;padding:7px;border-radius:var(--r);border:1px solid var(--border2);background:var(--bg);color:var(--text);width:100%;box-sizing:border-box" oninput="renderEstRunning&&renderEstRunning()"></div>
-          <div><label style="font-size:10px;font-weight:700;color:var(--text3);display:block;margin-bottom:3px">Trim ($/lin ft)</label><input type="number" id="e-r-trim" step="0.05" style="font-size:16px;font-weight:700;padding:7px;border-radius:var(--r);border:1px solid var(--border2);background:var(--bg);color:var(--text);width:100%;box-sizing:border-box" oninput="renderEstRunning&&renderEstRunning()"></div>
-          <div><label style="font-size:10px;font-weight:700;color:var(--text3);display:block;margin-bottom:3px">Doors ($/door)</label><input type="number" id="e-r-door" step="5" style="font-size:16px;font-weight:700;padding:7px;border-radius:var(--r);border:1px solid var(--border2);background:var(--bg);color:var(--text);width:100%;box-sizing:border-box" oninput="renderEstRunning&&renderEstRunning()"></div>
-          <div><label style="font-size:10px;font-weight:700;color:var(--text3);display:block;margin-bottom:3px">Windows ($/window)</label><input type="number" id="e-r-win" step="5" style="font-size:16px;font-weight:700;padding:7px;border-radius:var(--r);border:1px solid var(--border2);background:var(--bg);color:var(--text);width:100%;box-sizing:border-box" oninput="renderEstRunning&&renderEstRunning()"></div>
-          <div><label style="font-size:10px;font-weight:700;color:var(--text3);display:block;margin-bottom:3px">Exterior walls ($/sf)</label><input type="number" id="e-r-ext" step="0.05" style="font-size:16px;font-weight:700;padding:7px;border-radius:var(--r);border:1px solid var(--border2);background:var(--bg);color:var(--text);width:100%;box-sizing:border-box" oninput="renderEstRunning&&renderEstRunning()"></div>
-          <div><label style="font-size:10px;font-weight:700;color:var(--text3);display:block;margin-bottom:3px">Deck/fence ($/sf)</label><input type="number" id="e-r-deck" step="0.05" style="font-size:16px;font-weight:700;padding:7px;border-radius:var(--r);border:1px solid var(--border2);background:var(--bg);color:var(--text);width:100%;box-sizing:border-box" oninput="renderEstRunning&&renderEstRunning()"></div>
-          <div><label style="font-size:10px;font-weight:700;color:var(--text3);display:block;margin-bottom:3px">Paint cost ($/gal)</label><input type="number" id="e-paint-rate" step="1" style="font-size:16px;font-weight:700;padding:7px;border-radius:var(--r);border:1px solid var(--border2);background:var(--bg);color:var(--text);width:100%;box-sizing:border-box" oninput="renderEstRunning&&renderEstRunning()"></div>
+          <div><label style="font-size:10px;font-weight:700;color:var(--text3);display:block;margin-bottom:3px">Walls ($/sf)</label><div style="display:flex;gap:3px"><button type="button" onclick="adjRate('e-r-walls',-0.25)" style="padding:0 8px;font-size:16px;font-weight:700;border-radius:var(--r) 0 0 var(--r);border:1px solid var(--border2);background:var(--bg2);color:var(--text);cursor:pointer;line-height:1;height:36px;flex-shrink:0">−</button><input type="number" id="e-r-walls" step="0.25" style="font-size:16px;font-weight:700;padding:7px;border-radius:0;border:1px solid var(--border2);border-left:none;border-right:none;background:var(--bg);color:var(--text);width:100%;box-sizing:border-box;text-align:center" oninput="renderEstRunning&&renderEstRunning()"><button type="button" onclick="adjRate('e-r-walls',0.25)" style="padding:0 8px;font-size:16px;font-weight:700;border-radius:0 var(--r) var(--r) 0;border:1px solid var(--border2);background:var(--bg2);color:var(--text);cursor:pointer;line-height:1;height:36px;flex-shrink:0">+</button></div></div>
+          <div><label style="font-size:10px;font-weight:700;color:var(--text3);display:block;margin-bottom:3px">Ceiling ($/sf)</label><div style="display:flex;gap:3px"><button type="button" onclick="adjRate('e-r-ceil',-0.25)" style="padding:0 8px;font-size:16px;font-weight:700;border-radius:var(--r) 0 0 var(--r);border:1px solid var(--border2);background:var(--bg2);color:var(--text);cursor:pointer;line-height:1;height:36px;flex-shrink:0">−</button><input type="number" id="e-r-ceil" step="0.25" style="font-size:16px;font-weight:700;padding:7px;border-radius:0;border:1px solid var(--border2);border-left:none;border-right:none;background:var(--bg);color:var(--text);width:100%;box-sizing:border-box;text-align:center" oninput="renderEstRunning&&renderEstRunning()"><button type="button" onclick="adjRate('e-r-ceil',0.25)" style="padding:0 8px;font-size:16px;font-weight:700;border-radius:0 var(--r) var(--r) 0;border:1px solid var(--border2);background:var(--bg2);color:var(--text);cursor:pointer;line-height:1;height:36px;flex-shrink:0">+</button></div></div>
+          <div><label style="font-size:10px;font-weight:700;color:var(--text3);display:block;margin-bottom:3px">Trim ($/lin ft)</label><div style="display:flex;gap:3px"><button type="button" onclick="adjRate('e-r-trim',-0.25)" style="padding:0 8px;font-size:16px;font-weight:700;border-radius:var(--r) 0 0 var(--r);border:1px solid var(--border2);background:var(--bg2);color:var(--text);cursor:pointer;line-height:1;height:36px;flex-shrink:0">−</button><input type="number" id="e-r-trim" step="0.25" style="font-size:16px;font-weight:700;padding:7px;border-radius:0;border:1px solid var(--border2);border-left:none;border-right:none;background:var(--bg);color:var(--text);width:100%;box-sizing:border-box;text-align:center" oninput="renderEstRunning&&renderEstRunning()"><button type="button" onclick="adjRate('e-r-trim',0.25)" style="padding:0 8px;font-size:16px;font-weight:700;border-radius:0 var(--r) var(--r) 0;border:1px solid var(--border2);background:var(--bg2);color:var(--text);cursor:pointer;line-height:1;height:36px;flex-shrink:0">+</button></div></div>
+          <div><label style="font-size:10px;font-weight:700;color:var(--text3);display:block;margin-bottom:3px">Doors ($/door)</label><div style="display:flex;gap:3px"><button type="button" onclick="adjRate('e-r-door',-5)" style="padding:0 8px;font-size:16px;font-weight:700;border-radius:var(--r) 0 0 var(--r);border:1px solid var(--border2);background:var(--bg2);color:var(--text);cursor:pointer;line-height:1;height:36px;flex-shrink:0">−</button><input type="number" id="e-r-door" step="5" style="font-size:16px;font-weight:700;padding:7px;border-radius:0;border:1px solid var(--border2);border-left:none;border-right:none;background:var(--bg);color:var(--text);width:100%;box-sizing:border-box;text-align:center" oninput="renderEstRunning&&renderEstRunning()"><button type="button" onclick="adjRate('e-r-door',5)" style="padding:0 8px;font-size:16px;font-weight:700;border-radius:0 var(--r) var(--r) 0;border:1px solid var(--border2);background:var(--bg2);color:var(--text);cursor:pointer;line-height:1;height:36px;flex-shrink:0">+</button></div></div>
+          <div><label style="font-size:10px;font-weight:700;color:var(--text3);display:block;margin-bottom:3px">Windows ($/window)</label><div style="display:flex;gap:3px"><button type="button" onclick="adjRate('e-r-win',-5)" style="padding:0 8px;font-size:16px;font-weight:700;border-radius:var(--r) 0 0 var(--r);border:1px solid var(--border2);background:var(--bg2);color:var(--text);cursor:pointer;line-height:1;height:36px;flex-shrink:0">−</button><input type="number" id="e-r-win" step="5" style="font-size:16px;font-weight:700;padding:7px;border-radius:0;border:1px solid var(--border2);border-left:none;border-right:none;background:var(--bg);color:var(--text);width:100%;box-sizing:border-box;text-align:center" oninput="renderEstRunning&&renderEstRunning()"><button type="button" onclick="adjRate('e-r-win',5)" style="padding:0 8px;font-size:16px;font-weight:700;border-radius:0 var(--r) var(--r) 0;border:1px solid var(--border2);background:var(--bg2);color:var(--text);cursor:pointer;line-height:1;height:36px;flex-shrink:0">+</button></div></div>
+          <div><label style="font-size:10px;font-weight:700;color:var(--text3);display:block;margin-bottom:3px">Exterior walls ($/sf)</label><div style="display:flex;gap:3px"><button type="button" onclick="adjRate('e-r-ext',-0.25)" style="padding:0 8px;font-size:16px;font-weight:700;border-radius:var(--r) 0 0 var(--r);border:1px solid var(--border2);background:var(--bg2);color:var(--text);cursor:pointer;line-height:1;height:36px;flex-shrink:0">−</button><input type="number" id="e-r-ext" step="0.25" style="font-size:16px;font-weight:700;padding:7px;border-radius:0;border:1px solid var(--border2);border-left:none;border-right:none;background:var(--bg);color:var(--text);width:100%;box-sizing:border-box;text-align:center" oninput="renderEstRunning&&renderEstRunning()"><button type="button" onclick="adjRate('e-r-ext',0.25)" style="padding:0 8px;font-size:16px;font-weight:700;border-radius:0 var(--r) var(--r) 0;border:1px solid var(--border2);background:var(--bg2);color:var(--text);cursor:pointer;line-height:1;height:36px;flex-shrink:0">+</button></div></div>
+          <div><label style="font-size:10px;font-weight:700;color:var(--text3);display:block;margin-bottom:3px">Deck/fence ($/sf)</label><div style="display:flex;gap:3px"><button type="button" onclick="adjRate('e-r-deck',-0.25)" style="padding:0 8px;font-size:16px;font-weight:700;border-radius:var(--r) 0 0 var(--r);border:1px solid var(--border2);background:var(--bg2);color:var(--text);cursor:pointer;line-height:1;height:36px;flex-shrink:0">−</button><input type="number" id="e-r-deck" step="0.25" style="font-size:16px;font-weight:700;padding:7px;border-radius:0;border:1px solid var(--border2);border-left:none;border-right:none;background:var(--bg);color:var(--text);width:100%;box-sizing:border-box;text-align:center" oninput="renderEstRunning&&renderEstRunning()"><button type="button" onclick="adjRate('e-r-deck',0.25)" style="padding:0 8px;font-size:16px;font-weight:700;border-radius:0 var(--r) var(--r) 0;border:1px solid var(--border2);background:var(--bg2);color:var(--text);cursor:pointer;line-height:1;height:36px;flex-shrink:0">+</button></div></div>
+          <div><label style="font-size:10px;font-weight:700;color:var(--text3);display:block;margin-bottom:3px">Paint cost ($/gal)</label><div style="display:flex;gap:3px"><button type="button" onclick="adjRate('e-paint-rate',-1)" style="padding:0 8px;font-size:16px;font-weight:700;border-radius:var(--r) 0 0 var(--r);border:1px solid var(--border2);background:var(--bg2);color:var(--text);cursor:pointer;line-height:1;height:36px;flex-shrink:0">−</button><input type="number" id="e-paint-rate" step="1" style="font-size:16px;font-weight:700;padding:7px;border-radius:0;border:1px solid var(--border2);border-left:none;border-right:none;background:var(--bg);color:var(--text);width:100%;box-sizing:border-box;text-align:center" oninput="renderEstRunning&&renderEstRunning()"><button type="button" onclick="adjRate('e-paint-rate',1)" style="padding:0 8px;font-size:16px;font-weight:700;border-radius:0 var(--r) var(--r) 0;border:1px solid var(--border2);background:var(--bg2);color:var(--text);cursor:pointer;line-height:1;height:36px;flex-shrink:0">+</button></div></div>
         </div>
         <div style="font-size:10px;color:var(--blue-dk)">Pre-filled from settings. Adjust per client — higher for difficult access, lower for repeat customers.</div>
       </div>
@@ -1824,6 +1824,10 @@ const JOB_COLORS=['#185FA5','#1D9E75','#D85A30','#D4537E','#7F77DD','#BA7517','#
 // He just checks what applies. Rates are calibrated from PCA benchmarks,
 // regional labor surveys, and Topeka/Wichita contractor forum data.
 const SCOPE_ITEMS=[
+  {id:'movefurn',label:'Move furniture',   icon:'🪑',
+   hint:'Move and cover furniture before, replace after. ~30 min per furnished room.',
+   ratePerSqFt:0, flatRate:35,
+   clientDesc:'Furniture moved from walls before painting, replaced after.'},
   {id:'sand',    label:'Sanding',          icon:'🪚',
    hint:'Light scuff-sand walls/trim to help paint grab. About 100 sf/hr.',
    ratePerSqFt:0.10, flatRate:0,
@@ -1832,10 +1836,6 @@ const SCOPE_ITEMS=[
    hint:'Fill nail holes, cracks, and dents. About 80 sf/hr — adds up fast on older homes.',
    ratePerSqFt:0.07, flatRate:35,
    clientDesc:'Nail holes, cracks, and imperfections filled, spackled, and sanded smooth.'},
-  {id:'prime',   label:'Primer coat',      icon:'🪣',
-   hint:'Required on new drywall, dark colors, or stained surfaces. About 150 sf/hr.',
-   ratePerSqFt:0.32, flatRate:0,
-   clientDesc:'Full primer coat applied for adhesion, stain coverage, and true color.'},
   {id:'tape',    label:'Tape & masking',   icon:'🎭',
    hint:'Tape trim, mask floors, hang plastic. About 200 sf/hr of wall area.',
    ratePerSqFt:0.08, flatRate:0,
@@ -1844,18 +1844,10 @@ const SCOPE_ITEMS=[
    hint:'Seal gaps at trim, corners, windows. ~45 min per average room.',
    ratePerSqFt:0, flatRate:38,
    clientDesc:'Gaps, seams, and cracked corners caulked for a clean finish.'},
-  {id:'movefurn',label:'Move furniture',   icon:'🪑',
-   hint:'Move and cover furniture before, replace after. ~30 min per furnished room.',
-   ratePerSqFt:0, flatRate:35,
-   clientDesc:'Furniture moved from walls before painting, replaced after.'},
-  {id:'popcorn', label:'Popcorn removal',  icon:'⚡',
-   hint:'Spray, scrape, and clean popcorn ceiling. ~40 sf/hr — slow and messy.',
-   ratePerSqFt:0.55, flatRate:0,
-   clientDesc:'Popcorn texture removed, surface skim-coated, and prepped for paint.'},
-  {id:'wallpaper',label:'Wallpaper removal',icon:'📜',
-   hint:'Score, soak, scrape, and clean. ~50 sf/hr — doubles job time on bad installs.',
-   ratePerSqFt:0.65, flatRate:50,
-   clientDesc:'Wallpaper stripped, walls repaired and primed.'},
+  {id:'prime',   label:'Primer coat',      icon:'🪣',
+   hint:'Required on new drywall, dark colors, or stained surfaces. About 150 sf/hr.',
+   ratePerSqFt:0.32, flatRate:0,
+   clientDesc:'Full primer coat applied for adhesion, stain coverage, and true color.'},
   {id:'twocoat', label:'Two coats',        icon:'🎨',
    hint:'Standard on color changes and bare surfaces. Already in base rate — use when specifically calling it out on the proposal.',
    ratePerSqFt:0.15, flatRate:0,
@@ -1864,6 +1856,14 @@ const SCOPE_ITEMS=[
    hint:'Remove all tape, drop cloths, and debris. ~30 min per room.',
    ratePerSqFt:0, flatRate:28,
    clientDesc:'All drop cloths removed, work area cleaned.'},
+  {id:'popcorn', label:'Popcorn removal',  icon:'⚡',
+   hint:'Spray, scrape, and clean popcorn ceiling. ~40 sf/hr — slow and messy.',
+   ratePerSqFt:0.55, flatRate:0,
+   clientDesc:'Popcorn texture removed, surface skim-coated, and prepped for paint.'},
+  {id:'wallpaper',label:'Wallpaper removal',icon:'📜',
+   hint:'Score, soak, scrape, and clean. ~50 sf/hr — doubles job time on bad installs.',
+   ratePerSqFt:0.65, flatRate:50,
+   clientDesc:'Wallpaper stripped, walls repaired and primed.'},
   {id:'scaffold', label:'Scaffolding',     icon:'🏗️',
    hint:'For stairwells, 2-story foyers, or high exterior. Setup/tear-down ~2 hrs.',
    ratePerSqFt:0, flatRate:125,
@@ -3925,7 +3925,7 @@ function renderCDBids(){
       if(bpays.length){
         payHTML+='<div style="margin-top:8px;background:var(--bg2);border-radius:var(--r);padding:8px 10px">';
         payHTML+='<div style="font-size:10px;font-weight:700;text-transform:uppercase;color:var(--text3);margin-bottom:5px">Payment history</div>';
-        payHTML+=bpays.map(p=>'<div style="display:flex;justify-content:space-between;align-items:center;font-size:11px;padding:3px 0;border-bottom:1px solid var(--border)"><span style="color:var(--text2)">'+p.date+' · '+p.method+(p.ref?' #'+p.ref:'')+'</span><span><strong style="color:var(--green-mid)">+'+fmt(p.amount)+'</strong> <button class="btn-del" onclick="deletePay('+p.id+')" style="font-size:10px">✕</button></span></div>').join('');
+        payHTML+=bpays.map(p=>{const isRef=p.type==='refund';const amtDisp=isRef?'<strong style="color:#A32D2D">↩ -'+fmt(Math.abs(p.amount))+'</strong>':'<strong style="color:var(--green-mid)">+'+fmt(p.amount)+'</strong>';const typeLabel=isRef?'REFUND':(p.method+(p.ref?' #'+p.ref:''));return '<div style="display:flex;justify-content:space-between;align-items:center;font-size:11px;padding:3px 0;border-bottom:1px solid var(--border)"><span style="color:var(--text2)">'+p.date+' · '+typeLabel+'</span><span>'+amtDisp+' <button class="btn-del" onclick="deletePay('+p.id+')" style="font-size:10px">✕</button></span></div>';}).join('');
         payHTML+='</div>';
       }
       if(lien){
@@ -3948,6 +3948,7 @@ function renderCDBids(){
       // Close job button — when won but not yet marked complete
       if(!b.completion_date){const linkedJob=jobs.find(j=>j.bid_id===b.id||j.client_id===b.client_id);const jid=linkedJob?.id;if(jid)actBtns.push('<button class="btn btn-sm" onclick="markJobDone('+jid+')" style="background:var(--green-lt);color:var(--green-mid);border-color:var(--green-mid)">✓ Close job</button>');}
       if(balance>0.01)actBtns.push('<button class="btn btn-sm btn-g" onclick="openPayPanel('+b.id+')">+ Log payment</button>');
+      if(getBidPaid(b.id)>(b.amount||0)+0.01)actBtns.push('<button class="btn btn-sm" onclick="openPayPanel('+b.id+')" style="background:#FFF0F0;color:#A32D2D;border-color:#A32D2D">↩ Issue refund</button>');
       actBtns.push('<button class="btn btn-sm" onclick="toggleBidSummary('+b.id+')" style="background:var(--bg2);border-color:var(--border2)">&#128196; View bid</button>');
       actBtns.push('<button class="btn btn-sm" onclick="printInvoice('+b.id+')" style="background:var(--bg2);border-color:var(--border2)">&#128438; Print invoice</button>');
       if(!scheduledIds.has(b.id))actBtns.push('<button class="btn btn-sm btn-p" onclick="schedFromBid('+b.id+')">Schedule →</button>');
@@ -4471,23 +4472,27 @@ function showSupplyList(bidId){
       row.onmouseover=()=>row.style.background='var(--bg2)';
       row.onmouseout=()=>row.style.background='var(--bg)';
       // Paint items get a richer layout with swatch
-      if(item.cat==='paint'&&item.hex){
+      if(item.cat==='paint'){
         const swatchSize=36;
+        const swatchHtml=item.hex
+          ?'<div style="width:'+swatchSize+'px;height:'+swatchSize+'px;border-radius:6px;background:'+item.hex+';border:1px solid rgba(0,0,0,.15);flex-shrink:0"></div>'
+          :'<div style="width:'+swatchSize+'px;height:'+swatchSize+'px;border-radius:6px;background:var(--border2);flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:18px">🎨</div>';
+        // Full SW-style spec: Product Line · Color Name (SW XXXX) · Finish
+        const fullSpec=[
+          item.prod||'',
+          item.label+(item.swNum?' ('+item.swNum+')':''),
+          item.finish||''
+        ].filter(Boolean).join(' · ');
         row.innerHTML=
           '<input type="checkbox" class="supply-check" style="width:18px;height:18px;flex-shrink:0;margin-top:4px;accent-color:var(--blue);cursor:pointer;appearance:auto;-webkit-appearance:checkbox">'+
-          '<div style="width:'+swatchSize+'px;height:'+swatchSize+'px;border-radius:6px;background:'+item.hex+';border:1px solid rgba(0,0,0,.15);flex-shrink:0"></div>'+
+          swatchHtml+
           '<div style="flex:1;min-width:0">'+
             '<div style="display:flex;align-items:flex-start;justify-content:space-between;gap:6px">'+
-              '<div>'+
-                '<span class="supply-label" style="font-size:13px;font-weight:700;color:var(--text)">'+item.label+'</span>'+
-                (item.swNum?'<span style="font-size:10px;color:var(--text3);margin-left:5px">'+item.swNum+'</span>':'')+
-              '</div>'+
-              '<span style="font-size:12px;font-weight:800;color:var(--blue-dk);white-space:nowrap">'+item.qty+' gal</span>'+
+              '<span class="supply-label" style="font-size:12px;font-weight:700;color:var(--text);line-height:1.4">'+fullSpec+'</span>'+
+              '<span style="font-size:13px;font-weight:800;color:var(--blue-dk);white-space:nowrap;flex-shrink:0">'+item.qty+' gal</span>'+
             '</div>'+
             '<div style="font-size:11px;color:var(--text3);margin-top:2px">'+
-              (item.prod?item.prod:'')+
-              (item.finish?' · <span style="color:var(--text2)">'+item.finish+'</span>':'')+
-              (item.surfNote?' · '+item.surfNote:'')+
+              (item.surfNote?item.surfNote:'')+
               (item.sqFt?' · '+item.sqFt.toLocaleString()+' sf':'')+
             '</div>'+
           '</div>';
@@ -4788,12 +4793,24 @@ function openPayPanel(bidId, autoType){
   const balance=getBidBalance(bid);
   const total=bid.amount||0;
   const deposit25=Math.round(Math.min(total*.25,balance)*100)/100;
+  const rawPaid=getBidPaid(bidId);
+  const overpaidAmt=Math.round((rawPaid-total)*100)/100;
 
   document.querySelectorAll('.pay-modal-overlay').forEach(e=>e.remove());
 
   const overlay=document.createElement('div');
   overlay.className='zmodal-overlay pay-modal-overlay';
 
+  const refundBtn='<button type="button" data-ptype="refund" onclick="selectPayType(this,'+bidId+')" style="text-align:left;padding:12px 14px;border-radius:var(--r);border:2px solid var(--red-lt,#FEE2E2);background:var(--red-lt,#FFF0F0);cursor:pointer;font-family:inherit;display:flex;justify-content:space-between;align-items:center">'+
+    '<div><div style="font-size:14px;font-weight:700;color:#A32D2D">↩ Issue refund to client</div><div style="font-size:12px;color:var(--text3);margin-top:2px">Price reduced after payment</div></div>'+
+    '<div style="font-size:14px;font-weight:800;color:#A32D2D">'+(overpaidAmt>0.01?'-'+fmt(overpaidAmt):'')+'</div>'+
+  '</button>';
+  const overpaidBanner=overpaidAmt>0.01
+    ?'<div style="background:#FFF3CD;border:1px solid #FFC107;border-radius:var(--r);padding:10px 12px;margin-bottom:12px;display:flex;justify-content:space-between;align-items:center">'+
+        '<div><div style="font-size:13px;font-weight:700;color:#856404">⚠ Refund owed</div>'+
+        '<div style="font-size:11px;color:#856404">Client paid '+fmt(rawPaid)+' but bid is now '+fmt(total)+'. Refund: <strong>'+fmt(overpaidAmt)+'</strong></div></div>'+
+      '</div>'
+    :'';
   const showFinalOnly = autoType==='final';
   const typeButtons = showFinalOnly
     ? '<button type="button" id="mpay-btn-final" data-ptype="final" onclick="selectPayType(this,'+bidId+')" style="text-align:left;padding:14px 16px;border-radius:var(--r);border:2px solid var(--blue);background:var(--blue-lt);cursor:pointer;font-family:inherit;display:flex;justify-content:space-between;align-items:center">'+
@@ -4803,7 +4820,7 @@ function openPayPanel(bidId, autoType){
       '<button type="button" data-ptype="custom" onclick="selectPayType(this,'+bidId+')" style="text-align:left;padding:12px 14px;border-radius:var(--r);border:2px solid var(--border2);background:var(--bg2);cursor:pointer;font-family:inherit;display:flex;justify-content:space-between;align-items:center">'+
         '<div><div style="font-size:13px;font-weight:700">Custom amount</div><div style="font-size:12px;color:var(--text3);margin-top:2px">Enter partial payment</div></div>'+
         '<div style="font-size:12px;color:var(--text3)">manual</div>'+
-      '</button>'
+      '</button>'+refundBtn
     : '<button type="button" id="mpay-btn-deposit" data-ptype="deposit" onclick="selectPayType(this,'+bidId+')" style="text-align:left;padding:12px 14px;border-radius:var(--r);border:2px solid var(--border2);background:var(--bg2);cursor:pointer;font-family:inherit;display:flex;justify-content:space-between;align-items:center">'+
         '<div><div style="font-size:14px;font-weight:700">Deposit — 25%</div><div style="font-size:12px;color:var(--text3);margin-top:2px">Due before work starts</div></div>'+
         '<div style="font-size:16px;font-weight:800;color:var(--blue)">'+fmt(deposit25)+'</div>'+
@@ -4815,7 +4832,7 @@ function openPayPanel(bidId, autoType){
       '<button type="button" data-ptype="custom" onclick="selectPayType(this,'+bidId+')" style="text-align:left;padding:12px 14px;border-radius:var(--r);border:2px solid var(--border2);background:var(--bg2);cursor:pointer;font-family:inherit;display:flex;justify-content:space-between;align-items:center">'+
         '<div><div style="font-size:14px;font-weight:700">Custom amount</div><div style="font-size:12px;color:var(--text3);margin-top:2px">Enter exact amount received</div></div>'+
         '<div style="font-size:13px;color:var(--text3)">manual</div>'+
-      '</button>';
+      '</button>'+refundBtn;
 
   overlay.innerHTML=
     '<div class="zmodal">'+
@@ -4823,6 +4840,7 @@ function openPayPanel(bidId, autoType){
         '<div style="font-size:17px;font-weight:800">'+(showFinalOnly?'Collect payment':'Log payment')+'</div>'+
         '<button onclick="closePayPanel()" style="border:none;background:none;font-size:22px;cursor:pointer;color:var(--text3);padding:0;line-height:1">✕</button>'+
       '</div>'+
+      overpaidBanner+
       '<div style="font-size:12px;color:var(--text3);margin-bottom:14px">'+bid.client_name+' · '+fmt(total)+' total · '+fmt(balance)+' balance</div>'+
       '<input type="hidden" id="mpay-type">'+
       '<div style="display:grid;gap:8px;margin-bottom:14px" id="mpay-type-btns">'+typeButtons+'</div>'+
@@ -4832,14 +4850,14 @@ function openPayPanel(bidId, autoType){
           ' style="font-size:22px;font-weight:800;padding:12px;border-radius:var(--r);border:1px solid var(--border2);background:var(--bg2);width:100%;box-sizing:border-box;color:var(--text);font-family:inherit;text-align:center">'+
       '</div>'+
       '<div class="f" style="margin-bottom:10px">'+
-        '<label>Date received</label>'+
+        '<label id="mpay-date-label">Date received</label>'+
         '<input type="date" id="mpay-date" style="font-size:14px;padding:10px;border-radius:var(--r);border:1px solid var(--border2);background:var(--bg2);width:100%;box-sizing:border-box;color:var(--text);font-family:inherit">'+
       '</div>'+
       '<div class="f" style="margin-bottom:14px">'+
         '<label>Check # / reference <span style="font-weight:400;color:var(--text3)">(optional)</span></label>'+
         '<input id="mpay-ref" placeholder="Optional" style="font-size:14px;padding:10px;border-radius:var(--r);border:1px solid var(--border2);background:var(--bg2);width:100%;box-sizing:border-box;color:var(--text);font-family:inherit">'+
       '</div>'+
-      '<button onclick="logPayment()" style="width:100%;padding:14px;border-radius:var(--r);border:none;background:var(--green);color:#fff;font-size:15px;font-weight:700;cursor:pointer;font-family:inherit">Record payment</button>'+
+      '<button id="mpay-submit-btn" onclick="logPayment()" style="width:100%;padding:14px;border-radius:var(--r);border:none;background:var(--green);color:#fff;font-size:15px;font-weight:700;cursor:pointer;font-family:inherit">Record payment</button>'+
     '</div>';
 
   document.body.appendChild(overlay);
@@ -4874,21 +4892,39 @@ function selectPayType(btn, bidId){
   const amtRow=document.getElementById('mpay-amount-row');
   const amtEl=document.getElementById('mpay-amount');
   const hint=document.getElementById('mpay-max-hint');
+  const submitBtn=document.getElementById('mpay-submit-btn');
+  const dateLabel=document.getElementById('mpay-date-label');
   if(ptype==='deposit'){
     const depositAmt=Math.min(deposit25,balance);
     if(amtEl)amtEl.value=depositAmt.toFixed(2);
     if(amtRow)amtRow.style.display='block';
     if(hint)hint.textContent='25% of '+fmt(total);
     if(amtEl){amtEl.readOnly=true;amtEl.style.background='var(--bg2)';amtEl.style.color='var(--text3)';}
+    if(submitBtn){submitBtn.textContent='Record payment';submitBtn.style.background='var(--green)';}
+    if(dateLabel)dateLabel.textContent='Date received';
   } else if(ptype==='final'){
     if(amtEl)amtEl.value=balance.toFixed(2);
     if(amtRow)amtRow.style.display='block';
     if(hint)hint.textContent='remaining balance';
     if(amtEl){amtEl.readOnly=true;amtEl.style.background='var(--bg2)';amtEl.style.color='var(--text3)';}
+    if(submitBtn){submitBtn.textContent='Record payment';submitBtn.style.background='var(--green)';}
+    if(dateLabel)dateLabel.textContent='Date received';
+  } else if(ptype==='refund'){
+    const rawBidPaid=getBidPaid(bidId);
+    const rawBidTotal=(bids.find(b=>b.id==bidId)||{}).amount||0;
+    const refAmt=Math.max(0,Math.round((rawBidPaid-rawBidTotal)*100)/100);
+    if(amtEl){amtEl.value=refAmt>0?refAmt.toFixed(2):'';amtEl.readOnly=false;amtEl.style.background='';amtEl.style.color='';}
+    if(amtRow)amtRow.style.display='block';
+    if(hint)hint.textContent='refund amount';
+    if(submitBtn){submitBtn.textContent='Issue refund';submitBtn.style.background='#A32D2D';}
+    if(dateLabel)dateLabel.textContent='Date issued';
+    setTimeout(()=>amtEl&&amtEl.focus(),50);
   } else {
     if(amtEl){amtEl.value='';amtEl.readOnly=false;amtEl.style.background='';amtEl.style.color='';}
     if(amtRow)amtRow.style.display='block';
     if(hint)hint.textContent='max: '+fmt(balance);
+    if(submitBtn){submitBtn.textContent='Record payment';submitBtn.style.background='var(--green)';}
+    if(dateLabel)dateLabel.textContent='Date received';
     setTimeout(()=>amtEl&&amtEl.focus(),50);
   }
 }
@@ -4896,18 +4932,36 @@ function selectPayType(btn, bidId){
 function logPayment(){
   if(_submitting)return;
   const type=v('mpay-type')||v('pay-type');if(!type){zAlert('Select a payment type.',{title:'Required'});return;}
-  const a=parseFloat(v('mpay-amount')||v('pay-amount'));if(!a||a<=0){zAlert('Enter a payment amount.',{title:'Required'});return;}
-  const pdate=v('mpay-date')||v('pay-date');if(!pdate){zAlert('Enter the date received.',{title:'Required'});return;}
-  if(activePayBidId){
+  const a=parseFloat(v('mpay-amount')||v('pay-amount'));if(!a||a<=0){zAlert('Enter an amount.',{title:'Required'});return;}
+  const pdate=v('mpay-date')||v('pay-date');if(!pdate){zAlert('Enter the date.',{title:'Required'});return;}
+  const isRefund=(type==='refund');
+  if(!isRefund&&activePayBidId){
     const _chkBid=bids.find(b=>b.id===activePayBidId);
     if(_chkBid&&a>getBidBalance(_chkBid)+0.01){zAlert('Amount exceeds the remaining balance of '+fmt(getBidBalance(_chkBid))+'. Enter the actual amount received.',{title:'Overpayment blocked'});return;}
   }
   if(!activePayBidId)return;
   const bid=bids.find(b=>b.id===activePayBidId);if(!bid)return;
   const pref=v('mpay-ref')||v('pay-ref');
-  payments.push({id:Date.now(),bid_id:activePayBidId,client_id:bid.client_id,client_name:bid.client_name,date:pdate,type:type,amount:a,method:'',ref:pref});
+  const storedAmount=isRefund?-a:a;
+  payments.push({id:Date.now(),bid_id:activePayBidId,client_id:bid.client_id,client_name:bid.client_name,date:pdate,type:type,amount:storedAmount,method:'',ref:pref});
   const _savedBidId=activePayBidId;
   saveAll();closePayPanel();renderCDBids();renderCDTimeline();
+
+  if(isRefund){
+    const banner=document.createElement('div');
+    banner.style.cssText='position:fixed;top:0;left:0;right:0;z-index:9999;animation:slideDown .3s ease';
+    banner.innerHTML=
+      '<div style="background:#A32D2D;color:#fff;padding:14px 16px;text-align:center;font-size:15px;font-weight:700">'+
+        '↩ Refund of '+fmt(a)+' logged'+
+      '</div>'+
+      '<div style="background:#7A1A1A;color:#fff;padding:8px 16px;text-align:center;font-size:12px">'+
+        'Payment records updated · balance recalculated'+
+      '</div>';
+    document.body.appendChild(banner);
+    setTimeout(()=>banner.remove(),4000);
+    renderCDBids();renderDash();renderMoneyPage();refreshCollectLabel();
+    return;
+  }
 
   const tIn=income.reduce((s,r)=>s+r.amount,0)+a;
   const tEx=expenses.reduce((s,r)=>s+r.amount,0);
@@ -8460,10 +8514,8 @@ function buildProposal(){
       scopeHtml;
     const rowBg=roomIdx%2===0?'#ffffff':'#f8fafc';
     return `<tr style="border-bottom:1px solid #e2e8f0;background:${rowBg}">
-      <td style="padding:14px;text-align:center;font-weight:700;vertical-align:top;color:#1a365d;font-size:13px">1</td>
-      <td style="padding:14px;line-height:1.7;color:#2d3748;font-size:12px">${descContent}</td>
-      <td style="padding:14px;text-align:right;font-weight:600;vertical-align:top;color:#2d3748">${fmt(r.total)}</td>
-      <td style="padding:14px;text-align:right;font-weight:700;vertical-align:top;color:#1a365d">${fmt(r.total)}</td>
+      <td style="padding:14px 16px;line-height:1.7;color:#2d3748;font-size:12px">${descContent}</td>
+      <td style="padding:14px 16px;text-align:right;font-weight:700;vertical-align:top;color:#1a365d">${fmt(r.total)}</td>
     </tr>`;
   }).join('');
 
@@ -8498,33 +8550,29 @@ function buildProposal(){
   <table style="width:100%;border-collapse:collapse;font-size:12px">
     <thead>
       <tr style="background:var(--bg2);border-bottom:2px solid var(--border)">
-        <th style="padding:8px 12px;text-align:center;font-weight:800;text-transform:uppercase;color:var(--text3);width:55px;font-size:10px">QUANTITY</th>
-        <th style="padding:8px 12px;text-align:left;font-weight:800;text-transform:uppercase;color:var(--text3);font-size:10px">DESCRIPTION</th>
-        <th style="padding:8px 12px;text-align:right;font-weight:800;text-transform:uppercase;color:var(--text3);width:85px;font-size:10px">UNIT PRICE</th>
-        <th style="padding:8px 12px;text-align:right;font-weight:800;text-transform:uppercase;color:var(--text3);width:85px;font-size:10px">AMOUNT</th>
+        <th style="padding:8px 16px;text-align:left;font-weight:800;text-transform:uppercase;color:var(--text3);font-size:10px">DESCRIPTION</th>
+        <th style="padding:8px 16px;text-align:right;font-weight:800;text-transform:uppercase;color:var(--text3);width:90px;font-size:10px">AMOUNT</th>
       </tr>
     </thead>
     <tbody>
       ${roomRows}
       <tr style="border-bottom:1px solid var(--border)">
-        <td style="padding:8px 12px;text-align:center;font-weight:700;vertical-align:top">1</td>
-        <td style="padding:8px 12px;font-size:12px;color:#1a1a1a">
+        <td style="padding:10px 16px;font-size:12px;color:#1a1a1a">
           <strong>${anyRoomCustomerPaint?'Paint, Primer &amp; Materials (partial)':(customerPaint?'Prep &amp; Application Supplies':'Paint, Primer &amp; Materials')}</strong><br>
           <span style="font-size:11px;color:#666">${anyRoomCustomerPaint?'Includes all paint, primer, and supplies for contractor-painted rooms. For rooms where client supplies paint: all prep supplies and application labor included. No warranty on finish quality for client-supplied paint.':customerPaint?'All prep supplies, tape, plastic sheeting, rollers, brushes, and drop cloths included. Paint to be supplied by client prior to start date. No warranty on finish quality.':'Includes paint, primer, tape, plastic sheeting, rollers, brushes, drop cloths and all supplies needed to complete the job.'}</span>
         </td>
-        <td style="padding:8px 12px;text-align:right;font-weight:700;vertical-align:top">${fmt(matLine)}</td>
-        <td style="padding:8px 12px;text-align:right;font-weight:700;vertical-align:top">${fmt(matLine)}</td>
+        <td style="padding:10px 16px;text-align:right;font-weight:700;vertical-align:top">${fmt(matLine)}</td>
       </tr>
-      ${adj?`<tr style="border-bottom:1px solid var(--border)"><td style="padding:8px 12px;text-align:center"></td><td style="padding:8px 12px;color:var(--text2)">${adjReason||'Price adjustment'}</td><td style="padding:8px 12px;text-align:right">${adj>0?'+':''}${fmt(adj)}</td><td style="padding:8px 12px;text-align:right">${adj>0?'+':''}${fmt(adj)}</td></tr>`:''}
+      ${adj?`<tr style="border-bottom:1px solid var(--border)"><td style="padding:8px 16px;color:var(--text2)">${adjReason||'Price adjustment'}</td><td style="padding:8px 16px;text-align:right">${adj>0?'+':''}${fmt(adj)}</td></tr>`:''}
     </tbody>
     <tfoot>
       <tr style="border-top:2px solid var(--border)">
-        <td colspan="3" style="padding:8px 12px;text-align:right;font-weight:700;color:var(--text3);font-size:11px">SUBTOTAL</td>
-        <td style="padding:8px 12px;text-align:right;font-weight:700">${fmt(proposalTotal)}</td>
+        <td style="padding:8px 16px;text-align:right;font-weight:700;color:var(--text3);font-size:11px">SUBTOTAL</td>
+        <td style="padding:8px 16px;text-align:right;font-weight:700">${fmt(proposalTotal)}</td>
       </tr>
       <tr>
-        <td colspan="3" style="padding:4px 12px;text-align:right;color:var(--text3);font-size:11px">TAX RATE / SALES TAX</td>
-        <td style="padding:4px 12px;text-align:right;color:var(--text3);font-size:11px">$0.00</td>
+        <td style="padding:4px 16px;text-align:right;color:var(--text3);font-size:11px">TAX RATE / SALES TAX</td>
+        <td style="padding:4px 16px;text-align:right;color:var(--text3);font-size:11px">$0.00</td>
       </tr>
       <tr style="background:var(--blue);color:#fff">
         <td colspan="3" style="padding:10px 12px;text-align:right;font-weight:800;font-size:14px">TOTAL</td>
@@ -8876,6 +8924,14 @@ function newEstimate(){
   prefillEstimateRates();
   goEstStep(1);
 }
+function adjRate(id,delta){
+  const el=document.getElementById(id);if(!el)return;
+  const cur=parseFloat(el.value)||0;
+  const next=Math.round((cur+delta)*100)/100;
+  if(next<0)return;
+  el.value=next;
+  if(typeof renderEstRunning==='function')renderEstRunning();
+}
 function prefillEstimateRates(){
   const sf=(id,val)=>{const el=document.getElementById(id);if(el)el.value=val;};
   if(S.bname)sf('e-bname',S.bname);
@@ -9009,7 +9065,12 @@ function goEstStep(n){
   }
   if(n===5){const d=document.getElementById('est-desc-text');if(d&&!d.value.trim())d.value=buildDescription();buildProposal();setTimeout(initEstNotesCanvas,100);}
   if(n===6)buildProposal();
-  estStep=n;for(let i=1;i<=7;i++){const sc=document.getElementById('est-s'+i),st=document.getElementById('est-st-'+i);if(sc)sc.style.display=i===n?'block':'none';if(st){st.classList.remove('active','done');if(i===n)st.classList.add('active');else if(i<n)st.classList.add('done');}}window.scrollTo({top:0,left:0,behavior:"instant"});document.body.scrollTop=0;document.documentElement.scrollTop=0;if(n===3)renderEstRunning();}
+  estStep=n;for(let i=1;i<=7;i++){const sc=document.getElementById('est-s'+i),st=document.getElementById('est-st-'+i);if(sc)sc.style.display=i===n?'block':'none';if(st){st.classList.remove('active','done');if(i===n)st.classList.add('active');else if(i<n)st.classList.add('done');}}
+  // Scroll every possible container to top (window, body, main, pg-est)
+  window.scrollTo({top:0,left:0,behavior:'instant'});document.body.scrollTop=0;document.documentElement.scrollTop=0;
+  const _pgEst=document.getElementById('pg-est');if(_pgEst)_pgEst.scrollTop=0;
+  const _main=document.querySelector('.main,.pg-wrap,main,[role=main]');if(_main)_main.scrollTop=0;
+  if(n===3)renderEstRunning();}
 
 function cm(d){calMonth+=d;if(calMonth>11){calMonth=0;calYear++;}if(calMonth<0){calMonth=11;calYear--;}renderCalendar();}
 function renderCalendar(){renderCalMonthLabel();renderCalGrid();renderCalAvail();renderCalConflicts();renderCalWeek();renderCalUpcoming();}

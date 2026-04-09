@@ -1090,6 +1090,20 @@ input:checked+.dm-slider:before{transform:translateX(22px)}</style>
               <button type="button" onclick="swClearColor()" style="font-size:12px;color:var(--text3);background:none;border:none;cursor:pointer;padding:2px 4px;line-height:1">✕</button>
             </div>
           </div>
+          <!-- Finish row — above color so user picks it first -->
+          <div style="padding:8px 12px;border-bottom:1px solid var(--border2)" id="sw-finish-row">
+            <div style="font-size:10px;font-weight:700;text-transform:uppercase;color:var(--text3);margin-bottom:5px">Finish <span style="font-weight:400;text-transform:none;font-size:9px">(pick first)</span></div>
+            <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:3px;margin-bottom:3px" id="sw-finish-grid">
+              <button type="button" class="sw-finish-btn" data-finish="Flat" onclick="swSelectFinish(this)" style="padding:6px 2px;border-radius:var(--r);border:1px solid var(--border2);background:var(--bg);font-size:10px;font-weight:600;cursor:pointer;font-family:inherit;color:var(--text)">Flat</button>
+              <button type="button" class="sw-finish-btn" data-finish="Matte" onclick="swSelectFinish(this)" style="padding:6px 2px;border-radius:var(--r);border:1px solid var(--border2);background:var(--bg);font-size:10px;font-weight:600;cursor:pointer;font-family:inherit;color:var(--text)">Matte</button>
+              <button type="button" class="sw-finish-btn" data-finish="Eggshell" onclick="swSelectFinish(this)" style="padding:6px 2px;border-radius:var(--r);border:1px solid var(--border2);background:var(--bg);font-size:10px;font-weight:600;cursor:pointer;font-family:inherit;color:var(--text)">Eggshell</button>
+              <button type="button" class="sw-finish-btn" data-finish="Satin" onclick="swSelectFinish(this)" style="padding:6px 2px;border-radius:var(--r);border:1px solid var(--border2);background:var(--bg);font-size:10px;font-weight:600;cursor:pointer;font-family:inherit;color:var(--text)">Satin</button>
+              <button type="button" class="sw-finish-btn" data-finish="Semi-Gloss" onclick="swSelectFinish(this)" style="padding:6px 2px;border-radius:var(--r);border:1px solid var(--border2);background:var(--bg);font-size:10px;font-weight:600;cursor:pointer;font-family:inherit;color:var(--text)">Semi-Gloss</button>
+              <button type="button" class="sw-finish-btn" data-finish="Gloss" onclick="swSelectFinish(this)" style="padding:6px 2px;border-radius:var(--r);border:1px solid var(--border2);background:var(--bg);font-size:10px;font-weight:600;cursor:pointer;font-family:inherit;color:var(--text)">Gloss</button>
+              <button type="button" class="sw-finish-btn" data-finish="Semi-Trans Stain" onclick="swSelectFinish(this);swShowFamily('stain','Deck Stain')" style="padding:6px 2px;border-radius:var(--r);border:1px solid #8B6340;background:#FFF8F0;font-size:9.5px;font-weight:600;cursor:pointer;font-family:inherit;color:#7B4E2A">Semi-Trans Stain</button>
+              <button type="button" class="sw-finish-btn" data-finish="Solid Stain" onclick="swSelectFinish(this);swShowFamily('stain','Deck Stain')" style="padding:6px 2px;border-radius:var(--r);border:1px solid #8B6340;background:#FFF8F0;font-size:9.5px;font-weight:600;cursor:pointer;font-family:inherit;color:#7B4E2A">Solid Stain</button>
+            </div>
+          </div>
           <!-- State 1: search first, then family tiles -->
           <div id="sw-state-family" style="padding:10px 12px">
             <div style="position:relative;margin-bottom:10px">
@@ -1125,18 +1139,6 @@ input:checked+.dm-slider:before{transform:translateX(22px)}</style>
               <button type="button" onclick="swClearAccent()" style="font-size:12px;color:var(--text3);background:none;border:none;cursor:pointer;padding:0;margin-left:auto">✕</button>
             </div>
             <input type="hidden" id="sw-accent-note" value="">
-          </div>
-          <!-- Finish row -->
-          <div style="padding:8px 12px;border-top:1px solid var(--border2)">
-            <div style="font-size:10px;font-weight:700;text-transform:uppercase;color:var(--text3);margin-bottom:5px">Finish</div>
-            <div style="display:grid;grid-template-columns:repeat(6,1fr);gap:3px" id="sw-finish-grid">
-              <button type="button" class="sw-finish-btn" data-finish="Flat" onclick="swSelectFinish(this)" style="padding:6px 2px;border-radius:var(--r);border:1px solid var(--border2);background:var(--bg);font-size:10px;font-weight:600;cursor:pointer;font-family:inherit;color:var(--text)">Flat</button>
-              <button type="button" class="sw-finish-btn" data-finish="Matte" onclick="swSelectFinish(this)" style="padding:6px 2px;border-radius:var(--r);border:1px solid var(--border2);background:var(--bg);font-size:10px;font-weight:600;cursor:pointer;font-family:inherit;color:var(--text)">Matte</button>
-              <button type="button" class="sw-finish-btn" data-finish="Eggshell" onclick="swSelectFinish(this)" style="padding:6px 2px;border-radius:var(--r);border:1px solid var(--border2);background:var(--bg);font-size:10px;font-weight:600;cursor:pointer;font-family:inherit;color:var(--text)">Eggshell</button>
-              <button type="button" class="sw-finish-btn" data-finish="Satin" onclick="swSelectFinish(this)" style="padding:6px 2px;border-radius:var(--r);border:1px solid var(--border2);background:var(--bg);font-size:10px;font-weight:600;cursor:pointer;font-family:inherit;color:var(--text)">Satin</button>
-              <button type="button" class="sw-finish-btn" data-finish="Semi-Gloss" onclick="swSelectFinish(this)" style="padding:6px 2px;border-radius:var(--r);border:1px solid var(--border2);background:var(--bg);font-size:10px;font-weight:600;cursor:pointer;font-family:inherit;color:var(--text)">Semi-Gloss</button>
-              <button type="button" class="sw-finish-btn" data-finish="Gloss" onclick="swSelectFinish(this)" style="padding:6px 2px;border-radius:var(--r);border:1px solid var(--border2);background:var(--bg);font-size:10px;font-weight:600;cursor:pointer;font-family:inherit;color:var(--text)">Gloss</button>
-            </div>
           </div>
           <input type="hidden" id="sw-selected-hex" value="">
           <input type="hidden" id="sw-selected-finish" value="">
@@ -2336,7 +2338,11 @@ function openEstimateForClient(){
 }
 function _doOpenEstimate(c){
   _resetNotesForNewEstimate();
+  // Full state wipe so no data bleeds from a previous estimate
   estSurfaces=[];estSurfId=0;
+  scopeActiveMap={};scopeHrsStore={};roomScopeMap={};
+  estPropertyTier={key:'avg',mult:1.00,paint:'ProMar 200',products:{interior:'pm200',exterior:'spe',trim:'pm200t'}};
+  surfRoom='';surfColor='';surfWhatSelected=[];surfBQueue=[];surfBIdx=0;surfBMeasurements={};_swLastProductByCategory={};
   estLinkedClientId=currentClientId;
   editingBidId=null;
   // Create a draft bid immediately so notes have an ID to attach to from the first stroke
@@ -6245,6 +6251,8 @@ const SW_PRODUCTS={
     {id:'pclassa',name:'ProClassic Alkyd',   sub:'Oil-based trim · ultra hard finish',        price:'$$$', retail:80,  contractor:48, cov:400},
     {id:'emure',  name:'Emerald Urethane',   sub:'Best · doors, cabinets, furniture',         price:'$$$$',retail:95,  contractor:58, cov:400},
     {id:'gallery',name:'Gallery Series',     sub:'Cabinet spray finish · factory-like',       price:'$$$$',retail:90,  contractor:55, cov:400},
+    {id:'wc_semi',name:'WoodClassics Semi-Trans',sub:'Semi-transparent wood stain · shows grain',price:'$$',retail:52,contractor:34,cov:250},
+    {id:'wc_solid',name:'WoodClassics Solid',sub:'Solid stain · full hide on wood trim/doors', price:'$$',retail:58, contractor:38, cov:300},
   ],
 };
 const SW_PRODUCT_INFO={
@@ -9048,8 +9056,15 @@ function schedJobFromEstimate(){
   else{openClientDetail(estLinkedClientId,window._fromDash);}
 }
 function clearEstimatorForm(){
+  // Delete any unfinished Draft bid BEFORE nulling lastCreatedBidId
+  // (saveAndExitEstimate already removes b.draft before calling this, so saved bids are safe)
+  if(lastCreatedBidId){
+    const orphanIdx=bids.findIndex(b=>b.id===lastCreatedBidId&&b.draft===true);
+    if(orphanIdx>-1){bids.splice(orphanIdx,1);saveAll();}
+  }
   estSurfaces=[];estSurfId=0;estLinkedClientId=null;editingBidId=null;lastCreatedBidId=null;
-  // Reset surface step state so previous room name doesn't carry into next estimate
+  scopeActiveMap={};scopeHrsStore={};roomScopeMap={};
+  estPropertyTier={key:'avg',mult:1.00,paint:'ProMar 200',products:{interior:'pm200',exterior:'spe',trim:'pm200t'}};
   surfRoom='';surfColor='';surfWhatSelected=[];surfBQueue=[];surfBIdx=0;surfBMeasurements={};
   _swLastProductByCategory={};
   const rnEl=document.getElementById('surf-room-name');
@@ -13575,7 +13590,7 @@ function showToast(msg,icon,duration){
 // ── Supabase cloud sync ───────────────────────────────────────────────
 const SUPA_URL = 'https://mwtsmctajhrrybblgorf.supabase.co';
 const SUPA_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im13dHNtY3RhamhycnliYmxnb3JmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzUxNjIwNjMsImV4cCI6MjA5MDczODA2M30.-FMn1pEs9PpCvv8eGwSbtucWAWvcfEcQ1SYx4nD207M';
-let _supa=null,_supaUser=null,_syncTimer=null,_syncStatus='local';
+let _supa=null,_supaUser=null,_syncTimer=null,_syncStatus='local',_supaCloudLoaded=false;
 function supaEnabled(){return !!(SUPA_URL&&SUPA_KEY);}
 
 function showWelcomeScreen(){
@@ -13608,6 +13623,7 @@ async function supaInit(){
       const hasAccount=await loadAccountData();
       if(hasAccount){
         await supaLoadFromCloud();
+        _supaCloudLoaded=true;
       } else {
         // Signed in but no data at all — go to app, let them use it
         document.getElementById('supa-boot-overlay')?.remove();
@@ -13625,6 +13641,9 @@ async function supaInit(){
       if(event==='SIGNED_IN'){
         // Suppress during onboarding — obSubmit handles its own flow
         if(window._obInProgress){return;}
+        // TOKEN_REFRESHED in Supabase v2 can fire as SIGNED_IN — never reload cloud data
+        // on a background token refresh; only load once per page session on explicit sign-in
+        if(_supaCloudLoaded){return;}
         _supaUser=session.user;
         document.getElementById('supa-login-overlay')?.remove();
         document.getElementById('welcome-overlay')?.remove();
@@ -13638,6 +13657,10 @@ async function supaInit(){
           supaSetStatus('cloud');
           goPg('pg-dash');
         }
+      } else if(event==='TOKEN_REFRESHED'||event==='INITIAL_SESSION'){
+        // Token auto-refreshed — do NOT reload data, just update user ref silently
+        if(session)_supaUser=session.user;
+        return;
       } else if(event==='SIGNED_OUT'){
         _supaUser=null;_user=null;_account=null;_config=null;
         // Clear all data so next user starts fresh — never bleed data between accounts
@@ -13800,6 +13823,7 @@ async function supaLoadFromCloud(){
       if(ss.ownerName&&_supaUser?.id){localStorage.setItem('zp3_uname_'+_supaUser.id,ss.ownerName);if(_user)_user.name=ss.ownerName;}
     }}
     saveAll(); // persist cloud data to localStorage as cache
+    _supaCloudLoaded=true;
     supaSetStatus('synced');
     // Dismiss loading screen and render with cloud data
     document.getElementById('supa-boot-overlay')?.remove();

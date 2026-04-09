@@ -870,6 +870,7 @@ input:checked+.dm-slider:before{transform:translateX(22px)}</style>
         <div class="f"><label>Client name <span style="color:#A32D2D">*</span></label><input id="e-cname" placeholder="John &amp; Sarah Smith" style="border:2px solid #A32D2D;background:var(--red-lt)" oninput="markFieldFilled(this);checkStep1Ready();saveEstFullDraft()"></div>
         <div class="f"><label>Phone <span style="color:#A32D2D">*</span></label><input id="e-cphone" type="tel" maxlength="12" style="border:2px solid #A32D2D;background:var(--red-lt)" oninput="fmtPhone(this);markFieldFilled(this);checkStep1Ready();saveEstFullDraft()"></div>
         <div class="f" style="grid-column:1/-1"><label>Property address <span style="color:#A32D2D">*</span></label><input id="e-caddr" placeholder="1234 Maple St, Wichita KS 67201" style="border:2px solid #A32D2D;background:var(--red-lt)" oninput="markFieldFilled(this);checkStep1Ready();saveEstFullDraft()"></div>
+        <div style="grid-column:1/-1"><button type="button" class="btn btn-sm" style="width:100%;background:var(--bg2);border-color:var(--border2);color:var(--text2);font-size:12px" onclick="openLogTripModal({purpose:'Estimate',toAddress:document.getElementById('e-caddr').value,clientName:document.getElementById('e-cname').value})">🚗 Log drive to this estimate</button></div>
         <div class="f"><label>Property type</label><select id="e-cprop"><option>Single family home</option><option>Townhouse/condo</option><option>Rental property</option><option>Commercial</option><option>New construction</option></select></div>
       </div>
       <div class="f"><label>Walkthrough notes</label><textarea id="e-cnotes" placeholder="What did you see? What does the client want?"></textarea></div>
@@ -1433,9 +1434,10 @@ input:checked+.dm-slider:before{transform:translateX(22px)}</style>
     <div class="card"><div class="card-hd">Expense log</div><div id="exp-table"></div></div>
   </div>
   <div id="tr-mileage" style="display:none">
-    <div class="tip">Trips are logged automatically when you <strong>Start driving</strong> from a client record. All trips across every client appear here.</div>
-    <div class="mets" id="tr-mile-mets"></div>
-    
+    <div style="display:flex;gap:8px;margin-bottom:10px;align-items:center">
+      <button class="btn btn-p" style="flex:1;min-height:48px;font-size:15px;font-weight:700" onclick="openLogTripModal()">🚗 Log a trip</button>
+    </div>
+    <div id="tr-mile-mets"></div>
     <input type="hidden" id="mil-date"><input type="hidden" id="mil-vehicle"><input type="hidden" id="mil-from">
     <input type="hidden" id="mil-to"><input type="hidden" id="mil-start"><input type="hidden" id="mil-end">
     <input type="hidden" id="mil-purpose"><select id="mil-client-sel" style="display:none"><option value="">—</option></select>
@@ -11406,6 +11408,137 @@ async function purgeOldReceiptImages(){
   },{title:'Purge old receipt images',yes:'Delete images',danger:true});
 }
 function delExpense(id){expenses=expenses.filter(x=>x.id!==id);saveAll();renderExpenses();}
+async function getCurrentLocAddress(){
+  return new Promise((resolve,reject)=>{
+    if(!navigator.geolocation){reject(new Error('GPS not available'));return;}
+    navigator.geolocation.getCurrentPosition(async pos=>{
+      try{
+        const r=await fetch('https://nominatim.openstreetmap.org/reverse?lat='+pos.coords.latitude+'&lon='+pos.coords.longitude+'&format=json',{headers:{'Accept-Language':'en-US','User-Agent':'TradeDesk/1.0'}});
+        const d=await r.json();
+        const a=d.address||{};
+        const parts=[];
+        if(a.house_number&&a.road)parts.push(a.house_number+' '+a.road);
+        else if(a.road)parts.push(a.road);
+        if(a.city||a.town||a.village)parts.push(a.city||a.town||a.village);
+        if(a.state)parts.push(a.state);
+        if(a.postcode)parts.push(a.postcode);
+        resolve(parts.join(', ')||d.display_name||'');
+      }catch(e){resolve(pos.coords.latitude.toFixed(4)+', '+pos.coords.longitude.toFixed(4));}
+    },err=>reject(err),{timeout:10000,enableHighAccuracy:false,maximumAge:60000});
+  });
+}
+async function calcTripRoute(fromAddr,toAddr){
+  const geocode=async addr=>{
+    const r=await fetch('https://nominatim.openstreetmap.org/search?q='+encodeURIComponent(addr)+'&format=json&limit=1',{headers:{'Accept-Language':'en-US','User-Agent':'TradeDesk/1.0'}});
+    const d=await r.json();
+    if(!d||!d.length)throw new Error('Address not found: "'+addr+'" — try adding city and state');
+    return{lat:parseFloat(d[0].lat),lng:parseFloat(d[0].lon)};
+  };
+  const [from,to]=await Promise.all([geocode(fromAddr),geocode(toAddr)]);
+  const r=await fetch('https://router.project-osrm.org/route/v1/driving/'+from.lng+','+from.lat+';'+to.lng+','+to.lat+'?overview=false');
+  const d=await r.json();
+  if(!d||d.code!=='Ok'||!d.routes||!d.routes.length)throw new Error('No route found between these addresses');
+  return{miles:Math.round(d.routes[0].distance/1609.34*10)/10,mins:Math.round(d.routes[0].duration/60)};
+}
+function openLogTripModal(opts){
+  opts=opts||{};
+  const today=todayKey();
+  const vehs=getVehicles();
+  const autoVeh=vehs.length===1?vehs[0].name:'';
+  const vehOpts=vehs.length
+    ?vehs.map(v=>'<option value="'+v.name+'"'+(autoVeh===v.name?' selected':'')+'>'+getVehicleFullLabel(v)+'</option>').join('')
+    :'<option value="">— Add vehicle in Settings —</option>';
+  const clientOpts='<option value="">— None —</option>'+clients.map(c=>'<option value="'+c.id+'">'+c.name+'</option>').join('');
+  const PURPOSES=['Estimate','Job site','Supply run','Other'];
+  const prefill=opts.purpose||'Estimate';
+  const purposeChips=PURPOSES.map(p=>'<button type="button" onclick="this.parentElement.querySelectorAll(\'button\').forEach(b=>b.classList.remove(\'active-surf-btn\'));this.classList.add(\'active-surf-btn\');document.getElementById(\'lm-purpose\').value=\''+p+'\'" class="surf-type-btn'+(p===prefill?' active-surf-btn':'')+'" style="flex:1;text-align:center;padding:8px 4px;font-size:12px">'+p+'</button>').join('');
+  const overlay=document.createElement('div');overlay.className='zmodal-overlay';
+  overlay.innerHTML='<div style="background:var(--bg);border-radius:var(--rl);padding:20px;width:100%;max-width:480px;max-height:90vh;overflow-y:auto">'+
+    '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">'+
+      '<div style="font-size:17px;font-weight:800">🚗 Log a trip</div>'+
+      '<button onclick="this.closest(\'.zmodal-overlay\').remove()" style="background:none;border:none;font-size:22px;cursor:pointer;color:var(--text3);padding:0 4px;line-height:1">×</button>'+
+    '</div>'+
+    '<input type="hidden" id="lm-purpose" value="'+prefill+'">'+
+    '<input type="hidden" id="lm-miles-val" value="0">'+
+    '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px">'+
+      '<div class="f" style="margin:0"><label>Date</label><input type="date" id="lm-date" value="'+today+'"></div>'+
+      '<div class="f" style="margin:0"><label>Vehicle</label><select id="lm-vehicle" style="width:100%">'+vehOpts+'</select></div>'+
+    '</div>'+
+    '<div class="f" style="margin-bottom:12px"><label>Trip type</label>'+
+      '<div style="display:flex;gap:6px;margin-top:6px">'+purposeChips+'</div>'+
+    '</div>'+
+    '<div class="f" style="margin-bottom:12px"><label>Client <span style="font-weight:400;font-size:10px;color:var(--text3)">(optional)</span></label>'+
+      '<select id="lm-client" style="width:100%">'+clientOpts+'</select></div>'+
+    '<div class="f" style="margin-bottom:12px"><label>Starting from</label>'+
+      '<div style="display:flex;gap:8px">'+
+        '<input id="lm-from" placeholder="Your address or last job" style="flex:1" value="'+(opts.fromAddress||'')+'">'+
+        '<button type="button" onclick="grabMyLocation()" class="btn btn-sm" id="lm-gps-btn" style="white-space:nowrap;flex-shrink:0;min-height:44px">📍 GPS</button>'+
+      '</div></div>'+
+    '<div class="f" style="margin-bottom:14px"><label>Driving to</label>'+
+      '<input id="lm-to" placeholder="1234 Maple St, Wichita KS" value="'+(opts.toAddress||'')+'"></div>'+
+    '<button type="button" onclick="calculateAndShowRoute()" class="btn btn-p" style="width:100%;margin-bottom:10px;min-height:48px;font-size:15px" id="lm-calc-btn">🗺 Calculate miles</button>'+
+    '<div id="lm-route-result" style="display:none;background:var(--blue-lt);border:1px solid var(--blue);border-radius:var(--r);padding:14px;margin-bottom:14px;text-align:center">'+
+      '<div id="lm-miles-display" style="font-size:32px;font-weight:800;color:var(--blue-dk)"></div>'+
+      '<div id="lm-time-display" style="font-size:13px;color:var(--text2);margin-top:4px"></div>'+
+    '</div>'+
+    '<div class="f" style="margin-bottom:14px"><label>Notes <span style="font-weight:400;font-size:10px;color:var(--text3)">(optional)</span></label>'+
+      '<input id="lm-notes" placeholder="e.g. Supply stop at Sherwin-Williams"></div>'+
+    '<div style="display:flex;gap:8px">'+
+      '<button onclick="this.closest(\'.zmodal-overlay\').remove()" class="btn" style="flex:1">Cancel</button>'+
+      '<button onclick="saveLoggedTrip()" class="btn btn-p" style="flex:2;min-height:48px;font-size:15px;font-weight:700">✓ Save trip</button>'+
+    '</div>'+
+  '</div>';
+  document.body.appendChild(overlay);
+  // Pre-link client if provided
+  if(opts.clientName){setTimeout(()=>{
+    const sel=document.getElementById('lm-client');
+    if(sel){const c=clients.find(x=>x.name===opts.clientName);if(c)sel.value=c.id;}
+  },50);}
+}
+async function grabMyLocation(){
+  const btn=document.getElementById('lm-gps-btn');
+  if(btn){btn.disabled=true;btn.textContent='Locating...';}
+  try{
+    const addr=await getCurrentLocAddress();
+    const inp=document.getElementById('lm-from');if(inp)inp.value=addr;
+  }catch(e){
+    zAlert('Could not get your location. Check that location access is enabled for Safari.',{title:'GPS unavailable'});
+  }finally{if(btn){btn.disabled=false;btn.textContent='📍 GPS';}}
+}
+async function calculateAndShowRoute(){
+  const from=(document.getElementById('lm-from')?.value||'').trim();
+  const to=(document.getElementById('lm-to')?.value||'').trim();
+  if(!from||!to){zAlert('Enter both a starting address and a destination.');return;}
+  const btn=document.getElementById('lm-calc-btn');
+  if(btn){btn.disabled=true;btn.textContent='Calculating...';}
+  try{
+    const result=await calcTripRoute(from,to);
+    document.getElementById('lm-miles-val').value=result.miles;
+    document.getElementById('lm-miles-display').textContent=result.miles.toFixed(1)+' miles';
+    document.getElementById('lm-time-display').textContent='~'+result.mins+' min drive · IRS deduction: '+fmt(result.miles*IRS());
+    document.getElementById('lm-route-result').style.display='block';
+  }catch(e){
+    zAlert(e.message+'\n\nTip: Include city and state in both addresses.',{title:'Could not calculate route'});
+  }finally{if(btn){btn.disabled=false;btn.textContent='🗺 Calculate miles';}}
+}
+function saveLoggedTrip(){
+  const miles=parseFloat(document.getElementById('lm-miles-val')?.value)||0;
+  if(!miles){zAlert('Tap "Calculate miles" first to get the distance.');return;}
+  const date=document.getElementById('lm-date')?.value||todayKey();
+  const vehicle=document.getElementById('lm-vehicle')?.value||'';
+  const purpose=document.getElementById('lm-purpose')?.value||'Other';
+  const cid=parseInt(document.getElementById('lm-client')?.value)||null;
+  const c=cid?getClientById(cid):null;
+  const from=document.getElementById('lm-from')?.value||'';
+  const to=document.getElementById('lm-to')?.value||'';
+  const notes=document.getElementById('lm-notes')?.value||'';
+  mileage.unshift({id:Date.now(),date,vehicle,from,to,start:0,end:0,miles:Math.round(miles*10)/10,purpose,client_id:cid,client_name:c?c.name:'',notes,calc_method:'address'});
+  saveAll();
+  closeTopModal();
+  showToast(miles.toFixed(1)+' mi logged · '+fmt(miles*IRS())+' deduction','🚗');
+  if(document.getElementById('mil-table'))renderAllMileage();
+  if(document.getElementById('cd-mile-list')&&currentClientId)renderCDMileage();
+}
 function addMileage(){const veh=v('mil-vehicle');if(!veh)return zAlert('Enter vehicle name.');const s=parseFloat(v('mil-start'))||0,e=parseFloat(v('mil-end'))||0;if((s||e)&&e<=s)return zAlert('End odometer must be greater than start.');const cid=parseInt(v('mil-client-sel'))||null;const c=cid?getClientById(cid):null;mileage.unshift({id:Date.now(),date:v('mil-date'),vehicle:veh,from:v('mil-from'),to:v('mil-to'),start:s,end:e,miles:e-s||0,purpose:v('mil-purpose'),client_id:cid,client_name:c?c.name:''});saveAll();renderAllMileage();['mil-from','mil-to','mil-start','mil-end'].forEach(id=>document.getElementById(id).value='');}
 function renderAllMileage(){
   const yr=String(trackerYear||new Date().getFullYear());
@@ -11544,7 +11677,7 @@ function calcTax(){
   document.getElementById('tx-inputs').innerHTML=
     '<div class="tax-row"><span style="color:var(--text2)">Gross income</span><span style="font-weight:700">'+fmt(tIn)+'</span></div>'+
     '<div class="tax-row"><span style="color:var(--text2)">Business expenses</span><span style="color:#A32D2D">('+fmt(tEx)+')</span></div>'+
-    '<div class="tax-row"><span style="color:var(--text2)">Mileage deduction</span><span style="color:#A32D2D">('+fmt(mileDed)+')</span></div>'+
+    '<div class="tax-row"><span style="color:var(--text2)">Mileage deduction <span onclick="goPg(\'pg-tracker\');setTimeout(()=>{setTrTab(\'mileage\',document.getElementById(\'tr-t-mileage\'))},150)" style="font-size:10px;color:var(--blue);cursor:pointer;font-weight:700;margin-left:4px">'+tMi.toFixed(1)+' mi →</span></span><span style="color:#A32D2D">('+fmt(mileDed)+')</span></div>'+
     '<div class="tax-row" style="border-top:2px solid var(--border);margin-top:6px;padding-top:8px">'+
       '<span style="font-weight:700">Net SE income</span><span style="font-weight:700">'+fmt(netSelf)+'</span>'+
     '</div>'+

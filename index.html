@@ -1823,7 +1823,7 @@ input:checked+.dm-slider:before{transform:translateX(22px)}</style>
     <svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
     Jobs
   </button>
-  <button class="mtb" id="mtb-est" onclick="goPg('pg-est')">
+  <button class="mtb" id="mtb-est" onclick="newEstimate()">
     <svg viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
     Estimate
   </button>
@@ -2585,7 +2585,7 @@ function renderDash(){
           '<div style="font-size:11px;color:var(--text3)">'+fmt(b.amount)+' · '+daysStr+(hasNotes?' · 📝':'')+'</div>'+
         '</div>'+
         '<div style="display:flex;align-items:center;gap:6px;flex-shrink:0">'+
-          '<button onclick="openEditBid('+b.id+')" class="btn btn-sm btn-p" style="font-size:11px">Resume editing</button>'+
+          '<button onclick="openEditBid('+b.id+',4)" class="btn btn-sm btn-p" style="font-size:11px">Resume editing</button>'+
           '<div onclick="viewBidClient('+b.client_id+')" style="font-size:18px;color:var(--text3);cursor:pointer;line-height:1">›</div>'+
         '</div>'+
       '</div>';
@@ -5214,7 +5214,7 @@ function viewBidFromTimeline(bidId){
   },100);
 }
 
-function openEditBid(bidId){
+function openEditBid(bidId,startStep){
   const b=bids.find(x=>x.id===bidId);if(!b)return;
   const c=getClientById(b.client_id||currentClientId);
   editingBidId=bidId;lastCreatedBidId=null;
@@ -5264,9 +5264,10 @@ function openEditBid(bidId){
     const adj=document.getElementById('est-adj');if(adj)adj.value=0;
     const adjv=document.getElementById('est-adj-val');if(adjv)adjv.textContent='0%';
     renderEstSurfs();
-    goEstStep(2);
+    goEstStep(startStep||2);
     const tip=document.querySelector('#est-s2 .tip');
     if(tip)tip.innerHTML='<strong>Editing existing bid</strong> for '+(c?c.name:b.name||'client')+' · previous amount: '+fmt(b.amount)+'. Re-enter surfaces and adjust as needed.';
+    if((startStep||2)>=4){renderEstReview();renderEstRunning();}
   },80);
 }
 
@@ -9073,6 +9074,7 @@ function saveAndExitEstimate(){
   }
   saveAll();
   localStorage.removeItem('zp3_est_full_draft');
+  clearEstimatorForm(); // wipe in-memory state so next newEstimate() starts clean
   showToast('Bid saved — follow-up reminder set for 3 days','✓');
   // Navigate to leads page filtered to pending so Zach sees it immediately
   goPg('pg-leads');

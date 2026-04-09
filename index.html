@@ -10091,44 +10091,13 @@ function executeQuickAction(actionType,clientId,bidId,jobId){
   window._fromDash=true;
   currentClientId=clientId;
   if(actionType==='drive'){
+    closeTopModal();
     const c=getClientById(clientId);
     const tk=todayKey();
     const hasEst=jobs.some(j=>j.client_id===clientId&&j.eventType==='estimate'&&j.start===tk);
-    const defaultPurpose=hasEst?'Estimate visit':'Work drive';
-    const purposes=['Estimate visit','Work drive','Supply run','Follow-up visit','Equipment pickup'];
-    const overlay=document.createElement('div');
-    overlay.className='zmodal-overlay';
-    const box=document.createElement('div');
-    box.className='zmodal';
-    box.innerHTML=
-      '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">'+
-        '<div style="font-size:17px;font-weight:800">Start Drive</div>'+
-        '<button onclick="closeTopModal()" style="border:none;background:none;font-size:22px;cursor:pointer;color:var(--text3)">✕</button>'+
-      '</div>'+
-      '<div style="background:var(--blue-lt);border-radius:var(--r);padding:8px 12px;margin-bottom:14px;font-size:13px;font-weight:700;color:var(--blue-dk)">'+
-        '📍 Heading to: '+(c?c.name:'Client')+
-      '</div>'+
-      '<div class="f" style="margin-bottom:10px">'+
-        '<label style="font-size:11px;font-weight:700;color:var(--text3)">Trip purpose</label>'+
-        '<select id="qd-purpose" style="font-size:14px;padding:11px;border-radius:var(--r);border:1px solid var(--border2);background:var(--bg2);width:100%;color:var(--text)">'+
-          ['<option value="" disabled selected>Select purpose...</option>',...purposes.map(p=>'<option>'+p+'</option>')].join('')+
-        '</select>'+
-      '</div>'+
-      '<div class="f" style="margin-bottom:14px">'+
-        '<label style="font-size:11px;font-weight:700;color:var(--text3)">Vehicle</label>'+
-        '<select id="qd-vehicle" style="font-size:14px;padding:11px;border-radius:var(--r);border:1px solid var(--border2);background:var(--bg2);width:100%;color:var(--text)">'+
-          (getVehicles().length===0?'<option value="">Add vehicle in Settings</option>':getVehicles().length===1?'<option>'+getVehicles()[0]+'</option>':['<option value="" disabled selected>Select vehicle...</option>',...getVehicles().map(v=>'<option>'+v+'</option>')].join(''))+
-        '</select>'+
-      '</div>'+
-      '<div class="f" style="margin-bottom:14px">'+
-        '<label style="font-size:11px;font-weight:700;color:var(--text3)">Odometer reading</label>'+
-        '<input type="number" id="qd-odo" placeholder="Current miles" inputmode="numeric" style="font-size:22px;font-weight:800;padding:12px;border-radius:var(--r);border:1px solid var(--border2);background:var(--bg2);width:100%;box-sizing:border-box;color:var(--text);font-family:inherit;text-align:center">'+
-      '</div>'+
-      '<button onclick="startQuickDrive('+clientId+')" style="width:100%;padding:14px;border-radius:var(--r);border:none;background:var(--blue);color:#fff;font-size:15px;font-weight:700;cursor:pointer;font-family:inherit">🚗 Start driving</button>';
-    overlay.appendChild(box);
-    document.body.appendChild(overlay);
-    overlay.addEventListener('click',e=>{if(e.target===overlay)overlay.remove();});
-    setTimeout(()=>{const oi=document.getElementById('qd-odo');if(oi)oi.focus();},100);
+    const hasWon=bids.some(b=>b.client_id===clientId&&b.status==='Closed Won');
+    const purpose=hasWon?'Job site':hasEst?'Estimate':'Estimate';
+    openLogTripModal({clientId,toAddress:c?c.addr:'',purpose,clientName:c?c.name:''});
   } else if(actionType==='expense'){
     showQuickExpenseModal(clientId,bidId);
   } else if(actionType==='estimate'){

@@ -664,7 +664,7 @@ input:checked+.dm-slider:before{transform:translateX(22px)}</style>
   <div id="cd-drive-section">
     
     <div id="cd-drive-idle">
-      <button class="drive-btn" id="cd-drive-btn" onclick="showStartDrive()">
+      <button class="drive-btn" id="cd-drive-btn" onclick="startDriveToClient()">
         <svg viewBox="0 0 24 24"><circle cx="12" cy="10" r="3"/><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"/></svg>
         <span>Start driving</span>
       </button>
@@ -11439,6 +11439,13 @@ async function calcTripRoute(fromAddr,toAddr){
   const d=await r.json();
   if(!d||d.code!=='Ok'||!d.routes||!d.routes.length)throw new Error('No route found between these addresses');
   return{miles:Math.round(d.routes[0].distance/1609.34*10)/10,mins:Math.round(d.routes[0].duration/60)};
+}
+function startDriveToClient(){
+  const c=getClientById(currentClientId);
+  const hasWon=bids.some(b=>b.client_id===currentClientId&&b.status==='Closed Won');
+  const hasPending=bids.some(b=>b.client_id===currentClientId&&b.status==='Pending');
+  const purpose=hasWon?'Job site':hasPending?'Estimate':'Estimate';
+  openLogTripModal({clientId:currentClientId,toAddress:c?c.addr:'',purpose,clientName:c?c.name:''});
 }
 function openLogTripModal(opts){
   opts=opts||{};

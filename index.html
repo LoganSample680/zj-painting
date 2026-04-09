@@ -9963,6 +9963,8 @@ async function refreshAvail(){
     const dayNum=parseInt(key.split('-')[2]);
     if(isPast)return'<div class="av-d av-past">'+dayNum+'</div>';
     if(schedType==='estimate'){
+      const allowWknd=document.getElementById('s-allow-weekend')?.checked||false;
+      if(isWeekend&&!allowWknd)return'<div class="av-d av-past">'+dayNum+'</div>';
       if(isSel)return'<div class="av-d av-sel" onclick="pickDay(\''+key+'\')">'+dayNum+(isStart?'<br><span style="font-size:9px">start</span>':'')+wxHtml+'</div>';
       if(isWeekend)return'<div class="av-d av-open" onclick="pickDay(\''+key+'\')" style="background:var(--blue-lt);color:var(--blue-dk)">'+dayNum+wxHtml+'</div>';
       return'<div class="av-d av-open" onclick="pickDay(\''+key+'\')">'+dayNum+wxHtml+'</div>';

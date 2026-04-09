@@ -4231,14 +4231,17 @@ function showSupplyList(bidId){
 
   // ── Build paint lines per product+color ──────────────────
   const orderMap={};
+  const roomScopeMap_b=b.roomScopeMap||{};
   surfs.forEach(s=>{
     if(!s.qty)return;
     const t=SURF_TYPES.find(x=>x.v===s.type);if(!t||t.unit!=='sq ft')return;
     const spec=(s.room||'').indexOf(' — ')>-1?(s.room||'').split(' — ').slice(1).join(' — '):'';
-    const key=spec||'Paint';
-    if(!orderMap[key])orderMap[key]={sqFt:0,spec,cov:350};
-    const paintSqft=s.wallSqft||s.qty;  // wall area for gallons, floor area for pricing
-    orderMap[key].sqFt+=paintSqft;
+    // Skip surfaces with no spec (customer supplies paint — no product/color stored)
+    if(!spec)return;
+    const key=spec;
+    if(!orderMap[key])orderMap[key]={sqFt:0,spec,cov:350,surfaces:[]};
+    orderMap[key].sqFt+=s.qty; // s.qty is now wall sqft from perimeter×height
+    orderMap[key].surfaces.push(s.type);
     const prodName=spec.split(' · ')[0].trim();
     const prod=allSwProds.find(p=>p.name===prodName);
     if(prod)orderMap[key].cov=prod.cov||350;
@@ -4248,10 +4251,18 @@ function showSupplyList(bidId){
     const wholeCans=Math.ceil(rawGals);
     const parts=od.spec.split(' · ');
     const prod=parts[0]||'Paint';
-    const colorFinish=parts.slice(1).join(' · ')||od.spec;
-    const swMatch=od.spec.match(/SW \d+/i);
-    const swHex=swMatch&&_swColors?(_swColors.find(c=>c.sw.toLowerCase()===swMatch[0].toLowerCase())?.hex||''):'';
-    return{label:prod,detail:colorFinish,qty:wholeCans,unit:'gal',hex:swHex,cat:'paint'};
+    // Parse: "ProMar 200 · Accessible Beige (SW 7036) [Eggshell]"
+    const afterProd=parts.slice(1).join(' · ')||'';
+    const finishMatch=afterProd.match(/\[([^\]]+)\]$/);
+    const finish=finishMatch?finishMatch[1]:'';
+    const colorOnly=afterProd.replace(/\s*\[[^\]]+\]$/,'').trim();
+    const swMatch=colorOnly.match(/\(SW (\d+)\)$/i);
+    const swNum=swMatch?'SW '+swMatch[1]:'';
+    const colorName=colorOnly.replace(/\s*\(SW \d+\)$/i,'').trim();
+    const swHex=swNum&&_swColors?(_swColors.find(c=>c.sw.toLowerCase()===swNum.toLowerCase())?.hex||''):'';
+    const surfLabels={'walls':'Walls','ceiling':'Ceiling','ext_walls':'Siding','deck':'Deck'};
+    const surfNote=[...new Set(od.surfaces)].map(t=>surfLabels[t]||t).join(', ');
+    return{label:colorName||prod,swNum,prod,finish,surfNote,qty:wholeCans,sqFt:Math.round(od.sqFt),unit:'gal',hex:swHex,cat:'paint'};
   });
 
   // ── Core supplies (always) ────────────────────────────────
@@ -4392,17 +4403,40 @@ function showSupplyList(bidId){
       row.style.cssText='display:flex;align-items:flex-start;gap:10px;padding:8px 10px;border-radius:8px;cursor:pointer;transition:background .1s;margin-bottom:4px;background:var(--bg)';
       row.onmouseover=()=>row.style.background='var(--bg2)';
       row.onmouseout=()=>row.style.background='var(--bg)';
-      const hexDot=item.hex?'<span style="display:inline-block;width:12px;height:12px;border-radius:3px;background:'+item.hex+';border:1px solid rgba(0,0,0,.15);margin-right:4px;vertical-align:middle;flex-shrink:0"></span>':'';
-      row.innerHTML=
-        '<input type="checkbox" class="supply-check" style="width:18px;height:18px;flex-shrink:0;margin-top:1px;accent-color:var(--blue);cursor:pointer;appearance:auto;-webkit-appearance:checkbox">'+
-        '<div style="flex:1;min-width:0">'+
-          '<div style="display:flex;align-items:baseline;justify-content:space-between;gap:8px">'+
-            '<span class="supply-label" style="font-size:13px;font-weight:600;color:var(--text)">'+hexDot+item.label+(item.qty>1||item.unit?' <span style="color:var(--blue-dk);font-weight:800">× '+(item.unit?item.qty+' '+item.unit:item.qty)+'</span>':'')+'</span>'+
-            (item.unit==='rental'?'<span style="font-size:10px;background:#F5F3FF;color:#5B21B6;padding:2px 6px;border-radius:10px;font-weight:700;flex-shrink:0">RENTAL</span>':'')+
-          '</div>'+
-          (item.note?'<div style="font-size:11px;color:var(--text3);margin-top:2px">'+item.note+'</div>':'')+
-          (item.detail?'<div style="font-size:11px;color:var(--text2);margin-top:1px">'+item.detail+'</div>':'')+
-        '</div>';
+      // Paint items get a richer layout with swatch
+      if(item.cat==='paint'&&item.hex){
+        const swatchSize=36;
+        row.innerHTML=
+          '<input type="checkbox" class="supply-check" style="width:18px;height:18px;flex-shrink:0;margin-top:4px;accent-color:var(--blue);cursor:pointer;appearance:auto;-webkit-appearance:checkbox">'+
+          '<div style="width:'+swatchSize+'px;height:'+swatchSize+'px;border-radius:6px;background:'+item.hex+';border:1px solid rgba(0,0,0,.15);flex-shrink:0"></div>'+
+          '<div style="flex:1;min-width:0">'+
+            '<div style="display:flex;align-items:flex-start;justify-content:space-between;gap:6px">'+
+              '<div>'+
+                '<span class="supply-label" style="font-size:13px;font-weight:700;color:var(--text)">'+item.label+'</span>'+
+                (item.swNum?'<span style="font-size:10px;color:var(--text3);margin-left:5px">'+item.swNum+'</span>':'')+
+              '</div>'+
+              '<span style="font-size:12px;font-weight:800;color:var(--blue-dk);white-space:nowrap">'+item.qty+' gal</span>'+
+            '</div>'+
+            '<div style="font-size:11px;color:var(--text3);margin-top:2px">'+
+              (item.prod?item.prod:'')+
+              (item.finish?' · <span style="color:var(--text2)">'+item.finish+'</span>':'')+
+              (item.surfNote?' · '+item.surfNote:'')+
+              (item.sqFt?' · '+item.sqFt.toLocaleString()+' sf':'')+
+            '</div>'+
+          '</div>';
+      } else {
+        const hexDot=item.hex?'<span style="display:inline-block;width:12px;height:12px;border-radius:3px;background:'+item.hex+';border:1px solid rgba(0,0,0,.15);margin-right:4px;vertical-align:middle;flex-shrink:0"></span>':'';
+        row.innerHTML=
+          '<input type="checkbox" class="supply-check" style="width:18px;height:18px;flex-shrink:0;margin-top:1px;accent-color:var(--blue);cursor:pointer;appearance:auto;-webkit-appearance:checkbox">'+
+          '<div style="flex:1;min-width:0">'+
+            '<div style="display:flex;align-items:baseline;justify-content:space-between;gap:8px">'+
+              '<span class="supply-label" style="font-size:13px;font-weight:600;color:var(--text)">'+hexDot+item.label+(item.qty>1||item.unit?' <span style="color:var(--blue-dk);font-weight:800">× '+(item.unit?item.qty+' '+item.unit:item.qty)+'</span>':'')+'</span>'+
+              (item.unit==='rental'?'<span style="font-size:10px;background:#F5F3FF;color:#5B21B6;padding:2px 6px;border-radius:10px;font-weight:700;flex-shrink:0">RENTAL</span>':'')+
+            '</div>'+
+            (item.note?'<div style="font-size:11px;color:var(--text3);margin-top:2px">'+item.note+'</div>':'')+
+            (item.detail?'<div style="font-size:11px;color:var(--text2);margin-top:1px">'+item.detail+'</div>':'')+
+          '</div>';
+      }
       // Strike through on check
       const cb=row.querySelector('input');
       cb.onchange=()=>{

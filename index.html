@@ -1575,7 +1575,7 @@ input:checked+.dm-slider:before{transform:translateX(22px)}</style>
       <div class="f"><label>Deck/fence ($/sf)</label><input type="number" id="set-r-deck" step="0.05"></div>
     </div>
     <div style="font-size:10px;color:var(--text3);margin-top:4px;line-height:1.6">
-      Scope add-ons (sand +$0.12, spackle +$0.18, primer +$0.15, 2-coat +$0.10, tape +$0.05) stack on top of base rates. These are calibrated for Topeka, KS solo painter at 40% margin.
+      Walls rate is per room sq ft (L×W floor area) — calibrated to cover full wall labor across the room. Trim rate is per linear foot and reflects prep complexity (taping, sanding, filling, smooth finish). Scope add-ons (sand, spackle, primer, etc.) stack on top automatically. These defaults target Topeka, KS market at ~$1,200 for a full 11×11 dining room.
     </div>
   </div>
 
@@ -1906,7 +1906,7 @@ const CHECKS=[
 ];
 const CAT_CFG={urgent:{label:'Do right away',color:'#A32D2D'},biz:{label:'Business setup in Kansas',color:'#185FA5'},tax:{label:'Tax & accounting',color:'#854F0B'},ks:{label:'Kansas market & marketing',color:'#27500A'}};
 
-let S={stripePk:'',goalMonthly:0,laborRate:45,irsRate:.700,taxYear:2026,fedSingle:14600,fedMFJ:29200,fedMFS:14600,fedHOH:21900,b10:11600,b12:47150,b22:100525,b24:191950,b32:243725,b35:609350,ksLow:3.1,ksTop:33000,ksHigh:5.7,ksStdS:3500,ksStdM:8000,bname:"ZJ's Painting & Special Coatings",bphone:'',blic:'Licensed & Insured',veh:'',margin:40,cov:350,p1:38,p2:62,p3:88,mm:15,rWalls:1.00,rCeil:0.85,rTrim:1.50,rDoor:95,rWin:50,rExt:1.10,rDeck:1.00};
+let S={stripePk:'',goalMonthly:0,laborRate:45,irsRate:.700,taxYear:2026,fedSingle:14600,fedMFJ:29200,fedMFS:14600,fedHOH:21900,b10:11600,b12:47150,b22:100525,b24:191950,b32:243725,b35:609350,ksLow:3.1,ksTop:33000,ksHigh:5.7,ksStdS:3500,ksStdM:8000,bname:"ZJ's Painting & Special Coatings",bphone:'',blic:'Licensed & Insured',veh:'',margin:40,cov:350,p1:38,p2:62,p3:88,mm:15,rWalls:4.00,rCeil:1.00,rTrim:3.50,rDoor:95,rWin:50,rExt:1.10,rDeck:1.00};
 
 // ── Account / User / Config global state ─────────────────────────────
 let _account=null;   // accounts row
@@ -1987,7 +1987,7 @@ const COVERAGE=()=>S.cov||350;
 const MARGIN=()=>(S.margin||25)/100;
 const MATMARK=()=>1+((S.mm||20)/100);
 const PAINT_COST=()=>({interior:S.p1||42,exterior:S.p2||106}); // ProMar 200 interior / $106 exterior
-const LABOR_RATES=()=>({walls:S.rWalls||1.50,ceiling:S.rCeil||1.25,trim:S.rTrim||1.75,doors:S.rDoor||85,windows:S.rWin||45,cabinets:S.rCabinets||38,ext_walls:S.rExt||1.60,ext_trim:S.rTrim||1.75,deck:S.rDeck||1.25});
+const LABOR_RATES=()=>({walls:S.rWalls||1.25,ceiling:S.rCeil||1.00,trim:S.rTrim||4.00,doors:S.rDoor||95,windows:S.rWin||50,cabinets:S.rCabinets||38,ext_walls:S.rExt||1.10,ext_trim:S.rTrim||4.00,deck:S.rDeck||1.00});
 function initials(name){const p=(name||'?').trim().split(' ');return p.length>=2?(p[0][0]+p[p.length-1][0]).toUpperCase():(name||'?').substring(0,2).toUpperCase();}
 function stageAvatar(stage){
   const m={
@@ -2085,12 +2085,12 @@ function loadSettingsForm(){
   sf('set-goal-monthly',S.goalMonthly||'');
   sf('set-labor-rate',S.laborRate||45);sf('set-owner-name',getOwnerName()||'');sf('set-bname',S.bname);sf('set-state',S.state||'KS');
   if(S.state){const lbl=document.getElementById('set-state-label');const info=STATE_TAX[S.state];if(lbl&&info)lbl.textContent=info.name+' tax rates';}sf('set-stripe-pk',S.stripePk||'');sf('set-bphone',S.bphone);sf('set-blic',S.blic);sf('set-bemail',S.bemail||'');sf('set-veh',S.veh);
-  sf('set-margin',S.margin);sf('set-cov',S.cov);sf('set-p1',S.p1);sf('set-p2',S.p2);sf('set-p3',S.p3);sf('set-mm',S.mm);sf('set-r-walls',S.rWalls||1.50);sf('set-r-ceil',S.rCeil||1.25);sf('set-r-trim',S.rTrim||1.75);sf('set-r-door',S.rDoor||85);sf('set-r-win',S.rWin||45);sf('set-r-ext',S.rExt||1.60);sf('set-r-deck',S.rDeck||1.25);
+  sf('set-margin',S.margin);sf('set-cov',S.cov);sf('set-p1',S.p1);sf('set-p2',S.p2);sf('set-p3',S.p3);sf('set-mm',S.mm);sf('set-r-walls',S.rWalls||1.25);sf('set-r-ceil',S.rCeil||1.00);sf('set-r-trim',S.rTrim||4.00);sf('set-r-door',S.rDoor||95);sf('set-r-win',S.rWin||50);sf('set-r-ext',S.rExt||1.10);sf('set-r-deck',S.rDeck||1.00);
   sf('set-review-url',S.reviewUrl||'');
 }
 function saveSettings(){
   const gf=id=>parseFloat(v(id))||0,gs=id=>v(id);
-  setOwnerName(gs('set-owner-name')||getOwnerName()||'');S={...S,goalMonthly:gf('set-goal-monthly')||0,irsRate:gf('set-irs')||.670,taxYear:parseInt(v('set-year'))||2024,fedSingle:gf('set-fs')||14600,fedMFJ:gf('set-fm')||29200,fedMFS:gf('set-fms')||14600,fedHOH:gf('set-fh')||21900,b10:gf('set-b10')||11600,b12:gf('set-b12')||47150,b22:gf('set-b22')||100525,b24:gf('set-b24')||191950,b32:gf('set-b32')||243725,b35:gf('set-b35')||609350,ksLow:gf('set-ksl')||3.1,ksTop:gf('set-kst')||33000,ksHigh:gf('set-ksh')||5.7,ksStdS:gf('set-kss')||3500,ksStdM:gf('set-ksm')||8000,laborRate:gf('set-labor-rate')||45,bname:gs('set-bname'),bphone:gs('set-bphone'),blic:gs('set-blic'),state:gs('set-state')||S.state||'',bemail:gs('set-bemail'),veh:gs('set-veh'),stripePk:gs('set-stripe-pk')||'',vehicles:S.vehicles||[],margin:gf('set-margin')||25,cov:gf('set-cov')||350,p1:gf('set-p1')||35,p2:gf('set-p2')||58,p3:gf('set-p3')||82,mm:gf('set-mm')||20,rWalls:gf('set-r-walls')||1.50,rCeil:gf('set-r-ceil')||1.25,rTrim:gf('set-r-trim')||1.75,rDoor:gf('set-r-door')||85,rWin:gf('set-r-win')||45,rExt:gf('set-r-ext')||1.60,rDeck:gf('set-r-deck')||1.25,reviewUrl:gs('set-review-url')||''};
+  setOwnerName(gs('set-owner-name')||getOwnerName()||'');S={...S,goalMonthly:gf('set-goal-monthly')||0,irsRate:gf('set-irs')||.670,taxYear:parseInt(v('set-year'))||2024,fedSingle:gf('set-fs')||14600,fedMFJ:gf('set-fm')||29200,fedMFS:gf('set-fms')||14600,fedHOH:gf('set-fh')||21900,b10:gf('set-b10')||11600,b12:gf('set-b12')||47150,b22:gf('set-b22')||100525,b24:gf('set-b24')||191950,b32:gf('set-b32')||243725,b35:gf('set-b35')||609350,ksLow:gf('set-ksl')||3.1,ksTop:gf('set-kst')||33000,ksHigh:gf('set-ksh')||5.7,ksStdS:gf('set-kss')||3500,ksStdM:gf('set-ksm')||8000,laborRate:gf('set-labor-rate')||45,bname:gs('set-bname'),bphone:gs('set-bphone'),blic:gs('set-blic'),state:gs('set-state')||S.state||'',bemail:gs('set-bemail'),veh:gs('set-veh'),stripePk:gs('set-stripe-pk')||'',vehicles:S.vehicles||[],margin:gf('set-margin')||25,cov:gf('set-cov')||350,p1:gf('set-p1')||35,p2:gf('set-p2')||58,p3:gf('set-p3')||82,mm:gf('set-mm')||20,rWalls:gf('set-r-walls')||4.00,rCeil:gf('set-r-ceil')||1.00,rTrim:gf('set-r-trim')||3.50,rDoor:gf('set-r-door')||95,rWin:gf('set-r-win')||50,rExt:gf('set-r-ext')||1.10,rDeck:gf('set-r-deck')||1.00,reviewUrl:gs('set-review-url')||''};
   applySettings();saveAll();
   const el=document.getElementById('set-saved');if(el){el.style.display='block';setTimeout(()=>el.style.display='none',3000);}
 }
@@ -2114,7 +2114,7 @@ function clearMileageOnly(){
   },{title:'Clear mileage',yes:'Delete mileage',danger:true});
 }
 
-function resetSettings(){zConfirm('Reset all settings to defaults?',()=>{S={irsRate:.700,taxYear:2026,fedSingle:14600,fedMFJ:29200,fedMFS:14600,fedHOH:21900,b10:11600,b12:47150,b22:100525,b24:191950,b32:243725,b35:609350,ksLow:3.1,ksTop:33000,ksHigh:5.7,ksStdS:3500,ksStdM:8000,bname:"ZJ's Painting & Special Coatings",bphone:'',blic:'Licensed & Insured',veh:'',margin:40,cov:350,p1:38,p2:62,p3:88,mm:15,rWalls:1.00,rCeil:0.85,rTrim:1.50,rDoor:95,rWin:50,rExt:1.10,rDeck:1.00};applySettings();loadSettingsForm();},{title:'Reset settings',yes:'Reset',danger:false});}
+function resetSettings(){zConfirm('Reset all settings to defaults?',()=>{S={irsRate:.700,taxYear:2026,fedSingle:14600,fedMFJ:29200,fedMFS:14600,fedHOH:21900,b10:11600,b12:47150,b22:100525,b24:191950,b32:243725,b35:609350,ksLow:3.1,ksTop:33000,ksHigh:5.7,ksStdS:3500,ksStdM:8000,bname:"ZJ's Painting & Special Coatings",bphone:'',blic:'Licensed & Insured',veh:'',margin:40,cov:350,p1:38,p2:62,p3:88,mm:15,rWalls:4.00,rCeil:1.00,rTrim:3.50,rDoor:95,rWin:50,rExt:1.10,rDeck:1.00};applySettings();loadSettingsForm();},{title:'Reset settings',yes:'Reset',danger:false});}
 function resetLocationPermission(){
   // Clear stored location so modal re-prompts
   delete S.weatherLat;delete S.weatherLon;S.locationDenied=false;
@@ -2240,7 +2240,7 @@ function _doOpenEstimate(c){
     if(S.bname)sf('e-bname',S.bname);
     if(S.bphone)sf('e-bphone',S.bphone);
     if(S.blic)sf('e-blic',S.blic);
-    sf('e-r-walls',S.rWalls||1.00);sf('e-r-ceil',S.rCeil||0.85);sf('e-r-trim',S.rTrim||1.50);
+    sf('e-r-walls',S.rWalls||1.25);sf('e-r-ceil',S.rCeil||1.00);sf('e-r-trim',S.rTrim||4.00);
     sf('e-r-door',S.rDoor||95);sf('e-r-win',S.rWin||50);sf('e-r-ext',S.rExt||1.10);
     sf('e-r-deck',S.rDeck||1.00);sf('e-paint-rate',42);
     SCOPE_ITEMS.forEach(sc=>{sf(sc.rateKey,sc.defaultRate);});
@@ -7902,14 +7902,14 @@ function getBidIncomeLabel(bid){
 function calcEst(){
   const gR=id=>parseFloat(document.getElementById(id)?.value)||0;
   const R={
-    walls:   gR('e-r-walls')||S.rWalls||1.00,
-    ceiling: gR('e-r-ceil') ||S.rCeil ||0.85,
-    trim:    gR('e-r-trim') ||S.rTrim ||1.50,
+    walls:   gR('e-r-walls')||S.rWalls||1.25,
+    ceiling: gR('e-r-ceil') ||S.rCeil ||1.00,
+    trim:    gR('e-r-trim') ||S.rTrim ||3.50,
     doors:   gR('e-r-door') ||S.rDoor ||95,
     windows: gR('e-r-win')  ||S.rWin  ||50,
     cabinets:38,
     ext_walls:gR('e-r-ext') ||S.rExt  ||1.10,
-    ext_trim: gR('e-r-trim')||S.rTrim ||1.50,
+    ext_trim: gR('e-r-trim')||S.rTrim ||3.50,
     deck:    gR('e-r-deck') ||S.rDeck ||1.00,
   };
   const paintCostPerGal=gR('e-paint-rate')||(estSurfaces.some(s=>s.type==='ext_walls'||s.type==='ext_trim'||s.type==='deck')?106:42);
@@ -7919,7 +7919,9 @@ function calcEst(){
   estSurfaces.forEach(s=>{
     if(!s.qty)return;const t=SURF_TYPES.find(x=>x.v===s.type);if(!t)return;
     const rate=R[s.type]||0;
-    const cost=Math.round(s.qty*rate*(t.unit==='sq ft'?coats:1)*100)/100;
+    // s.qty = room floor area (L×W) — wall rate is per room sq ft, calibrated to cover full wall labor.
+    // coats not applied to labor; twocoat scope item handles the extra-coat charge separately.
+    const cost=Math.round(s.qty*rate*100)/100;
     laborTotal+=cost;
     // Build label: SurfaceType · Room · Color [Finish]
     const _roomBase=cleanRoomName(s.room)||'';
@@ -8404,7 +8406,7 @@ function buildProposal(){
 
   // Build per-room cost rows for the proposal table
   const gR=id=>parseFloat(document.getElementById(id)?.value)||0;
-  const R={walls:gR('e-r-walls')||S.rWalls||1.00,ceiling:gR('e-r-ceil')||S.rCeil||0.85,trim:gR('e-r-trim')||S.rTrim||1.50,doors:gR('e-r-door')||S.rDoor||95,windows:gR('e-r-win')||S.rWin||50,cabinets:38,ext_walls:gR('e-r-ext')||S.rExt||1.10,ext_trim:gR('e-r-trim')||S.rTrim||1.50,deck:gR('e-r-deck')||S.rDeck||1.00};
+  const R={walls:gR('e-r-walls')||S.rWalls||1.25,ceiling:gR('e-r-ceil')||S.rCeil||1.00,trim:gR('e-r-trim')||S.rTrim||4.00,doors:gR('e-r-door')||S.rDoor||95,windows:gR('e-r-win')||S.rWin||50,cabinets:38,ext_walls:gR('e-r-ext')||S.rExt||1.10,ext_trim:gR('e-r-trim')||S.rTrim||4.00,deck:gR('e-r-deck')||S.rDeck||1.00};
   const hasRoomScope=Object.keys(roomScopeMap).length>0&&Object.values(roomScopeMap).some(r=>Object.keys(r).length>0);
 
   // Aggregate surface cost per room — track per-surface colors
@@ -8567,16 +8569,16 @@ function buildProposal(){
     </tbody>
     <tfoot>
       <tr style="border-top:2px solid var(--border)">
-        <td style="padding:8px 16px;text-align:right;font-weight:700;color:var(--text3);font-size:11px">SUBTOTAL</td>
+        <td style="padding:8px 16px;text-align:left;font-weight:700;color:var(--text3);font-size:11px">SUBTOTAL</td>
         <td style="padding:8px 16px;text-align:right;font-weight:700">${fmt(proposalTotal)}</td>
       </tr>
       <tr>
-        <td style="padding:4px 16px;text-align:right;color:var(--text3);font-size:11px">TAX RATE / SALES TAX</td>
+        <td style="padding:4px 16px;text-align:left;color:var(--text3);font-size:11px">TAX RATE / SALES TAX</td>
         <td style="padding:4px 16px;text-align:right;color:var(--text3);font-size:11px">$0.00</td>
       </tr>
       <tr style="background:var(--blue);color:#fff">
-        <td colspan="3" style="padding:10px 12px;text-align:right;font-weight:800;font-size:14px">TOTAL</td>
-        <td style="padding:10px 12px;text-align:right;font-weight:800;font-size:14px">${fmt(proposalTotal)}</td>
+        <td style="padding:10px 16px;text-align:left;font-weight:800;font-size:14px">TOTAL</td>
+        <td style="padding:10px 16px;text-align:right;font-weight:800;font-size:14px">${fmt(proposalTotal)}</td>
       </tr>
     </tfoot>
   </table>
@@ -8937,7 +8939,7 @@ function prefillEstimateRates(){
   if(S.bname)sf('e-bname',S.bname);
   if(S.bphone)sf('e-bphone',S.bphone);
   if(S.blic)sf('e-blic',S.blic);
-  sf('e-r-walls',S.rWalls||1.00);sf('e-r-ceil',S.rCeil||0.85);sf('e-r-trim',S.rTrim||1.50);
+  sf('e-r-walls',S.rWalls||1.25);sf('e-r-ceil',S.rCeil||1.00);sf('e-r-trim',S.rTrim||4.00);
   sf('e-r-door',S.rDoor||95);sf('e-r-win',S.rWin||50);sf('e-r-ext',S.rExt||1.10);
   sf('e-r-deck',S.rDeck||1.00);sf('e-paint-rate',42);
   SCOPE_ITEMS.forEach(sc=>{sf(sc.rateKey,sc.defaultRate);});

@@ -2547,54 +2547,48 @@ function renderDash(){
   // Unified pending estimates section
   const resumeEl=document.getElementById('dash-resume-est');
   if(resumeEl){
-    const pendingBids=bids.filter(b=>b.status==='Pending'||b.status==='Draft');
+    const pendingBids=bids.filter(b=>b.status==='Pending'||b.status==='Draft').sort((a,b)=>(b.bid_date||'').localeCompare(a.bid_date||''));
     const draft=loadEstFullDraft();
-    // Show draft only if no non-draft pending bid for same client already exists
-    const hasDraft=!!(draft&&draft.cname&&
-      !pendingBids.some(b=>!b.draft&&(b.client_name===draft.cname||
-        (b.client_id&&clients.find(c=>c.id===b.client_id)&&clients.find(c=>c.id===b.client_id).name===draft.cname))));
+    const hasDraft=!!(draft&&draft.cname);
     const hasAny=hasDraft||pendingBids.length>0;
-    if(!hasAny){
-      resumeEl.innerHTML='';
-    } else {
-    const totalCount=pendingBids.length+(hasDraft?1:0);
-    let rows='';
-    // Draft row first
-    if(hasDraft){
-      rows+='<div style="display:flex;justify-content:space-between;align-items:center;padding:9px 0;border-bottom:1px solid var(--border);gap:8px">'+
-        '<div style="min-width:0;cursor:pointer" onclick="resumeEstimateDraft()">'+
-          '<div style="font-size:13px;font-weight:700;color:var(--blue)">'+draft.cname+'</div>'+
-          '<div style="font-size:11px;color:var(--text3)">Draft — not yet sent</div>'+
-        '</div>'+
-        '<div style="display:flex;gap:6px;flex-shrink:0">'+
-          '<button onclick="resumeEstimateDraft()" class="btn btn-sm btn-p" style="font-size:11px">Resume</button>'+
-          '<button onclick="clearEstFullDraft();renderDash()" class="btn btn-sm" style="font-size:11px;color:var(--text3)">Discard</button>'+
-        '</div>'+
-      '</div>';
-    }
-    // Sent pending bids — tap row to go to client
-    rows+=pendingBids.map(b=>{
-      const cl=clients.find(c=>c.id===b.client_id);
-      const name=cl?cl.name:(b.client_name||'Client');
-      const days=Math.floor((new Date(todayKey())-new Date((b.bid_date||todayKey())+'T12:00:00'))/86400000);
-      const daysStr=days>0?days+'d ago':'Today';
-      const hasNotes=!!(b.notesCanvas);
-      return '<div style="display:flex;justify-content:space-between;align-items:center;padding:9px 0;border-bottom:1px solid var(--border);gap:8px">'+
-        '<div style="min-width:0;flex:1;cursor:pointer" onclick="viewBidClient('+b.client_id+')">'+
-          '<div style="font-size:13px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+name+'</div>'+
-          '<div style="font-size:11px;color:var(--text3)">'+fmt(b.amount)+' · '+daysStr+(hasNotes?' · 📝':'')+'</div>'+
-        '</div>'+
-        '<div style="display:flex;align-items:center;gap:6px;flex-shrink:0">'+
-          '<button onclick="openEditBid('+b.id+',4)" class="btn btn-sm btn-p" style="font-size:11px">Resume editing</button>'+
-          '<div onclick="viewBidClient('+b.client_id+')" style="font-size:18px;color:var(--text3);cursor:pointer;line-height:1">›</div>'+
-        '</div>'+
-      '</div>';
-    }).join('');
-    resumeEl.innerHTML=
-      '<div style="background:var(--bg);border:1px solid var(--border);border-radius:var(--rl);padding:10px 14px;margin-bottom:8px">'+
-        '<div style="font-size:12px;font-weight:700;color:var(--text);margin-bottom:4px">📬 Pending estimates ('+totalCount+')</div>'+
-        rows+
-      '</div>';
+    if(!hasAny){resumeEl.innerHTML='';} else {
+      let html='<div style="background:var(--bg);border:1px solid var(--border);border-radius:var(--rl);padding:10px 14px;margin-bottom:8px">';
+      // Section header
+      const total=pendingBids.length+(hasDraft?1:0);
+      html+='<div style="font-size:12px;font-weight:700;color:var(--text);margin-bottom:6px">📬 Estimates in progress ('+(total)+')</div>';
+      // Draft row (unsaved, localStorage only)
+      if(hasDraft){
+        html+='<div style="display:flex;align-items:center;gap:8px;padding:8px 10px;background:var(--blue-lt);border:1px solid var(--blue);border-radius:var(--r);margin-bottom:6px">'+
+          '<div style="flex:1;min-width:0">'+
+            '<div style="font-size:13px;font-weight:700;color:var(--blue-dk)">'+draft.cname+'</div>'+
+            '<div style="font-size:11px;color:var(--blue);margin-top:1px">Unsaved draft — not yet sent</div>'+
+          '</div>'+
+          '<div style="display:flex;gap:5px;flex-shrink:0">'+
+            '<button onclick="resumeEstimateDraft()" class="btn btn-sm btn-p" style="font-size:11px">Resume</button>'+
+            '<button onclick="clearEstFullDraft();renderDash()" class="btn btn-sm" style="font-size:11px;color:var(--text3);padding:6px 8px">✕</button>'+
+          '</div>'+
+        '</div>';
+      }
+      // Pending bids (saved, awaiting client response) — show all
+      pendingBids.forEach(b=>{
+        const cl=clients.find(c=>c.id===b.client_id);
+        const name=cl?cl.name:(b.client_name||b.name||'Client');
+        const days=Math.floor((new Date(todayKey())-new Date((b.bid_date||todayKey())+'T12:00:00'))/86400000);
+        const urgency=days>=14?'color:#A32D2D':days>=7?'color:var(--amber)':'color:var(--text3)';
+        const daysStr=days===0?'Sent today':days===1?'1 day waiting':days+'d waiting';
+        html+='<div style="display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid var(--border)">'+
+          '<div style="flex:1;min-width:0;cursor:pointer" onclick="viewBidClient('+b.client_id+')">'+
+            '<div style="font-size:13px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+name+'</div>'+
+            '<div style="font-size:11px;'+urgency+';margin-top:1px">'+fmt(b.amount)+' · '+daysStr+'</div>'+
+          '</div>'+
+          '<div style="display:flex;gap:5px;flex-shrink:0">'+
+            '<button onclick="openEditBid('+b.id+',4)" class="btn btn-sm" style="font-size:11px;background:var(--bg2);border-color:var(--border2)">Edit</button>'+
+            '<button onclick="markBidNoResponseFromDash('+b.id+')" class="btn btn-sm" style="font-size:11px;color:var(--text3);padding:6px 8px;background:var(--bg2);border-color:var(--border2)" title="No response — archive">✕</button>'+
+          '</div>'+
+        '</div>';
+      });
+      html+='</div>';
+      resumeEl.innerHTML=html;
     }
   }
   renderGoal();
@@ -9037,12 +9031,12 @@ function saveAndExitEstimate(){
       clients.unshift(nc);clientId=nc.id;estLinkedClientId=clientId;
     }
   }
-  if(lastCreatedBidId){
-    const b=bids.find(x=>x.id===lastCreatedBidId);
+  const _saveTargetId=lastCreatedBidId||editingBidId;
+  if(_saveTargetId){
+    const b=bids.find(x=>x.id===_saveTargetId);
     if(b){
       b.amount=final;
       b.status=b.status==='Closed Won'?'Closed Won':'Pending';
-      b.draft=false; // clear draft flag so getClientBids() picks it up
       delete b.draft;
       if(!b.followup)b.followup=addDays(todayKey(),3);
       if(clientId&&!b.client_id)b.client_id=clientId;
@@ -9050,6 +9044,8 @@ function saveAndExitEstimate(){
       b.roomScopeMap=JSON.parse(JSON.stringify(roomScopeMap));
       b.paint=document.getElementById('e-paint')?.value||'';
       b.days=days;
+      b.name=cname;b.phone=cphone;b.addr=caddr;
+      b.notes=document.getElementById('e-cnotes')?.value||b.notes||'';
     }
   } else {
     const c=clientId?getClientById(clientId):null;
@@ -9596,6 +9592,12 @@ function goToExpenses(){
   },150);
 }
 function goToPending(){leadFilter='pending';goPg('pg-leads');setTimeout(()=>setLeadFilter('pending',document.getElementById('lft-pending')),50);}
+function markBidNoResponseFromDash(bidId){
+  const b=bids.find(x=>x.id===bidId);if(!b)return;
+  zConfirm('Mark "'+( (b.client_name||b.name||'Client'))+'" as no response and archive this bid?',()=>{
+    b.status='Abandoned';saveAll();renderDash();
+  },{title:'No response?',yes:'Archive it',danger:false});
+}
 
 function connectLaserFromSurf(){zAlert("Laser integration not available.");}
 function closeTopModal(){const o=document.querySelector('.zmodal-overlay');if(o&&typeof o.remove==='function')o.remove();else if(o&&o.parentNode)o.parentNode.removeChild(o);}

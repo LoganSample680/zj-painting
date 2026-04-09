@@ -2060,7 +2060,7 @@ function isOwner(){return getRole()==='owner';}
 function canSeePricing(){return getRole()==='owner'||getRole()==='estimator';}
 function canSeeTaxes(){return isOwner();}
 function getConfig(){return _config||BUSINESS_CONFIGS.painting;}
-function getBusinessName(){return _account?.business_name||S.bname||"TradeDesk";}
+function getBusinessName(){return _account?.business_name||S.bname||"ZJ's Painting & Special Coatings";}
 function getUserName(){return _user?.name||'';}
 function getOwnerName(){
   // Check localStorage first (device-specific, fast)
@@ -8486,7 +8486,7 @@ async function sendProposalLink(){
   if(btn){btn.textContent='⏳ Saving...';btn.disabled=true;}
   try{
     const cname=document.getElementById('e-cname')?.value||'Client';
-    const bname=document.getElementById('e-bname')?.value||S.bname||'TradeDesk';
+    const bname=document.getElementById('e-bname')?.value||S.bname||"ZJ's Painting & Special Coatings";
     const bidId=lastCreatedBidId||Date.now();
     const token=Math.random().toString(36).slice(2)+Math.random().toString(36).slice(2);
     const proposalKey=`proposals/${_supaUser.id}/${bidId}_${token}.json`;
@@ -8561,7 +8561,8 @@ function copyProposalLink(){
 }
 function _proposalShareData(){
   const bar=document.getElementById('proposal-link-bar');
-  return bar?{url:bar.dataset.signingUrl||'',cname:bar.dataset.cname||'Client',bname:bar.dataset.bname||S.bname||'Us',cphone:bar.dataset.cphone||'',cemail:bar.dataset.cemail||''}:{url:'',cname:'Client',bname:S.bname||'Us',cphone:'',cemail:''};
+  const defBname=S.bname||"ZJ's Painting & Special Coatings";
+  return bar?{url:bar.dataset.signingUrl||'',cname:bar.dataset.cname||'Client',bname:bar.dataset.bname||defBname,cphone:bar.dataset.cphone||'',cemail:bar.dataset.cemail||''}:{url:'',cname:'Client',bname:defBname,cphone:'',cemail:''};
 }
 function sendProposalViaSms(){
   const d=_proposalShareData();

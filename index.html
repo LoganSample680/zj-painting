@@ -1240,6 +1240,7 @@ input:checked+.dm-slider:before{transform:translateX(22px)}</style>
           <div style="flex:1;min-width:0;overflow:hidden">
             <div id="proposal-link-label" style="font-size:13px;font-weight:700;color:var(--blue-dk);white-space:nowrap;overflow:hidden;text-overflow:ellipsis"></div>
             <div id="proposal-link-sublabel" style="font-size:11px;color:var(--text3);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis"></div>
+            <div id="proposal-link-shorturl" style="font-size:11px;color:var(--blue);margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-weight:600"></div>
           </div>
           <div style="font-size:11px;color:var(--blue);white-space:nowrap;flex-shrink:0;font-weight:600">View ↗</div>
         </div>
@@ -8469,6 +8470,14 @@ function saveStripeKey(){
 }
 function syncAdj(){const pct=parseInt(v('est-adj')||0);document.getElementById('est-adj-val').textContent=(pct>0?'+':'')+pct+'%';renderEstReview();}
 
+async function shortenUrl(url){
+  // TinyURL open API — no key required, falls back to original URL on failure
+  try{
+    const r=await fetch('https://tinyurl.com/api-create.php?url='+encodeURIComponent(url),{signal:AbortSignal.timeout(5000)});
+    if(r.ok){const s=(await r.text()).trim();if(s.startsWith('https://tinyurl.com/'))return s;}
+  }catch(e){console.warn('URL shortener unavailable, using full URL');}
+  return url;
+}
 async function sendProposalLink(){
   const proposal=document.getElementById('est-proposal');
   if(!proposal||!proposal.innerHTML.trim()){zAlert('Generate the proposal first.',{title:'Nothing to print'});return;}
@@ -8499,29 +8508,32 @@ async function sendProposalLink(){
     const baseUrl=window.location.origin+window.location.pathname.split('index.html')[0];
     const signingUrl=baseUrl+'sign.html?t='+token+'&u='+_supaUser.id+'&b='+bidId;
     const dateStr=new Date().toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});
-    const linkLabel=bname+' — '+cname+' — '+dateStr+' — Proposal';
+    // Shorten URL so clients see tinyurl.com/xxxxx instead of raw GitHub URL
+    if(btn)btn.textContent='⏳ Shortening link...';
+    const shortUrl=await shortenUrl(signingUrl);
     const bar=document.getElementById('proposal-link-bar');
     const input=document.getElementById('proposal-link-input');
     const labelEl=document.getElementById('proposal-link-label');
     const sublabelEl=document.getElementById('proposal-link-sublabel');
+    const shorturlEl=document.getElementById('proposal-link-shorturl');
     if(bar){
       bar.style.display='block';
-      // Store share data on the element for SMS/email functions
-      bar.dataset.signingUrl=signingUrl;
+      bar.dataset.signingUrl=shortUrl;
       bar.dataset.cname=cname;
       bar.dataset.bname=bname;
       const c=getClientById(estLinkedClientId);
       bar.dataset.cphone=(document.getElementById('e-cphone')?.value||c?.phone||'').replace(/\D/g,'');
       bar.dataset.cemail=c?.email||'';
     }
-    if(input)input.value=signingUrl;
+    if(input)input.value=shortUrl;
     if(labelEl)labelEl.textContent=cname+"'s Painting Estimate";
     if(sublabelEl){
       const est=calcEst();const tot=Math.max(0,est.laborTotal+est.matTotal);
       const rounded=Math.round(tot/25)*25||tot;
       sublabelEl.textContent=bname+' · '+fmt(rounded)+' · '+dateStr;
     }
-    const anchorEl=document.getElementById('proposal-link-anchor');if(anchorEl)anchorEl.href=signingUrl;
+    if(shorturlEl)shorturlEl.textContent=shortUrl.replace(/^https?:\/\//,'');
+    const anchorEl=document.getElementById('proposal-link-anchor');if(anchorEl)anchorEl.href=shortUrl;
     const bid=bids.find(b=>b.id===bidId);
     if(bid){bid.signingToken=token;bid.signingKey=proposalKey;saveAll();}
     if(btn){btn.textContent='✓ Link ready';btn.disabled=false;}

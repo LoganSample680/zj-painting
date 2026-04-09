@@ -1613,9 +1613,9 @@ input:checked+.dm-slider:before{transform:translateX(22px)}</style>
     <div class="fg" style="grid-template-columns:1fr 1fr;gap:9px">
       <div class="f"><label>Profit margin target (%)</label><input type="number" id="set-margin"></div>
       <div class="f"><label>Paint coverage (sq ft/gal)</label><input type="number" id="set-cov"></div>
-      <div class="f"><label>Standard paint ($/gal)</label><input type="number" id="set-p1"></div>
-      <div class="f"><label>Premium paint ($/gal)</label><input type="number" id="set-p2"></div>
-      <div class="f"><label>Ultra paint ($/gal)</label><input type="number" id="set-p3"></div>
+      <div class="f"><label>Standard paint — retail ($/gal)</label><input type="number" id="set-p1"></div>
+      <div class="f"><label>Premium paint — retail ($/gal)</label><input type="number" id="set-p2"></div>
+      <div class="f"><label>Ultra paint — retail ($/gal)</label><input type="number" id="set-p3"></div>
       <div style="grid-column:1/-1">
         <a href="https://www.sherwin-williams.com/en-us/paint/interior-paint" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;gap:6px;font-size:12px;color:var(--blue);font-weight:600;text-decoration:none;padding:6px 10px;background:var(--blue-lt);border-radius:var(--r);border:1px solid var(--blue)">
           🔗 Check current Sherwin-Williams prices
@@ -2022,7 +2022,7 @@ const CHECKS=[
 ];
 const CAT_CFG={urgent:{label:'Do right away',color:'#A32D2D'},biz:{label:'Business setup in Kansas',color:'#185FA5'},tax:{label:'Tax & accounting',color:'#854F0B'},ks:{label:'Kansas market & marketing',color:'#27500A'}};
 
-let S={stripePk:'',goalMonthly:0,laborRate:45,irsRate:.700,taxYear:2026,fedSingle:14600,fedMFJ:29200,fedMFS:14600,fedHOH:21900,b10:11600,b12:47150,b22:100525,b24:191950,b32:243725,b35:609350,ksLow:3.1,ksTop:33000,ksHigh:5.7,ksStdS:3500,ksStdM:8000,bname:"ZJ's Painting & Special Coatings",bphone:'',blic:'Licensed & Insured',veh:'',margin:40,cov:350,p1:38,p2:62,p3:88,mm:15,rWalls:1.30,rCeil:1.00,rTrim:3.25,rDoor:95,rWin:50,rExt:1.10,rDeck:1.00};
+let S={stripePk:'',goalMonthly:0,laborRate:45,irsRate:.700,taxYear:2026,fedSingle:14600,fedMFJ:29200,fedMFS:14600,fedHOH:21900,b10:11600,b12:47150,b22:100525,b24:191950,b32:243725,b35:609350,ksLow:3.1,ksTop:33000,ksHigh:5.7,ksStdS:3500,ksStdM:8000,bname:"ZJ's Painting & Special Coatings",bphone:'',blic:'Licensed & Insured',veh:'',margin:40,cov:350,p1:83,p2:65,p3:95,mm:15,rWalls:1.30,rCeil:1.00,rTrim:3.25,rDoor:95,rWin:50,rExt:1.10,rDeck:1.00};
 
 // ── Account / User / Config global state ─────────────────────────────
 let _account=null;   // accounts row
@@ -2206,7 +2206,7 @@ function loadSettingsForm(){
 }
 function saveSettings(){
   const gf=id=>parseFloat(v(id))||0,gs=id=>v(id);
-  setOwnerName(gs('set-owner-name')||getOwnerName()||'');S={...S,goalMonthly:gf('set-goal-monthly')||0,irsRate:gf('set-irs')||.670,taxYear:parseInt(v('set-year'))||2024,fedSingle:gf('set-fs')||14600,fedMFJ:gf('set-fm')||29200,fedMFS:gf('set-fms')||14600,fedHOH:gf('set-fh')||21900,b10:gf('set-b10')||11600,b12:gf('set-b12')||47150,b22:gf('set-b22')||100525,b24:gf('set-b24')||191950,b32:gf('set-b32')||243725,b35:gf('set-b35')||609350,ksLow:gf('set-ksl')||3.1,ksTop:gf('set-kst')||33000,ksHigh:gf('set-ksh')||5.7,ksStdS:gf('set-kss')||3500,ksStdM:gf('set-ksm')||8000,laborRate:gf('set-labor-rate')||45,bname:gs('set-bname'),bphone:gs('set-bphone'),blic:gs('set-blic'),state:gs('set-state')||S.state||'',bemail:gs('set-bemail'),veh:gs('set-veh'),stripePk:gs('set-stripe-pk')||'',vehicles:S.vehicles||[],margin:gf('set-margin')||25,cov:gf('set-cov')||350,p1:gf('set-p1')||35,p2:gf('set-p2')||58,p3:gf('set-p3')||82,mm:gf('set-mm')||20,rWalls:gf('set-r-walls')||1.30,rCeil:gf('set-r-ceil')||1.00,rTrim:gf('set-r-trim')||3.25,rDoor:gf('set-r-door')||95,rWin:gf('set-r-win')||50,rExt:gf('set-r-ext')||1.10,rDeck:gf('set-r-deck')||1.00,reviewUrl:gs('set-review-url')||''};
+  setOwnerName(gs('set-owner-name')||getOwnerName()||'');S={...S,goalMonthly:gf('set-goal-monthly')||0,irsRate:gf('set-irs')||.670,taxYear:parseInt(v('set-year'))||2024,fedSingle:gf('set-fs')||14600,fedMFJ:gf('set-fm')||29200,fedMFS:gf('set-fms')||14600,fedHOH:gf('set-fh')||21900,b10:gf('set-b10')||11600,b12:gf('set-b12')||47150,b22:gf('set-b22')||100525,b24:gf('set-b24')||191950,b32:gf('set-b32')||243725,b35:gf('set-b35')||609350,ksLow:gf('set-ksl')||3.1,ksTop:gf('set-kst')||33000,ksHigh:gf('set-ksh')||5.7,ksStdS:gf('set-kss')||3500,ksStdM:gf('set-ksm')||8000,laborRate:gf('set-labor-rate')||45,bname:gs('set-bname'),bphone:gs('set-bphone'),blic:gs('set-blic'),state:gs('set-state')||S.state||'',bemail:gs('set-bemail'),veh:gs('set-veh'),stripePk:gs('set-stripe-pk')||'',vehicles:S.vehicles||[],margin:gf('set-margin')||25,cov:gf('set-cov')||350,p1:gf('set-p1')||83,p2:gf('set-p2')||65,p3:gf('set-p3')||95,mm:gf('set-mm')||20,rWalls:gf('set-r-walls')||1.30,rCeil:gf('set-r-ceil')||1.00,rTrim:gf('set-r-trim')||3.25,rDoor:gf('set-r-door')||95,rWin:gf('set-r-win')||50,rExt:gf('set-r-ext')||1.10,rDeck:gf('set-r-deck')||1.00,reviewUrl:gs('set-review-url')||''};
   applySettings();saveAll();
   const el=document.getElementById('set-saved');if(el){el.style.display='block';setTimeout(()=>el.style.display='none',3000);}
 }
@@ -2230,7 +2230,7 @@ function clearMileageOnly(){
   },{title:'Clear mileage',yes:'Delete mileage',danger:true});
 }
 
-function resetSettings(){zConfirm('Reset all settings to defaults?',()=>{S={irsRate:.700,taxYear:2026,fedSingle:14600,fedMFJ:29200,fedMFS:14600,fedHOH:21900,b10:11600,b12:47150,b22:100525,b24:191950,b32:243725,b35:609350,ksLow:3.1,ksTop:33000,ksHigh:5.7,ksStdS:3500,ksStdM:8000,bname:"ZJ's Painting & Special Coatings",bphone:'',blic:'Licensed & Insured',veh:'',margin:40,cov:350,p1:38,p2:62,p3:88,mm:15,rWalls:1.30,rCeil:1.00,rTrim:3.25,rDoor:95,rWin:50,rExt:1.10,rDeck:1.00};applySettings();loadSettingsForm();},{title:'Reset settings',yes:'Reset',danger:false});}
+function resetSettings(){zConfirm('Reset all settings to defaults?',()=>{S={irsRate:.700,taxYear:2026,fedSingle:14600,fedMFJ:29200,fedMFS:14600,fedHOH:21900,b10:11600,b12:47150,b22:100525,b24:191950,b32:243725,b35:609350,ksLow:3.1,ksTop:33000,ksHigh:5.7,ksStdS:3500,ksStdM:8000,bname:"ZJ's Painting & Special Coatings",bphone:'',blic:'Licensed & Insured',veh:'',margin:40,cov:350,p1:83,p2:65,p3:95,mm:15,rWalls:1.30,rCeil:1.00,rTrim:3.25,rDoor:95,rWin:50,rExt:1.10,rDeck:1.00};applySettings();loadSettingsForm();},{title:'Reset settings',yes:'Reset',danger:false});}
 function resetLocationPermission(){
   // Clear stored location so modal re-prompts
   delete S.weatherLat;delete S.weatherLon;S.locationDenied=false;
@@ -2370,7 +2370,7 @@ function _doOpenEstimate(c){
     if(S.blic)sf('e-blic',S.blic);
     sf('e-r-walls',S.rWalls||1.30);sf('e-r-ceil',S.rCeil||1.00);sf('e-r-trim',S.rTrim||3.25);sf('e-r-walls-adv',S.rWalls||1.30);sf('e-r-ceil-adv',S.rCeil||1.00);sf('e-r-trim-adv',S.rTrim||3.25);sf('e-r-door',S.rDoor||95);sf('e-r-door-adv',S.rDoor||95);sf('e-r-win',S.rWin||50);sf('e-r-ext',S.rExt||1.10);sf('e-r-deck',S.rDeck||1.00);
     sf('e-r-door',S.rDoor||95);sf('e-r-win',S.rWin||50);sf('e-r-ext',S.rExt||1.10);
-    sf('e-r-deck',S.rDeck||1.00);sf('e-paint-rate',42);
+    sf('e-r-deck',S.rDeck||1.00);sf('e-paint-rate',83);
     SCOPE_ITEMS.forEach(sc=>{sf(sc.rateKey,sc.defaultRate);});
     const cmiles=getClientMileage(currentClientId);
     const totalMiles=cmiles.reduce((s,m)=>s+(m.miles||0),0);
@@ -5225,7 +5225,7 @@ function openEditBid(bidId,startStep){
     if(S.bphone)sf('e-bphone',S.bphone);
     if(S.blic)sf('e-blic',S.blic);
     sf('e-labor-rate',S.laborRate||45);
-    sf('e-paint-rate',42);
+    sf('e-paint-rate',83);
     sf('e-cname',c?c.name:b.name||'');
     sf('e-cphone',c?c.phone:b.phone||'');
     sf('e-caddr',c?c.addr:b.addr||'');
@@ -6195,9 +6195,9 @@ const SW_PRODUCTS={
     {id:'emde',   name:'Emerald Designer',   sub:'Best of best · flawless, burnish resistant',price:'$$$$'},
   ],
   ceiling:[
-    {id:'pm200c', name:'ProMar Ceiling',     sub:'Contractor ceiling paint · flat white',     price:'$',   retail:55,  contractor:22, cov:350},
-    {id:'emin',   name:'Eminence Ceiling',   sub:'Self-priming · bright white, one-coat',     price:'$$',  retail:37,  contractor:28, cov:400},
-    {id:'emceil', name:'Emerald (flat)',      sub:'Premium ceiling · tintable any color',      price:'$$$$',retail:74,  contractor:52, cov:400},
+    {id:'pm200c', name:'ProMar Ceiling',     sub:'Flat white only · cannot be tinted',        price:'$',   retail:55,  contractor:22, cov:350},
+    {id:'emin',   name:'Eminence Ceiling',   sub:'Bright white only · self-priming, one-coat',price:'$$',  retail:37,  contractor:28, cov:400},
+    {id:'emceil', name:'Emerald (flat)',      sub:'Tintable any color · premium ceiling',      price:'$$$$',retail:74,  contractor:52, cov:400},
   ],
   exterior:[
     {id:'a100',   name:'A-100 Exterior',     sub:'Budget exterior · good value',              price:'$',   retail:49,  contractor:30, cov:350},
@@ -6312,7 +6312,7 @@ function swRenderProductGrid(surfType){
   if(altProducts){
     const divider=document.createElement('div');
     divider.style.cssText='grid-column:1/-1;padding:6px 0 2px;font-size:10px;font-weight:800;text-transform:uppercase;color:var(--text3);border-top:1px solid var(--border);margin-top:4px';
-    divider.textContent='Or use a wall paint (flat sheen):';
+    divider.textContent='Colored ceiling? Use a wall paint in flat sheen:';
     grid.appendChild(divider);
     altProducts.forEach(p=>grid.appendChild(makeBtn(p,prevProductId===p.id,!prevProductId&&p.id===tierProductId)));
   }
@@ -6340,8 +6340,8 @@ function swShowProductInfo(id){
     row('🚫','Not ideal for',info.notFor)+
     row('🏠','Best jobs',info.jobs)+
     (info.hasPrice?'<div style="background:var(--green-lt);border-radius:var(--r);padding:10px 12px;margin-bottom:8px">'+
-      '<div style="font-size:10px;font-weight:800;text-transform:uppercase;color:var(--text3);margin-bottom:3px">💰 Pricing (contractor rate)</div>'+
-      '<div style="font-size:12px;color:var(--text);line-height:1.6">~$'+info.contractorPrice+'/gal contractor · ~$'+info.retailPrice+'/gal retail<br>Covers ~'+info.coverage+' sq ft/gal · <span style="color:var(--text3)">Prices updated '+info.updated+'</span></div>'+
+      '<div style="font-size:10px;font-weight:800;text-transform:uppercase;color:var(--text3);margin-bottom:3px">💰 Pricing</div>'+
+      '<div style="font-size:12px;color:var(--text);line-height:1.6">~$'+info.retailPrice+'/gal retail · ~$'+info.contractorPrice+'/gal contractor<br>Covers ~'+info.coverage+' sq ft/gal · <span style="color:var(--text3)">Prices updated '+info.updated+'</span></div>'+
     '</div>':'');
   ov.appendChild(sheet);
   ov.onclick=(e)=>{if(e.target===ov)ov.remove();};
@@ -8086,7 +8086,8 @@ function calcEst(){
     ext_trim: gR('e-r-trim')||S.rTrim ||3.25,
     deck:    gR('e-r-deck') ||S.rDeck ||1.00,
   };
-  const paintCostPerGal=gR('e-paint-rate')||(estSurfaces.some(s=>s.type==='ext_walls'||s.type==='ext_trim'||s.type==='deck')?106:42);
+  // 83 = ProMar 200 retail; 81 = Duration Exterior retail — client-facing prices, not contractor cost
+  const paintCostPerGal=gR('e-paint-rate')||(estSurfaces.some(s=>s.type==='ext_walls'||s.type==='ext_trim'||s.type==='deck')?81:83);
   const customerPaint=document.getElementById('e-customer-paint')?.value==='1'||false;
   const cov=COVERAGE();const matMark=MATMARK();const coats=scopeOn('twocoat')?2:1;
   let laborTotal=0,totalLaborHours=0;const lines=[];
@@ -8135,11 +8136,12 @@ function calcEst(){
     return p?.cov||COVERAGE();
   }
   function _prodContractorPrice(roomStr){
+    // Use retail price — client is quoted retail; Zach's contractor discount is his margin to keep
     const spec=(roomStr||'').indexOf(' — ')>-1?(roomStr||'').split(' — ').slice(1).join(' — '):'';
     const prodName=spec.split(' · ')[0].trim();
     if(!prodName)return paintCostPerGal;
     const p=_allSwProds.find(x=>x.name===prodName||x.name.toLowerCase()===prodName.toLowerCase());
-    return p?.contractor||paintCostPerGal;
+    return p?.retail||paintCostPerGal;
   }
 
   let matTotal=0;const paintLines=[];
@@ -9173,7 +9175,7 @@ function prefillEstimateRates(){
   if(S.blic)sf('e-blic',S.blic);
   sf('e-r-walls',S.rWalls||1.30);sf('e-r-ceil',S.rCeil||1.00);sf('e-r-trim',S.rTrim||3.25);sf('e-r-walls-adv',S.rWalls||1.30);sf('e-r-ceil-adv',S.rCeil||1.00);sf('e-r-trim-adv',S.rTrim||3.25);sf('e-r-door',S.rDoor||95);sf('e-r-door-adv',S.rDoor||95);sf('e-r-win',S.rWin||50);sf('e-r-ext',S.rExt||1.10);sf('e-r-deck',S.rDeck||1.00);
   sf('e-r-door',S.rDoor||95);sf('e-r-win',S.rWin||50);sf('e-r-ext',S.rExt||1.10);
-  sf('e-r-deck',S.rDeck||1.00);sf('e-paint-rate',42);
+  sf('e-r-deck',S.rDeck||1.00);sf('e-paint-rate',83);
   SCOPE_ITEMS.forEach(sc=>{sf(sc.rateKey,sc.defaultRate);});
 }
 function checkStep1Ready(){

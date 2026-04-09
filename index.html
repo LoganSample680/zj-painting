@@ -6269,15 +6269,21 @@ function swRenderProductGrid(surfType){
   if(hdr)hdr.textContent='Choose product for: '+(SURF_NICE[surfType]||surfType);
 
   const prevProductId=_swLastProductByCategory[category]||null;
+  // If no previous pick, use the property tier recommendation as the default
+  const tierProductId=!prevProductId&&estPropertyTier&&estPropertyTier.products
+    ?(estPropertyTier.products[category]||estPropertyTier.products.interior)
+    :null;
 
-  const makeBtn=(p,isSuggested)=>{
+  const makeBtn=(p,isSuggested,isTierRec)=>{
     const btn=document.createElement('button');
     btn.type='button';
     btn.dataset.id=p.id;
-    btn.style.cssText='padding:8px 10px;border-radius:var(--r);border:'+(isSuggested?'2px dashed var(--blue)':'1px solid var(--border2)')+';background:'+(isSuggested?'var(--blue-lt)':'var(--bg)')+';cursor:pointer;font-family:inherit;text-align:left;transition:border .1s;position:relative';
+    const isHighlit=isSuggested||isTierRec;
+    btn.style.cssText='padding:8px 10px;border-radius:var(--r);border:'+(isHighlit?'2px solid var(--blue)':'1px solid var(--border2)')+';background:'+(isHighlit?'var(--blue-lt)':'var(--bg)')+';cursor:pointer;font-family:inherit;text-align:left;transition:border .1s;position:relative';
+    const badge=isTierRec?'<span style="font-size:9px;font-weight:800;text-transform:uppercase;color:var(--blue);background:var(--bg);border:1px solid var(--blue);border-radius:8px;padding:1px 5px;margin-left:4px">Recommended</span>':'';
     btn.innerHTML='<div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:2px;padding-right:18px">'+
-      '<span style="font-size:12px;font-weight:700;color:var(--text)">'+p.name+'</span>'+
-      '<span style="font-size:11px;color:var(--text3)">'+p.price+(isSuggested?' · <span style="color:var(--blue)">used last</span>':'')+'</span>'+
+      '<span style="font-size:12px;font-weight:700;color:var(--text)">'+p.name+badge+'</span>'+
+      '<span style="font-size:11px;color:var(--text3)">'+p.price+(isSuggested&&!isTierRec?' · <span style="color:var(--blue)">used last</span>':'')+'</span>'+
       '</div>'+
       '<div style="font-size:10px;color:var(--text3);line-height:1.3">'+p.sub+'</div>'+
       (SW_PRODUCT_INFO[p.id]?'<span onclick="event.stopPropagation();swShowProductInfo(\''+p.id+'\')" style="position:absolute;top:6px;right:7px;font-size:14px;color:var(--text3);cursor:pointer;line-height:1" title="Learn more">ⓘ</span>':'');
@@ -6288,7 +6294,19 @@ function swRenderProductGrid(surfType){
   grid.innerHTML='';
 
   // Primary products for this surface
-  products.forEach(p=>grid.appendChild(makeBtn(p,prevProductId===p.id)));
+  products.forEach(p=>grid.appendChild(makeBtn(p,prevProductId===p.id,!prevProductId&&p.id===tierProductId)));
+
+  // Auto-select tier recommendation if no previous pick (user can still override)
+  if(tierProductId&&!prevProductId){
+    const allProducts=[...products,...(altProducts||[])];
+    const recP=allProducts.find(p=>p.id===tierProductId);
+    if(recP){
+      setTimeout(()=>{
+        const recBtn=grid.querySelector('[data-id="'+tierProductId+'"]');
+        if(recBtn)swSelectProduct(recP,recBtn);
+      },0);
+    }
+  }
 
   // For ceiling: add divider then all interior wall products as alternatives
   if(altProducts){
@@ -6296,7 +6314,7 @@ function swRenderProductGrid(surfType){
     divider.style.cssText='grid-column:1/-1;padding:6px 0 2px;font-size:10px;font-weight:800;text-transform:uppercase;color:var(--text3);border-top:1px solid var(--border);margin-top:4px';
     divider.textContent='Or use a wall paint (flat sheen):';
     grid.appendChild(divider);
-    altProducts.forEach(p=>grid.appendChild(makeBtn(p,prevProductId===p.id)));
+    altProducts.forEach(p=>grid.appendChild(makeBtn(p,prevProductId===p.id,!prevProductId&&p.id===tierProductId)));
   }
 }
 
@@ -9120,10 +9138,14 @@ function syncAdvRate(advId,hiddenId){
   if(typeof renderEstRunning==='function')renderEstRunning();
 }
 const PROP_TIERS={
-  rental: {key:'rental',mult:0.82,paint:'ProMar 700',label:'Rental / Fixer',hint:'Basic finish — ProMar 700. Price reflects straightforward prep on a budget property.'},
-  avg:    {key:'avg',   mult:1.00,paint:'ProMar 200',label:'Average Home',  hint:'Standard job — ProMar 200. Solid work, everyday homeowner.'},
-  nice:   {key:'nice',  mult:1.22,paint:'SuperPaint', label:'Well-Maintained',hint:'Owner takes pride — SuperPaint or Cashmere. Extra care, better finish.'},
-  premium:{key:'premium',mult:1.50,paint:'Duration Home',label:'High-End / Premium',hint:'Demanding client or luxury home — Duration or Emerald. Top quality throughout.'},
+  rental: {key:'rental',mult:0.82,paint:'ProMar 700',label:'Rental / Fixer',hint:'Basic finish — ProMar 700. Price reflects straightforward prep on a budget property.',
+    products:{interior:'pm700',exterior:'a100',ceiling:'pm200c',trim:'pm200t'}},
+  avg:    {key:'avg',   mult:1.00,paint:'ProMar 200',label:'Average Home',  hint:'Standard job — ProMar 200. Solid work, everyday homeowner.',
+    products:{interior:'pm200',exterior:'spe',ceiling:'pm200c',trim:'pm200t'}},
+  nice:   {key:'nice',  mult:1.22,paint:'SuperPaint', label:'Well-Maintained',hint:'Owner takes pride — SuperPaint or Cashmere. Extra care, better finish.',
+    products:{interior:'sp',exterior:'spe',ceiling:'emin',trim:'pclassw'}},
+  premium:{key:'premium',mult:1.50,paint:'Duration Home',label:'High-End / Premium',hint:'Demanding client or luxury home — Duration or Emerald. Top quality throughout.',
+    products:{interior:'dur',exterior:'dure',ceiling:'emceil',trim:'pclassw'}},
 };
 function selectPropertyTier(key){
   const tier=PROP_TIERS[key];if(!tier)return;

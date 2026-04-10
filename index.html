@@ -483,6 +483,7 @@ input:checked+.dm-slider:before{transform:translateX(22px)}</style>
   </div>
   <div id="dash-resume" style="margin-bottom:10px;display:none"></div>
   <div id="dash-resume-est" style="margin-bottom:10px"></div>
+  <div id="dash-sent-proposals" style="margin-bottom:10px"></div>
   <div id="dash-goal" style="margin-bottom:10px"></div>
   <div id="dash-pipeline"></div>
   <div class="card"><div class="card-hd">Today on the calendar</div><div id="dash-today"></div></div>
@@ -2570,62 +2571,77 @@ function renderDash(){
   if(csub){csub.textContent=subCollect;csub.style.color=collectItems.length?'#A32D2D':'var(--text3)';}
 
   renderPipeline();
-  // Unified pending estimates section
+  // Section shared styles
+  const _rowStyle='display:flex;align-items:center;gap:8px;padding:8px 10px;background:var(--bg2);border:1px solid var(--border);border-radius:var(--r);margin-bottom:6px';
+  const _nameStyle='font-size:13px;font-weight:700;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis';
+  const _btnStyle='font-size:11px;background:var(--bg);border-color:var(--border2)';
+  const _xStyle='font-size:11px;color:var(--text3);padding:6px 8px;background:var(--bg);border-color:var(--border2)';
+  // ── Section 1: Estimates in progress (not yet sent to client) ──
   const resumeEl=document.getElementById('dash-resume-est');
   if(resumeEl){
-    // Only show estimates still being built — Draft status or Pending with no bid_date (never sent)
-    const pendingBids=bids.filter(b=>(b.status==='Draft')||(b.status==='Pending'&&!b.bid_date)).sort((a,b)=>(b.bid_date||'').localeCompare(a.bid_date||''));
     const draft=loadEstFullDraft();
     const hasDraft=!!(draft&&draft.cname);
-    const hasAny=hasDraft||pendingBids.length>0;
-    if(!hasAny){resumeEl.innerHTML='';} else {
-      let html='<div style="background:var(--bg);border:1px solid var(--border);border-radius:var(--rl);padding:10px 14px;margin-bottom:8px">';
-      // Section header
-      const total=pendingBids.length+(hasDraft?1:0);
-      html+='<div style="font-size:12px;font-weight:700;color:var(--text);margin-bottom:6px">✏️ Estimates in progress ('+(total)+')</div>';
-      const rowStyle='display:flex;align-items:center;gap:8px;padding:8px 10px;background:var(--bg2);border:1px solid var(--border);border-radius:var(--r);margin-bottom:6px';
-      const nameStyle='font-size:13px;font-weight:700;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis';
-      const subStyle='font-size:11px;color:var(--text3);margin-top:1px';
-      const btnStyle='font-size:11px;background:var(--bg);border-color:var(--border2)';
-      const xStyle='font-size:11px;color:var(--text3);padding:6px 8px;background:var(--bg);border-color:var(--border2)';
-      // Draft row (unsaved, localStorage only)
+    // In-progress = Draft status OR Pending with no signingToken (never sent)
+    const inProgressBids=bids.filter(b=>(b.status==='Draft')||(b.status==='Pending'&&!b.signingToken)).sort((a,b)=>(b.bid_date||'').localeCompare(a.bid_date||''));
+    const total=inProgressBids.length+(hasDraft?1:0);
+    if(!total){resumeEl.innerHTML='';} else {
+      let html='<div style="background:var(--bg);border:1px solid var(--border);border-radius:var(--rl);padding:10px 14px">';
+      html+='<div style="font-size:12px;font-weight:700;color:var(--text);margin-bottom:8px">✏️ Estimates in progress ('+total+')</div>';
       if(hasDraft){
-        html+='<div style="'+rowStyle+'">'+
-          '<div style="flex:1;min-width:0">'+
-            '<div style="'+nameStyle+'">'+draft.cname+'</div>'+
-            '<div style="'+subStyle+'">Draft — not yet sent</div>'+
-          '</div>'+
+        html+='<div style="'+_rowStyle+'">'+
+          '<div style="flex:1;min-width:0"><div style="'+_nameStyle+'">'+draft.cname+'</div>'+
+          '<div style="font-size:11px;color:var(--text3);margin-top:1px">Unsaved draft</div></div>'+
           '<div style="display:flex;gap:5px;flex-shrink:0">'+
-            '<button onclick="resumeEstimateDraft()" class="btn btn-sm btn-p" style="'+btnStyle+'">Resume</button>'+
-            '<button onclick="clearEstFullDraft();renderDash()" class="btn btn-sm" style="'+xStyle+'">✕</button>'+
-          '</div>'+
-        '</div>';
+            '<button onclick="resumeEstimateDraft()" class="btn btn-sm btn-p" style="'+_btnStyle+'">Resume</button>'+
+            '<button onclick="clearEstFullDraft();renderDash()" class="btn btn-sm" style="'+_xStyle+'">✕</button>'+
+          '</div></div>';
       }
-      // Pending bids (saved, awaiting client response)
-      pendingBids.forEach(b=>{
+      inProgressBids.forEach(b=>{
         const cl=clients.find(c=>c.id===b.client_id);
         const name=cl?cl.name:(b.client_name||b.name||'Client');
-        const days=Math.floor((new Date(todayKey())-new Date((b.bid_date||todayKey())+'T12:00:00'))/86400000);
-        const urgency=days>=14?'color:#A32D2D':days>=7?'color:var(--amber)':'color:var(--text3)';
-        const daysStr=b.bid_date?(days===0?'Sent today':days===1?'1d waiting':days+'d waiting'):'Not yet sent';
         const amt=b.amount?fmt(b.amount):'No total yet';
-        html+='<div style="'+rowStyle+'">'+
-          '<div style="flex:1;min-width:0;cursor:pointer" onclick="viewBidClient('+b.client_id+')">'+
-            '<div style="'+nameStyle+'">'+name+'</div>'+
-            '<div style="font-size:11px;'+urgency+';margin-top:1px">'+amt+' · '+daysStr+'</div>'+
-          '</div>'+
+        html+='<div style="'+_rowStyle+'">'+
+          '<div style="flex:1;min-width:0"><div style="'+_nameStyle+'">'+name+'</div>'+
+          '<div style="font-size:11px;color:var(--text3);margin-top:1px">'+amt+' — saved, not sent</div></div>'+
           '<div style="display:flex;gap:5px;flex-shrink:0">'+
-            '<button onclick="openEditBid('+b.id+',4)" class="btn btn-sm" style="'+btnStyle+'">Edit</button>'+
-            '<button onclick="markBidNoResponseFromDash('+b.id+')" class="btn btn-sm" style="'+xStyle+'" title="No response — archive">✕</button>'+
-          '</div>'+
-        '</div>';
+            '<button onclick="openEditBid('+b.id+',1)" class="btn btn-sm btn-p" style="'+_btnStyle+'">Resume</button>'+
+            '<button onclick="discardInProgressBid('+b.id+')" class="btn btn-sm" style="'+_xStyle+'">✕</button>'+
+          '</div></div>';
       });
       html+='</div>';
       resumeEl.innerHTML=html;
     }
   }
+  // ── Section 2: Sent proposals (link sent, awaiting signature) ──
+  const sentEl=document.getElementById('dash-sent-proposals');
+  if(sentEl){
+    const sentBids=bids.filter(b=>b.status==='Pending'&&b.signingToken).sort((a,b)=>(b.bid_date||'').localeCompare(a.bid_date||''));
+    if(!sentBids.length){sentEl.innerHTML='';} else {
+      let html='<div style="background:var(--bg);border:1px solid var(--border);border-radius:var(--rl);padding:10px 14px">';
+      html+='<div style="font-size:12px;font-weight:700;color:var(--text);margin-bottom:8px">📨 Sent proposals — awaiting signature ('+sentBids.length+')</div>';
+      sentBids.forEach(b=>{
+        const cl=clients.find(c=>c.id===b.client_id);
+        const name=cl?cl.name:(b.client_name||b.name||'Client');
+        const days=b.bid_date?Math.floor((new Date(todayKey())-new Date(b.bid_date+'T12:00:00'))/86400000):0;
+        const urgency=days>=14?'color:#A32D2D':days>=7?'color:var(--amber)':'color:var(--text3)';
+        const daysStr=days===0?'Sent today':days===1?'1d waiting':days+'d waiting';
+        const amt=b.amount?fmt(b.amount):'—';
+        html+='<div style="'+_rowStyle+'">'+
+          '<div style="flex:1;min-width:0;cursor:pointer" onclick="viewBidClient('+b.client_id+')">'+
+          '<div style="'+_nameStyle+'">'+name+'</div>'+
+          '<div style="font-size:11px;'+urgency+';margin-top:1px">'+amt+' · '+daysStr+'</div></div>'+
+          '<div style="display:flex;gap:5px;flex-shrink:0">'+
+            '<button onclick="resendProposalLink('+b.id+')" class="btn btn-sm" style="'+_btnStyle+'">Resend</button>'+
+            '<button onclick="markBidNoResponseFromDash('+b.id+')" class="btn btn-sm" style="'+_xStyle+'" title="No response — archive">✕</button>'+
+          '</div></div>';
+      });
+      html+='</div>';
+      sentEl.innerHTML=html;
+    }
+  }
   renderGoal();
   checkGoalPrompt();
+  showScheduleAlerts();
   renderLeadSources();
   renderDashToday();
   renderDashCollect();
@@ -13854,26 +13870,82 @@ async function supaSaveToCloud(){
 async function checkNewSignatures(){
   if(!_supa||!_supaUser)return;
   try{
-    const since=localStorage.getItem('zp3_last_sig_check')||new Date(Date.now()-86400000).toISOString();
+    const since=localStorage.getItem('zp3_last_sig_check')||new Date(Date.now()-86400000*7).toISOString();
     const{data}=await _supa.from('signed_proposals')
-      .select('client_name,payment_method,payment_status,signed_at')
+      .select('bid_id,client_name,payment_method,payment_status,signed_at,client_signed_name')
       .eq('contractor_user_id',_supaUser.id)
       .gt('signed_at',since)
       .order('signed_at',{ascending:false})
-      .limit(5);
+      .limit(20);
     if(data&&data.length){
+      let changed=false;
+      const alerts=[];
       data.forEach(s=>{
-        const isPaid=s.payment_status==='paid';
-        const method=s.payment_method==='cash'?'💵 Cash':'💳 Card';
-        showToast(
-          (s.client_name||'Client')+' signed'+(isPaid?' & paid deposit':' — cash on arrival'),
-          isPaid?'🎉':'✅',
-          6000
-        );
+        // Find matching bid and mark Closed Won
+        const bid=bids.find(b=>String(b.id)===String(s.bid_id));
+        if(bid&&bid.status!=='Closed Won'){
+          bid.status='Closed Won';
+          bid.draft=false;
+          bid.signedAt=s.signed_at;
+          bid.signedName=s.client_signed_name||s.client_name;
+          bid.paymentMethod=s.payment_method;
+          changed=true;
+          alerts.push({name:s.client_name||'Client',bidId:bid.id,clientId:bid.client_id,isPaid:s.payment_status==='paid'});
+        }
       });
+      if(changed){
+        saveAll();
+        // Store alerts to show as schedule prompt on next renderDash
+        const existing=JSON.parse(localStorage.getItem('zp3_schedule_alerts')||'[]');
+        localStorage.setItem('zp3_schedule_alerts',JSON.stringify([...existing,...alerts]));
+        renderDash();
+      }
       localStorage.setItem('zp3_last_sig_check',new Date().toISOString());
     }
   }catch(e){console.warn('checkNewSignatures:',e);}
+}
+function showScheduleAlerts(){
+  const alerts=JSON.parse(localStorage.getItem('zp3_schedule_alerts')||'[]');
+  if(!alerts.length)return;
+  const a=alerts[0];
+  const remaining=alerts.slice(1);
+  if(remaining.length)localStorage.setItem('zp3_schedule_alerts',JSON.stringify(remaining));
+  else localStorage.removeItem('zp3_schedule_alerts');
+  const payLine=a.isPaid?' and paid their deposit':'';
+  zConfirm(
+    (a.isPaid?'💰':'🎉')+' '+a.name+' signed their painting proposal'+payLine+'.\n\nGet them on the schedule now?',
+    ()=>scheduleFromAlert(a.clientId,a.bidId),
+    {title:'New signature!',yes:'Schedule now',no:'Later',danger:false}
+  );
+}
+function scheduleFromAlert(clientId,bidId){
+  if(clientId)openClientDetail(clientId);
+  else goPg('pg-schedule');
+}
+function discardInProgressBid(bidId){
+  if(!confirm('Discard this estimate?'))return;
+  const idx=bids.findIndex(b=>b.id===bidId);
+  if(idx>-1){bids.splice(idx,1);saveAll();renderDash();}
+}
+function resendProposalLink(bidId){
+  const b=bids.find(x=>x.id===bidId);
+  if(!b||!b.signingToken)return;
+  const baseUrl=window.location.origin+window.location.pathname.split('index.html')[0];
+  const url=baseUrl+'sign.html?t='+b.signingToken+'&u='+(_supaUser?.id||'')+'&b='+bidId;
+  const bar=document.getElementById('proposal-link-bar');
+  if(bar){
+    bar.dataset.signingUrl=url;
+    bar.dataset.cname=b.client_name||b.name||'Client';
+    bar.dataset.bname=S.bname||"ZJ's Painting & Special Coatings";
+    const c=getClientById(b.client_id);
+    bar.dataset.cphone=(c?.phone||'').replace(/\D/g,'');
+    bar.dataset.cemail=c?.email||'';
+  }
+  const input=document.getElementById('proposal-link-input');
+  if(input)input.value=url;
+  // Open share options — navigate to estimate step 5 if possible, else copy + toast
+  navigator.clipboard.writeText(url).then(()=>showToast('Link copied — send it to '+( b.client_name||'client'),'📋')).catch(()=>{});
+  showToast('Proposal link copied for '+(b.client_name||'client'),'🔗');
 }
 async function supaLoadFromCloud(){
   if(!_supa||!_supaUser)return;

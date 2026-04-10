@@ -2605,7 +2605,7 @@ function renderDash(){
           '<div style="flex:1;min-width:0"><div style="'+_nameStyle+'">'+name+'</div>'+
           '<div style="font-size:11px;color:var(--text3);margin-top:1px">'+amt+' — saved, not sent</div></div>'+
           '<div style="display:flex;gap:5px;flex-shrink:0">'+
-            '<button onclick="openEditBid('+b.id+',1)" class="btn btn-sm btn-p" style="'+_btnPStyle+'">Resume</button>'+
+            '<button onclick="openEditBid('+b.id+',2)" class="btn btn-sm btn-p" style="'+_btnPStyle+'">Resume</button>'+
             '<button onclick="discardInProgressBid('+b.id+')" class="btn btn-sm" style="'+_xStyle+'">✕</button>'+
           '</div></div>';
       });
@@ -5278,6 +5278,7 @@ function openEditBid(bidId,startStep){
     sf('e-cphone',c?c.phone:b.phone||'');
     sf('e-caddr',c?c.addr:b.addr||'');
     sf('e-cnotes',b.notes||'');
+    ['e-cname','e-cphone','e-caddr'].forEach(id=>{const el=document.getElementById(id);if(el&&el.value)markFieldFilled(el);});
     if(c&&c.ptype){const el=document.getElementById('e-cprop');if(el)el.value=c.ptype;}
     if(b.days){
       const el=document.getElementById('e-days');

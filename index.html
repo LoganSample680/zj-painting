@@ -22,8 +22,8 @@
 --border:#e0dfd8;--border2:#cccbc4;
 --r:8px;--rl:12px;
 }
-html{font-size:15px;-webkit-text-size-adjust:100%}
-body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:var(--bg3);color:var(--text);min-height:100vh;overflow-x:hidden}
+html{font-size:15px;-webkit-text-size-adjust:100%;overscroll-behavior-y:none}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:var(--bg3);color:var(--text);min-height:100vh;overflow-x:hidden;overscroll-behavior-y:none}
 /* ── Sidebar nav — always left, dark navy ── */
 :root{
   --nav-w:220px;
@@ -1419,6 +1419,17 @@ input:checked+.dm-slider:before{transform:translateX(22px)}</style>
     </div>
   </div>
 </div>
+<div class="pg" id="pg-team">
+  <div class="tbar"><div class="tbar-title">Team & Fleet</div><button class="btn btn-sm btn-p" onclick="openAddEmployeeModal()">+ Add member</button></div>
+  <div class="card">
+    <div style="font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.05em;color:var(--text3);margin-bottom:10px">Employees</div>
+    <div id="team-page-list"></div>
+  </div>
+  <div class="card" style="margin-top:12px">
+    <div style="font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.05em;color:var(--text3);margin-bottom:10px">Registered devices</div>
+    <div id="team-page-devices"></div>
+  </div>
+</div>
 <div class="pg" id="pg-tracker">
   <div class="tbar"><div class="tbar-title">Books</div><div style="display:flex;align-items:center;gap:8px"><button class="btn btn-sm" onclick="openExportPanel()">⬇ Export</button><span style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.04em">Year</span><select id="tracker-year-sel" onchange="setTrackerYear(parseInt(this.value))" style="font-size:13px;font-weight:700;padding:6px 10px;border-radius:var(--r);border:1px solid var(--border2);background:var(--bg2);color:var(--text)"></select></div></div>
   <div class="fbar">
@@ -1835,6 +1846,9 @@ input:checked+.dm-slider:before{transform:translateX(22px)}</style>
   <button class="nb" id="nb-taxes" onclick="goPg('pg-taxes')">
     <div class="bx"><svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg></div><span>Taxes</span>
   </button>
+  <button class="nb" id="nb-team" onclick="goPg('pg-team')">
+    <div class="bx"><svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/></svg></div><span>Team</span>
+  </button>
   <button class="nb" id="nb-tracker" onclick="goPg('pg-tracker')">
     <div class="bx"><svg viewBox="0 0 24 24"><path d="M2 3h6a4 4 0 014 4v14a3 3 0 00-3-3H2z"/><path d="M22 3h-6a4 4 0 00-4 4v14a3 3 0 013-3h7z"/></svg></div><span>Books</span>
   </button>
@@ -1884,6 +1898,9 @@ input:checked+.dm-slider:before{transform:translateX(22px)}</style>
     </button>
     <button class="mmi" id="mmi-cal" onclick="mobileNavTo('pg-cal')">
       <svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/><circle cx="8" cy="16" r="1" fill="currentColor"/><circle cx="12" cy="16" r="1" fill="currentColor"/></svg>Calendar
+    </button>
+    <button class="mmi" id="mmi-team" onclick="mobileNavTo('pg-team')">
+      <svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/></svg>Team &amp; Fleet
     </button>
     <button class="mmi" id="mmi-tracker" onclick="mobileNavTo('pg-tracker')">
       <svg viewBox="0 0 24 24"><path d="M2 3h6a4 4 0 014 4v14a3 3 0 00-3-3H2z"/><path d="M22 3h-6a4 4 0 00-4 4v14a3 3 0 013-3h7z"/></svg>Books &amp; P&amp;L
@@ -2177,6 +2194,20 @@ function getClientExpenses(cid){return expenses.filter(e=>e.client_id===cid);}
 function getClientBids(cid){return bids.filter(b=>b.client_id===cid&&(!b.draft||b.status==='Closed Won'));}
 function getClientJobs(cid){return jobs.filter(j=>j.client_id===cid);}
 function getClientIncome(cid){return income.filter(i=>i.client_id===cid);}
+// Returns the actual working calendar dates for a job, skipping weekends (unless job.allowWeekend)
+function getJobWorkDays(job){
+  const allowWknd=!!job.allowWeekend;
+  const numDays=parseInt(job.days)||1;
+  const days=[];
+  let cur=job.start;
+  let count=0;
+  while(count<numDays){
+    const dow=parseD(cur).getDay();
+    if(allowWknd||(dow!==0&&dow!==6)){days.push(cur);count++;}
+    if(count<numDays)cur=addDays(cur,1);
+  }
+  return days;
+}
 function getTimeOffDays(){
   const days=new Set();
   (S.timeOff||[]).forEach(block=>{
@@ -2217,9 +2248,9 @@ function openTimeOffModal(){
       ).join('')+'</div>':'<div style="font-size:12px;color:var(--text3);margin-bottom:12px;text-align:center;padding:10px">No time off blocked</div>')+
       '<div style="background:var(--bg2);border-radius:var(--r);padding:12px;border:1px solid var(--border);margin-bottom:12px">'+
         '<div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--text3);margin-bottom:8px">Add block</div>'+
-        '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">'+
-          '<div><label style="font-size:11px;font-weight:600;color:var(--text2)">Start</label><input type="date" id="to-start" style="width:100%;padding:8px;border-radius:var(--r);border:1px solid var(--border2);background:var(--bg);font-size:14px;font-family:inherit"></div>'+
-          '<div><label style="font-size:11px;font-weight:600;color:var(--text2)">End</label><input type="date" id="to-end" style="width:100%;padding:8px;border-radius:var(--r);border:1px solid var(--border2);background:var(--bg);font-size:14px;font-family:inherit"></div>'+
+        '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">'+
+          '<div><label style="font-size:12px;font-weight:700;color:var(--text2);display:block;margin-bottom:4px">Start</label><input type="date" id="to-start" style="width:100%;padding:13px 10px;border-radius:var(--r);border:1.5px solid var(--border2);background:var(--bg2);font-size:16px;font-family:inherit;box-sizing:border-box;color:var(--text)"></div>'+
+          '<div><label style="font-size:12px;font-weight:700;color:var(--text2);display:block;margin-bottom:4px">End</label><input type="date" id="to-end" style="width:100%;padding:13px 10px;border-radius:var(--r);border:1.5px solid var(--border2);background:var(--bg2);font-size:16px;font-family:inherit;box-sizing:border-box;color:var(--text)"></div>'+
         '</div>'+
         '<input type="text" id="to-label" placeholder="Label (optional — Vacation, Holiday...)" style="width:100%;padding:8px;border-radius:var(--r);border:1px solid var(--border2);background:var(--bg);font-size:13px;font-family:inherit;margin-bottom:8px;box-sizing:border-box">'+
         '<button onclick="_toAdd()" style="width:100%;padding:10px;border-radius:var(--r);border:none;background:var(--blue);color:#fff;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit">+ Add time off</button>'+
@@ -2250,9 +2281,11 @@ function getBookedDays(){
       const dow=parseD(j.start).getDay();
       if(dow===0||dow===6)return; // Sat/Sun estimate doesn't block anything
     }
-    const d=parseInt(j.days)||1,b=parseInt(j.buffer)||0;
-    for(let i=0;i<d;i++)booked.add(addDays(j.start,i));
-    for(let i=d;i<d+b;i++)buf.add(addDays(j.start,i));
+    const workDays=getJobWorkDays(j);
+    workDays.forEach(d=>booked.add(d));
+    const lastDay=workDays.length?workDays[workDays.length-1]:j.start;
+    const b=parseInt(j.buffer)||0;
+    for(let i=1;i<=b;i++)buf.add(addDays(lastDay,i));
   });
   return{booked,buf};
 }
@@ -2382,6 +2415,7 @@ function goPg(id){
     'pg-leads':'nb-leads','pg-jobs':'nb-jobs','pg-money':'nb-money',
     'pg-schedule':'nb-jobs',
     'pg-clients':'nb-clients','pg-cal':'nb-cal','pg-tracker':'nb-tracker',
+    'pg-team':'nb-team',
     'pg-taxes':'nb-taxes','pg-settings':'nb-settings','pg-checklist':'nb-settings'
   }[id]||('nb-'+id.replace('pg-','')));if(nb)nb.classList.add('active');
   // Sync mobile bottom tab bar
@@ -2391,7 +2425,7 @@ function goPg(id){
   if(_mtb)_mtb.classList.add('active');
   else{const _mm=document.getElementById('mtb-more');if(_mm)_mm.classList.add('active');}
   document.querySelectorAll('.mmi').forEach(b=>b.classList.remove('active-pg'));
-  const _mmiKey={'pg-money':'mmi-money','pg-cal':'mmi-cal','pg-tracker':'mmi-tracker','pg-taxes':'mmi-taxes','pg-leads':'mmi-leads','pg-settings':'mmi-settings','pg-checklist':'mmi-settings','pg-schedule':'mmi-cal'}[id];
+  const _mmiKey={'pg-money':'mmi-money','pg-cal':'mmi-cal','pg-tracker':'mmi-tracker','pg-team':'mmi-team','pg-taxes':'mmi-taxes','pg-leads':'mmi-leads','pg-settings':'mmi-settings','pg-checklist':'mmi-settings','pg-schedule':'mmi-cal'}[id];
   if(_mmiKey){const _mi=document.getElementById(_mmiKey);if(_mi)_mi.classList.add('active-pg');}
   window.scrollTo({top:0,left:0,behavior:"instant"});document.body.scrollTop=0;document.documentElement.scrollTop=0;
   if(id==='pg-dash')renderDash();
@@ -2424,6 +2458,7 @@ function goPg(id){
       },150);
     }
   }
+  if(id==='pg-team')renderTeam();
   if(id==='pg-checklist')renderChecklist();
   if(id==='pg-leads')renderLeadsPage();
   if(id==='pg-jobs')renderJobsPage();
@@ -2678,8 +2713,8 @@ function renderDash(){
   if(resumeEl){
     const draft=loadEstFullDraft();
     const hasDraft=!!(draft&&draft.cname);
-    // In-progress = Draft status OR Pending with no signingToken (never sent)
-    const inProgressBids=bids.filter(b=>(b.status==='Draft')||(b.status==='Pending'&&!b.signingToken)).sort((a,b)=>(b.bid_date||'').localeCompare(a.bid_date||''));
+    // In-progress = any unsent bid (no signingToken, not yet won)
+    const inProgressBids=bids.filter(b=>!b.signingToken&&b.status!=='Closed Won').sort((a,b)=>(b.bid_date||'').localeCompare(a.bid_date||''));
     const total=inProgressBids.length+(hasDraft?1:0);
     if(!total){resumeEl.innerHTML='';} else {
       let html='<div style="background:var(--bg);border:1px solid var(--border);border-radius:var(--rl);padding:10px 14px">';
@@ -2712,7 +2747,8 @@ function renderDash(){
   // ── Section 2: Sent proposals (link sent, awaiting signature) ──
   const sentEl=document.getElementById('dash-sent-proposals');
   if(sentEl){
-    const sentBids=bids.filter(b=>b.status==='Pending'&&b.signingToken).sort((a,b)=>(b.bid_date||'').localeCompare(a.bid_date||''));
+    // Sent = any bid with a signingToken that isn't yet won
+    const sentBids=bids.filter(b=>b.signingToken&&b.status!=='Closed Won').sort((a,b)=>(b.bid_date||'').localeCompare(a.bid_date||''));
     if(!sentBids.length){sentEl.innerHTML='';} else {
       let html='<div style="background:var(--bg);border:1px solid var(--border);border-radius:var(--rl);padding:10px 14px">';
       html+='<div style="font-size:12px;font-weight:700;color:var(--text);margin-bottom:8px">📨 Sent proposals — awaiting signature ('+sentBids.length+')</div>';
@@ -9750,7 +9786,7 @@ function goEstStep(n){
 function cm(d){calMonth+=d;if(calMonth>11){calMonth=0;calYear++;}if(calMonth<0){calMonth=11;calYear--;}renderCalendar();}
 function renderCalendar(){renderCalMonthLabel();renderCalGrid();renderCalAvail();renderCalConflicts();renderCalWeek();renderCalUpcoming();}
 function renderCalMonthLabel(){const M=['January','February','March','April','May','June','July','August','September','October','November','December'];document.getElementById('cal-month-lbl').textContent=M[calMonth]+' '+calYear;}
-function getJobsOnDay(key){const res=[];jobs.forEach(job=>{const d=parseInt(job.days)||1,b=parseInt(job.buffer)||0;for(let i=0;i<d;i++){if(addDays(job.start,i)===key){res.push({job,isBuf:false});return;}}for(let i=d;i<d+b;i++){if(addDays(job.start,i)===key){res.push({job,isBuf:true});return;}}});return res;}
+function getJobsOnDay(key){const res=[];jobs.forEach(job=>{if(job.status==='canceled')return;const workDays=getJobWorkDays(job);if(workDays.includes(key)){res.push({job,isBuf:false});return;}const lastDay=workDays.length?workDays[workDays.length-1]:job.start;const b=parseInt(job.buffer)||0;for(let i=1;i<=b;i++){if(addDays(lastDay,i)===key){res.push({job,isBuf:true});return;}}});return res;}
 function requestLocationPermission(onGranted, onDenied){
   // If already have coords, just call granted
   if(S.weatherLat&&S.weatherLon){if(onGranted)onGranted();return;}
@@ -14132,22 +14168,21 @@ function registerDevice(){
   saveSettings();
 }
 function renderTeam(){
-  const el=document.getElementById('team-list');if(!el)return;
+  const el=document.getElementById('team-list');
+  const el2=document.getElementById('team-page-list');
+  if(!el&&!el2)return;
   const emps=S.employees||[];
-  if(!emps.length){
-    el.innerHTML='<div style="font-size:12px;color:var(--text3);padding:6px 0">No team members yet — just you. Add someone when you hire.</div>';
-  }else{
-    el.innerHTML=emps.map((e,i)=>{
+  const empHtml=!emps.length
+    ?'<div style="font-size:12px;color:var(--text3);padding:6px 0">No team members yet — just you. Add someone when you hire.</div>'
+    :emps.map((e,i)=>{
       const rc=ROLE_COLORS[e.role]||'var(--text2)';const rb=ROLE_BG[e.role]||'var(--bg2)';
       const perms=Object.entries(e.permissions||{}).filter(([,v])=>v).map(([k])=>PERM_LABELS[k]||k).join(', ')||'No permissions';
       return '<div style="padding:10px;background:var(--bg2);border:1px solid var(--border);border-radius:var(--r);margin-bottom:8px">'+
         '<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:4px">'+
           '<div style="display:flex;align-items:center;gap:8px">'+
             '<div style="width:34px;height:34px;border-radius:50%;background:'+rc+';display:flex;align-items:center;justify-content:center;color:#fff;font-weight:800;font-size:14px;flex-shrink:0">'+e.name.charAt(0).toUpperCase()+'</div>'+
-            '<div>'+
-              '<div style="font-size:13px;font-weight:700">'+e.name+'</div>'+
-              '<span style="font-size:10px;font-weight:700;background:'+rb+';color:'+rc+';padding:1px 7px;border-radius:8px;text-transform:capitalize">'+e.role+'</span>'+
-            '</div>'+
+            '<div><div style="font-size:13px;font-weight:700">'+e.name+'</div>'+
+            '<span style="font-size:10px;font-weight:700;background:'+rb+';color:'+rc+';padding:1px 7px;border-radius:8px;text-transform:capitalize">'+e.role+'</span></div>'+
           '</div>'+
           (e.role!=='owner'?'<button onclick="openEditEmployeeModal('+i+')" style="font-size:11px;padding:4px 10px;border-radius:var(--r);border:1px solid var(--border2);background:none;cursor:pointer;font-family:inherit">Edit</button>':'')+
         '</div>'+
@@ -14155,29 +14190,27 @@ function renderTeam(){
         '<div style="font-size:10px;color:var(--text3);margin-top:4px;line-height:1.5">'+perms+'</div>'+
       '</div>';
     }).join('');
-  }
+  if(el)el.innerHTML=empHtml;
+  if(el2)el2.innerHTML=empHtml;
   // Devices
-  const del=document.getElementById('device-list');if(!del)return;
   const devs=S.devices||[];
   const myId=_initDeviceId();
-  if(!devs.length){del.innerHTML='<div style="font-size:11px;color:var(--text3)">No devices registered yet.</div>';return;}
-  del.innerHTML=devs.map(d=>{
+  const devHtml=!devs.length?'<div style="font-size:11px;color:var(--text3)">No devices registered yet.</div>':devs.map(d=>{
     const isMe=d.id===myId;
     const ago=d.lastSeen?_timeAgo(d.lastSeen):'never';
-    const isActive=d.lastSeen&&(Date.now()-new Date(d.lastSeen).getTime())<3600000; // active within 1hr
+    const isActive=d.lastSeen&&(Date.now()-new Date(d.lastSeen).getTime())<3600000;
     return '<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px;background:var(--bg2);border:1px solid var(--border);border-radius:var(--r);margin-bottom:6px">'+
       '<div style="display:flex;align-items:center;gap:8px">'+
-        '<div style="font-size:20px">'+(d.label==='iPad'?'📱':d.label==='iPhone'?'📱':'💻')+'</div>'+
-        '<div>'+
-          '<div style="font-size:12px;font-weight:700">'+d.label+(isMe?' <span style="font-size:9px;background:var(--blue);color:#fff;padding:1px 6px;border-radius:8px">This device</span>':'')+'</div>'+
+        '<div style="font-size:20px">'+(d.label==='iPad'||d.label==='iPhone'?'📱':'💻')+'</div>'+
+        '<div><div style="font-size:12px;font-weight:700">'+d.label+(isMe?' <span style="font-size:9px;background:var(--blue);color:#fff;padding:1px 6px;border-radius:8px">This device</span>':'')+'</div>'+
           '<div style="font-size:10px;color:'+(isActive?'var(--green-mid)':'var(--text3)')+'">'+
-            (isActive?'🟢 Active · ':'⚪ Last seen ')+ago+
-          '</div>'+
-        '</div>'+
+            (isActive?'🟢 Active · ':'⚪ Last seen ')+ago+'</div></div>'+
       '</div>'+
       (!isMe?'<button onclick="removeDevice(\''+d.id+'\')" style="font-size:10px;color:#A32D2D;border:1px solid #A32D2D;border-radius:var(--r);padding:3px 8px;background:none;cursor:pointer;font-family:inherit">Remove</button>':'')+
     '</div>';
   }).join('');
+  const del=document.getElementById('device-list');if(del)del.innerHTML=devHtml;
+  const del2=document.getElementById('team-page-devices');if(del2)del2.innerHTML=devHtml;
 }
 function _timeAgo(iso){
   const ms=Date.now()-new Date(iso).getTime();
@@ -14692,6 +14725,29 @@ function supaSetStatus(s){
 }
 
 loadAll();applySettings();registerDevice();
+
+// Pull-to-refresh: pull down from top → re-sync from cloud
+(function(){
+  let _ptrStart=0,_ptrEl=null;
+  document.addEventListener('touchstart',e=>{
+    if(window.scrollY===0&&e.touches.length===1)_ptrStart=e.touches[0].clientY;
+  },{passive:true});
+  document.addEventListener('touchmove',e=>{
+    if(!_ptrStart)return;
+    const dy=e.touches[0].clientY-_ptrStart;
+    if(dy>60&&!_ptrEl){
+      _ptrEl=document.createElement('div');
+      _ptrEl.style.cssText='position:fixed;top:0;left:0;right:0;z-index:9999;background:var(--blue);color:#fff;text-align:center;font-size:13px;font-weight:700;padding:10px;transition:none';
+      _ptrEl.textContent='⬇ Release to refresh';
+      document.body.appendChild(_ptrEl);
+    }
+  },{passive:true});
+  document.addEventListener('touchend',()=>{
+    if(_ptrEl){_ptrEl.remove();_ptrEl=null;if(supaEnabled()&&_supa&&_supaUser){supaInit();}else{renderDash();}}
+    _ptrStart=0;
+  },{passive:true});
+})();
+
 if(supaEnabled()){
   // Show loading overlay — don't render local data, wait for cloud
   (function showLoadingScreen(){

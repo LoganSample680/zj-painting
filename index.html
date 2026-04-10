@@ -6786,6 +6786,154 @@ function saveDebriefAndComplete(jobId,btn){
   confirmMarkComplete(jobId);
 }
 
+function renderExtWallForm(){
+  const type='ext_walls';
+  if(!surfBMeasurements[type]||!Array.isArray(surfBMeasurements[type].walls)){
+    surfBMeasurements[type]={
+      walls:[{name:'Front',w:'',h:''},{name:'Back',w:'',h:''},{name:'Left side',w:'',h:''},{name:'Right side',w:'',h:''}],
+      gables:[],windows:0,windowSize:15,doors:0,doorSize:21,deductOpenings:true,sqft:0
+    };
+  }
+  const m=surfBMeasurements[type];
+  const dims=document.getElementById('surf-b-dims');
+  if(!dims)return;
+  const iStyle='font-size:16px;font-weight:700;padding:6px 4px;border-radius:var(--r);border:1px solid var(--border2);background:var(--bg2);color:var(--text);width:100%;box-sizing:border-box;text-align:center';
+  const wallRows=m.walls.map((wl,i)=>
+    '<div style="display:grid;grid-template-columns:1fr 54px 8px 48px auto 54px 20px;align-items:center;gap:4px;margin-bottom:6px">'+
+      '<input placeholder="Wall name" value="'+(wl.name||'').replace(/"/g,'&quot;')+'" id="ext-wn-'+i+'"'+
+        ' style="font-size:12px;padding:6px 8px;border-radius:var(--r);border:1px solid var(--border2);background:var(--bg2);color:var(--text);width:100%;box-sizing:border-box"'+
+        ' oninput="calcExtTotal()">'+
+      '<input type="number" placeholder="W" value="'+(wl.w||'')+'" id="ext-ww-'+i+'"'+
+        ' style="'+iStyle+'" oninput="calcExtTotal()" inputmode="decimal">'+
+      '<div style="text-align:center;font-size:13px;color:var(--text3)">×</div>'+
+      '<input type="number" placeholder="H" value="'+(wl.h||'')+'" id="ext-wh-'+i+'"'+
+        ' style="'+iStyle+'" oninput="calcExtTotal()" inputmode="decimal">'+
+      '<div style="font-size:10px;color:var(--text3)">ft</div>'+
+      '<div id="ext-wsf-'+i+'" style="font-size:12px;font-weight:700;color:var(--green-mid);text-align:right">'+(wl.w&&wl.h?Math.round(parseFloat(wl.w)*parseFloat(wl.h))+' sf':'')+'</div>'+
+      '<button onclick="removeExtItem(\'wall\','+i+')" style="font-size:16px;background:none;border:none;cursor:pointer;color:var(--text3);padding:0;line-height:1;font-family:inherit">×</button>'+
+    '</div>'
+  ).join('');
+  const gableRows=m.gables.length?m.gables.map((g,i)=>
+    '<div style="display:grid;grid-template-columns:1fr 54px 8px 48px auto 54px 20px;align-items:center;gap:4px;margin-bottom:6px">'+
+      '<input placeholder="Gable name" value="'+(g.name||'').replace(/"/g,'&quot;')+'" id="ext-gn-'+i+'"'+
+        ' style="font-size:12px;padding:6px 8px;border-radius:var(--r);border:1px solid var(--border2);background:var(--bg2);color:var(--text);width:100%;box-sizing:border-box"'+
+        ' oninput="calcExtTotal()">'+
+      '<input type="number" placeholder="Base" value="'+(g.base||'')+'" id="ext-gb-'+i+'"'+
+        ' style="'+iStyle+'" oninput="calcExtTotal()" inputmode="decimal">'+
+      '<div style="text-align:center;font-size:13px;color:var(--text3)">×</div>'+
+      '<input type="number" placeholder="Peak" value="'+(g.peak||'')+'" id="ext-gp-'+i+'"'+
+        ' style="'+iStyle+'" oninput="calcExtTotal()" inputmode="decimal">'+
+      '<div style="font-size:10px;color:var(--text3)">÷2</div>'+
+      '<div id="ext-gsf-'+i+'" style="font-size:12px;font-weight:700;color:var(--green-mid);text-align:right">'+(g.base&&g.peak?Math.round(parseFloat(g.base)*parseFloat(g.peak)/2)+' sf':'')+'</div>'+
+      '<button onclick="removeExtItem(\'gable\','+i+')" style="font-size:16px;background:none;border:none;cursor:pointer;color:var(--text3);padding:0;line-height:1;font-family:inherit">×</button>'+
+    '</div>'
+  ).join(''):'<div style="font-size:11px;color:var(--text3);margin-bottom:8px;padding:6px 0">None — tap + Gable if house has peaked ends</div>';
+  const sInput='font-size:18px;font-weight:700;padding:8px 4px;border-radius:var(--r);border:1px solid var(--border2);background:var(--bg2);color:var(--text);width:100%;box-sizing:border-box;text-align:center';
+  dims.innerHTML=
+    '<div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px">Wall faces — Width × Height</div>'+
+    '<div id="ext-walls-list">'+wallRows+'</div>'+
+    '<button onclick="addExtWall()" class="btn btn-sm" style="width:100%;margin-bottom:14px;background:var(--bg2);border-color:var(--border2);font-size:12px">+ Add wall</button>'+
+    '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">'+
+      '<div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.06em">Gables — Base × Peak ÷ 2</div>'+
+      '<button onclick="addExtGable()" class="btn btn-sm" style="font-size:11px;padding:4px 10px;background:var(--bg2);border-color:var(--border2)">+ Gable</button>'+
+    '</div>'+
+    '<div id="ext-gables-list" style="margin-bottom:12px">'+gableRows+'</div>'+
+    '<label style="display:flex;align-items:center;gap:8px;cursor:pointer;margin-bottom:8px">'+
+      '<input type="checkbox" id="ext-deduct" '+(m.deductOpenings!==false?'checked':'')+' onchange="calcExtTotal()" style="width:16px;height:16px">'+
+      '<span style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.04em">Deduct windows &amp; doors</span>'+
+    '</label>'+
+    '<div id="ext-deduct-fields" style="display:'+(m.deductOpenings!==false?'grid':'none')+';grid-template-columns:1fr 1fr;gap:8px;margin-bottom:14px">'+
+      '<div style="background:var(--bg2);border-radius:var(--r);padding:8px">'+
+        '<div style="font-size:10px;color:var(--text3);font-weight:600;margin-bottom:6px">Windows · count × sq ft</div>'+
+        '<div style="display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:4px">'+
+          '<input type="number" id="ext-wins" value="'+(m.windows||0)+'" min="0" placeholder="0" style="'+sInput+'" oninput="calcExtTotal()">'+
+          '<span style="font-size:13px;color:var(--text3);padding:0 2px">×</span>'+
+          '<input type="number" id="ext-win-sf" value="'+(m.windowSize||15)+'" min="1" placeholder="15" style="'+sInput+'" oninput="calcExtTotal()">'+
+        '</div>'+
+      '</div>'+
+      '<div style="background:var(--bg2);border-radius:var(--r);padding:8px">'+
+        '<div style="font-size:10px;color:var(--text3);font-weight:600;margin-bottom:6px">Doors · count × sq ft</div>'+
+        '<div style="display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:4px">'+
+          '<input type="number" id="ext-doors" value="'+(m.doors||0)+'" min="0" placeholder="0" style="'+sInput+'" oninput="calcExtTotal()">'+
+          '<span style="font-size:13px;color:var(--text3);padding:0 2px">×</span>'+
+          '<input type="number" id="ext-door-sf" value="'+(m.doorSize||21)+'" min="1" placeholder="21" style="'+sInput+'" oninput="calcExtTotal()">'+
+        '</div>'+
+      '</div>'+
+    '</div>'+
+    '<div style="background:var(--blue-lt);border:1.5px solid var(--blue);border-radius:var(--r);padding:12px;text-align:center">'+
+      '<div style="font-size:11px;color:var(--blue-dk);font-weight:700;margin-bottom:2px">Total paintable sq ft</div>'+
+      '<div id="ext-total-sf" style="font-size:42px;font-weight:800;color:var(--blue-dk);line-height:1.1">—</div>'+
+      '<div id="ext-total-detail" style="font-size:11px;color:var(--blue);margin-top:4px"></div>'+
+    '</div>';
+  setTimeout(calcExtTotal,50);
+}
+function calcExtTotal(){
+  const m=surfBMeasurements.ext_walls;if(!m||!m.walls)return;
+  let wallsTotal=0;
+  m.walls.forEach((wl,i)=>{
+    const w=parseFloat(document.getElementById('ext-ww-'+i)?.value)||0;
+    const h=parseFloat(document.getElementById('ext-wh-'+i)?.value)||0;
+    const sf=Math.round(w*h);
+    const el=document.getElementById('ext-wsf-'+i);if(el)el.textContent=sf>0?sf+' sf':'';
+    wallsTotal+=sf;
+    wl.name=document.getElementById('ext-wn-'+i)?.value||wl.name||'';
+    wl.w=w||wl.w||'';wl.h=h||wl.h||'';wl.sqft=sf;
+  });
+  let gablesTotal=0;
+  m.gables.forEach((g,i)=>{
+    const b=parseFloat(document.getElementById('ext-gb-'+i)?.value)||0;
+    const p=parseFloat(document.getElementById('ext-gp-'+i)?.value)||0;
+    const sf=Math.round(b*p/2);
+    const el=document.getElementById('ext-gsf-'+i);if(el)el.textContent=sf>0?sf+' sf':'';
+    gablesTotal+=sf;
+    g.name=document.getElementById('ext-gn-'+i)?.value||g.name||'';
+    g.base=b||g.base||'';g.peak=p||g.peak||'';g.sqft=sf;
+  });
+  const deductEl=document.getElementById('ext-deduct');
+  const doDeduct=deductEl?deductEl.checked:m.deductOpenings!==false;
+  const dFields=document.getElementById('ext-deduct-fields');
+  if(dFields)dFields.style.display=doDeduct?'grid':'none';
+  const wins=parseInt(document.getElementById('ext-wins')?.value)||0;
+  const winSf=parseFloat(document.getElementById('ext-win-sf')?.value)||15;
+  const doors=parseInt(document.getElementById('ext-doors')?.value)||0;
+  const doorSf=parseFloat(document.getElementById('ext-door-sf')?.value)||21;
+  const deductions=doDeduct?Math.round(wins*winSf+doors*doorSf):0;
+  const subtotal=wallsTotal+gablesTotal;
+  const total=Math.max(0,subtotal-deductions);
+  m.windows=wins;m.windowSize=winSf;m.doors=doors;m.doorSize=doorSf;
+  m.deductOpenings=doDeduct;m.sqft=total;
+  const tEl=document.getElementById('ext-total-sf');
+  const dEl=document.getElementById('ext-total-detail');
+  if(tEl)tEl.textContent=total>0?total.toLocaleString():'—';
+  if(dEl){
+    const parts=[];
+    if(wallsTotal)parts.push('Walls: '+wallsTotal.toLocaleString()+' sf');
+    if(gablesTotal)parts.push('Gables: +'+gablesTotal.toLocaleString()+' sf');
+    if(deductions)parts.push('Openings: −'+deductions.toLocaleString()+' sf');
+    dEl.textContent=parts.join(' · ');
+  }
+}
+function addExtWall(){
+  calcExtTotal();
+  surfBMeasurements.ext_walls.walls.push({name:'',w:'',h:'',sqft:0});
+  renderExtWallForm();
+  const idx=surfBMeasurements.ext_walls.walls.length-1;
+  setTimeout(()=>document.getElementById('ext-wn-'+idx)?.focus(),60);
+}
+function addExtGable(){
+  calcExtTotal();
+  surfBMeasurements.ext_walls.gables.push({name:'',base:'',peak:'',sqft:0});
+  renderExtWallForm();
+  const idx=surfBMeasurements.ext_walls.gables.length-1;
+  setTimeout(()=>document.getElementById('ext-gn-'+idx)?.focus(),60);
+}
+function removeExtItem(kind,idx){
+  calcExtTotal();
+  const m=surfBMeasurements.ext_walls;
+  if(kind==='wall'){if(m.walls.length<=1)return;m.walls.splice(idx,1);}
+  else{m.gables.splice(idx,1);}
+  renderExtWallForm();
+}
 function renderSurfBCurrent(){
   // Reset color+finish for each new surface type
   _swResetColorUI();
@@ -6808,14 +6956,19 @@ function renderSurfBCurrent(){
   }
 
   const cur=document.getElementById('surf-b-current');
-  if(cur)cur.innerHTML='<div style="font-size:20px;font-weight:800;margin-bottom:12px;color:var(--blue)">'+label+'</div>';
+  if(cur)cur.innerHTML='<div style="font-size:20px;font-weight:800;margin-bottom:12px;color:var(--blue)">'+(type==='ext_walls'?'Exterior Siding — Wall by Wall':label)+'</div>';
 
   const dims=document.getElementById('surf-b-dims');
   const subopts=document.getElementById('surf-b-subopts');
   if(!dims||!subopts)return;
   subopts.style.display='none';
 
-  if(type==='walls'||type==='ext_walls'){
+  if(type==='ext_walls'){
+    renderExtWallForm();
+    return;
+  }
+
+  if(type==='walls'){
     const m=surfBMeasurements[type]||{sqft:'',len:'',wid:'',hgt:9};
     dims.innerHTML=
       '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">'+
@@ -7029,15 +7182,26 @@ function saveSurfBAndNext(){
   const colorNote=isCustomer?'':(_surfColorVal?' — '+(_productName?_productName+' · ':'')+_surfColorVal+(_finish?' ['+_finish+']':'')+(_accentNote?' + Accent: '+_accentNote:''):'  ');
   const prefix=surfJobType==='exterior'?'[Ext] ':'';
 
-  if(type==='walls'||type==='ext_walls'||type==='ceiling'||type==='deck'){
+  if(type==='ext_walls'){
+    calcExtTotal();
+    const m=surfBMeasurements.ext_walls||{};
+    const sqft=m.sqft||0;
+    if(!sqft){zAlert('Add measurements for at least one wall.',{title:'Measurements needed'});return;}
+    estSurfaces.push({id:++estSurfId,type,qty:sqft,wallSqft:sqft,room:prefix+surfRoom+colorNote,extBreakdown:JSON.parse(JSON.stringify(m))});
+    surfBIdx++;
+    if(surfBIdx<surfBQueue.length){window.scrollTo({top:0,left:0,behavior:'instant'});document.body.scrollTop=0;renderSurfBCurrent();}
+    else finishRoom();
+    return;
+  }
+
+  if(type==='walls'||type==='ceiling'||type==='deck'){
     const sqEl=document.getElementById('surf-b-sqft');
     const sqft=Math.round(parseFloat(sqEl?sqEl.value:0)||0);
     if(!sqft){zAlert('Enter the square footage.',{title:'Measurements needed'});return;}
     const _l=parseFloat(document.getElementById('surf-b-len')?.value)||0;
     const _w=parseFloat(document.getElementById('surf-b-wid')?.value)||0;
     const _h=parseFloat(document.getElementById('surf-b-hgt')?.value)||9;
-    // wallSqft = perimeter × height for paint gallon calc; qty = floor area for labor pricing
-    const _wallSqft=(type==='walls'||type==='ext_walls')&&_l>0&&_w>0?Math.round((_l+_w)*2*_h):sqft;
+    const _wallSqft=type==='walls'&&_l>0&&_w>0?Math.round((_l+_w)*2*_h):sqft;
     surfBMeasurements[type]={sqft,len:_l,wid:_w,hgt:_h,wallSqft:_wallSqft};
     estSurfaces.push({id:++estSurfId,type,qty:sqft,wallSqft:_wallSqft,room:prefix+surfRoom+colorNote});
     surfBIdx++;

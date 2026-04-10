@@ -2242,6 +2242,24 @@ function getBookedDays(){
   return{booked,buf};
 }
 function getNextAvail(){const{booked,buf}=getBookedDays();const all=new Set([...booked,...buf]);const allowWknd=document.getElementById('s-allow-weekend')?.checked||false;let d=todayKey();for(let i=0;i<180;i++){const dow=parseD(d).getDay();const isWknd=dow===0||dow===6;if(!all.has(d)&&(allowWknd||!isWknd)){const dt=parseD(d);return{key:d,label:dt.toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'})};}d=addDays(d,1);}return{key:todayKey(),label:'Check calendar'};}
+// Standalone next-avail that doesn't need DOM — used for scheduling suggestions
+function getNextAvailForBid(bid){
+  const{booked,buf}=getBookedDays();const all=new Set([...booked,...buf]);
+  const allowWknd=!!(bid&&bid.allowWeekend);
+  // Start from tomorrow at earliest
+  let d=addDays(todayKey(),1);
+  for(let i=0;i<180;i++){
+    const dow=parseD(d).getDay();const isWknd=dow===0||dow===6;
+    if(!all.has(d)&&(allowWknd||!isWknd))return d;
+    d=addDays(d,1);
+  }
+  return addDays(todayKey(),1);
+}
+function _jobEndDate(startKey,numDays,allowWknd){
+  let count=0,cur=startKey;
+  while(count<numDays){const dow=parseD(cur).getDay();if(allowWknd||(dow!==0&&dow!==6))count++;if(count<numDays)cur=addDays(cur,1);}
+  return cur;
+}
 
 function buildScopeDefaultsUI(){
   const el=document.getElementById('set-scope-defaults');if(!el)return;
@@ -14211,13 +14229,77 @@ function showScheduleAlerts(){
   const payLine=a.isPaid?' and paid their deposit':'';
   zConfirm(
     (a.isPaid?'💰':'🎉')+' '+a.name+' signed their painting proposal'+payLine+'.\n\nGet them on the schedule now?',
-    ()=>scheduleFromAlert(a.clientId,a.bidId),
+    ()=>showScheduleSuggestion(a.clientId,a.bidId,a.name),
     {title:'New signature!',yes:'Schedule now',no:'Later',danger:false}
   );
 }
 function scheduleFromAlert(clientId,bidId){
-  if(clientId)openClientDetail(clientId);
-  else goPg('pg-schedule');
+  showScheduleSuggestion(clientId,bidId);
+}
+function showScheduleSuggestion(clientId,bidId,clientNameFallback){
+  const bid=bidId?bids.find(b=>b.id===bidId):null;
+  const c=clientId?getClientById(clientId):null;
+  const cname=c?.name||bid?.client_name||clientNameFallback||'Client';
+  const firstName=cname.split(/[\s,]+/)[0];
+  const phone=(c?.phone||bid?.phone||'').replace(/\D/g,'');
+  const days=bid?.days||2;
+  const allowWknd=!!(bid?.allowWeekend);
+  const bname=S.bname||"ZJ's Painting & Special Coatings";
+
+  const startKey=getNextAvailForBid(bid);
+  const endKey=_jobEndDate(startKey,days,allowWknd);
+  const fmtD=k=>parseD(k).toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'});
+  const startLabel=fmtD(startKey);
+  const endLabel=startKey===endKey?'':' – '+fmtD(endKey);
+  const rangeLabel=startLabel+endLabel+(days>1?' ('+days+' days)':'');
+
+  const smsMsg='Hey '+firstName+'! It\'s '+bname+'. Great news — you\'re all set. 🎨\n\nOur next available start date is '+startLabel+'. Does that work for you?\n\nJust reply YES and we\'ll lock you in!';
+  const smsHref='sms:'+(phone||'')+'&body='+encodeURIComponent(smsMsg);
+  const callHref=phone?'tel:'+phone:'';
+
+  const ov=document.createElement('div');ov.className='zmodal-overlay';ov.id='sched-suggest-overlay';
+  const box=document.createElement('div');box.className='zmodal';
+  box.innerHTML=
+    '<div style="font-size:18px;font-weight:800;margin-bottom:2px">Schedule '+cname+'</div>'+
+    '<div style="font-size:12px;color:var(--text3);margin-bottom:16px">'+(bid?fmt(bid.amount)+' · '+days+' day'+(days!==1?'s':''):'')+' painting job</div>'+
+    '<div style="background:var(--blue-lt);border:1.5px solid var(--blue);border-radius:var(--r);padding:14px;margin-bottom:14px;text-align:center">'+
+      '<div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--blue);margin-bottom:4px">Next available</div>'+
+      '<div style="font-size:22px;font-weight:800;color:var(--blue-dk)">'+startLabel+'</div>'+
+      (endLabel?'<div style="font-size:12px;color:var(--blue);margin-top:2px">Through '+fmtD(endKey)+'</div>':'')+
+    '</div>'+
+    '<div style="font-size:11px;color:var(--text3);text-align:center;margin-bottom:14px">Confirm with client, then tap "Lock it in"</div>'+
+    '<div style="display:grid;gap:8px;margin-bottom:8px">'+
+      (phone?'<a href="'+smsHref+'" style="display:block;padding:13px;border-radius:var(--r);border:none;background:#27AE60;color:#fff;font-size:15px;font-weight:700;text-align:center;text-decoration:none">📱 Text '+firstName+' to confirm</a>':'')+
+      (callHref?'<a href="'+callHref+'" style="display:block;padding:11px;border-radius:var(--r);border:1px solid var(--border2);background:var(--bg2);color:var(--text);font-size:14px;font-weight:600;text-align:center;text-decoration:none">📞 Call '+firstName+'</a>':'')+
+    '</div>'+
+    '<button id="sched-lock-btn" onclick="quickScheduleJob('+bidId+',\''+startKey+'\','+clientId+')" style="width:100%;padding:14px;border-radius:var(--r);border:none;background:var(--blue);color:#fff;font-size:15px;font-weight:700;cursor:pointer;font-family:inherit;margin-bottom:8px">✓ Lock it in — '+startLabel+'</button>'+
+    '<button onclick="document.getElementById(\'sched-suggest-overlay\').remove();'+(bidId?'schedFromBid('+bidId+')':'goPg(\'pg-schedule\')')+'" style="width:100%;padding:10px;border-radius:var(--r);border:1px solid var(--border2);background:none;color:var(--text3);font-size:13px;cursor:pointer;font-family:inherit;margin-bottom:6px">Pick a different date</button>'+
+    '<button onclick="document.getElementById(\'sched-suggest-overlay\').remove()" style="width:100%;padding:8px;border:none;background:none;color:var(--text3);font-size:12px;cursor:pointer;font-family:inherit">Later</button>';
+  ov.appendChild(box);document.body.appendChild(ov);
+  ov.addEventListener('click',e=>{if(e.target===ov)ov.remove();});
+}
+function quickScheduleJob(bidId,startKey,clientId){
+  const bid=bidId?bids.find(b=>b.id===bidId):null;
+  if(!bid){zAlert('Bid not found.');return;}
+  // Guard: already scheduled?
+  if(jobs.some(j=>j.bid_id===bidId&&j.eventType==='job'&&j.status!=='canceled')){
+    zAlert('This job is already on the calendar.',{title:'Already scheduled'});
+    document.getElementById('sched-suggest-overlay')?.remove();return;
+  }
+  const days=bid.days||2;
+  const name=(bid.client_name||bid.name||'Job')+(bid.type?' — '+bid.type:'');
+  jobs.push({
+    id:Date.now(),bid_id:bidId,client_id:clientId||bid.client_id,
+    name,addr:bid.addr||'',start:startKey,days,buffer:1,
+    value:bid.amount||0,color:'#185FA5',eventType:'job',
+    time:'',hours:null,notes:bid.notes||'',status:'upcoming'
+  });
+  saveAll();renderDash();renderJobsPage&&renderJobsPage();
+  document.getElementById('sched-suggest-overlay')?.remove();
+  showToast(name+' scheduled for '+parseD(startKey).toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'}),'📅');
+  // Offer to go to calendar
+  setTimeout(()=>zConfirm('Job locked in for '+parseD(startKey).toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric'})+'.\n\nView on calendar?',
+    ()=>goPg('pg-cal'),{title:'✓ Scheduled!',yes:'View calendar',no:'Stay here',danger:false}),400);
 }
 function discardInProgressBid(bidId){
   if(!confirm('Discard this estimate?'))return;

@@ -24,6 +24,7 @@
 }
 html{font-size:15px;-webkit-text-size-adjust:100%;overscroll-behavior-y:none}
 body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:var(--bg3);color:var(--text);min-height:100vh;overflow-x:hidden;overscroll-behavior-y:none}
+@keyframes _ptr_rotate{to{transform:rotate(360deg)}}
 /* ── Sidebar nav — always left, dark navy ── */
 :root{
   --nav-w:220px;
@@ -2777,7 +2778,6 @@ function renderDash(){
   }
   renderGoal();
   checkGoalPrompt();
-  showScheduleAlerts();
   renderLeadSources();
   renderDashToday();
   renderDashCollect();
@@ -2788,11 +2788,12 @@ function renderDash(){
   if(_cl)_cl.textContent=_owing.length?'Collect ('+_owing.length+')':'Collect';
   const _qb=document.getElementById('qa-collect-btn');
   if(_qb){_qb.style.background=_owing.length>0?'var(--green)':'var(--border2)';_qb.style.borderColor=_qb.style.background;_qb.style.color=_owing.length>0?'#fff':'var(--text3)';}
-  // Refresh workflow page badges if visible
-  // Always sync nav badges even if not on those pages
-  renderLeadsPage();
-  renderJobsPage();
-  renderMoneyPage();
+  // Only re-render the currently visible workflow page (avoid rebuilding off-screen pages on every renderDash)
+  const _activePg=document.querySelector('.pg.active')?.id;
+  if(_activePg==='pg-leads')renderLeadsPage();
+  else if(_activePg==='pg-jobs')renderJobsPage();
+  else if(_activePg==='pg-money')renderMoneyPage();
+  else _updateNavBadges(); // fast badge-only update when on home or other pages
 
   }finally{_renderDashRunning=false;}
 }
@@ -12918,6 +12919,19 @@ function markMoneyPaidFull(bidId,btn){
   },{title:'Confirm payment',yes:'Mark paid',danger:false});
 }
 
+// ── Lightweight nav badge update (called from renderDash when other pages aren't active) ──
+function _updateNavBadges(){
+  clients.forEach(c=>{
+    const s=getClientStage(c.id).stage;
+    c._stage=s; // cache for this render pass
+  });
+  const fu=clients.filter(c=>c._stage==='bid_urgent').length;
+  const lb=document.getElementById('nb-leads-badge');
+  if(lb){lb.textContent=fu||'';lb.style.display=fu?'':'none';}
+  const jn=clients.filter(c=>['active','scheduled','signed'].includes(c._stage)).length;
+  const jb=document.getElementById('nb-jobs-badge');
+  if(jb){jb.textContent=jn||'';jb.style.display=jn?'':'none';}
+}
 // ── quickAction('collect') — prioritized collect modal ───────────────────
 function refreshCollectLabel(){
   const owing=bids.filter(b=>b.status==='Closed Won'&&getBidBalance(b)>0.01);
@@ -14786,11 +14800,9 @@ loadAll();applySettings();registerDevice();
   function _ptrCreate(){
     if(_ptrBar)return;
     _ptrBar=document.createElement('div');
-    _ptrBar.style.cssText='position:fixed;top:0;left:0;right:0;z-index:9999;background:var(--navy);color:#fff;display:flex;align-items:center;justify-content:center;gap:8px;font-size:13px;font-weight:700;padding:0 16px;height:0;overflow:hidden;transition:height .2s ease';
-    _ptrBar.innerHTML='<svg id="_ptr_spin" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,.7)" stroke-width="2.5" style="flex-shrink:0"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg><span id="_ptr_lbl">Pull to refresh</span>';
+    _ptrBar.style.cssText='position:fixed;top:0;left:0;right:0;z-index:9999;background:var(--navy);color:#fff;display:flex;align-items:center;justify-content:center;gap:8px;font-size:13px;font-weight:700;padding:0 16px;height:0;overflow:hidden;transition:height .15s ease';
+    _ptrBar.innerHTML='<svg id="_ptr_spin" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,.7)" stroke-width="2.5" style="flex-shrink:0;animation:_ptr_rotate .7s linear infinite;animation-play-state:paused"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg><span id="_ptr_lbl">Pull to refresh</span>';
     document.body.appendChild(_ptrBar);
-    const spin=document.getElementById('_ptr_spin');
-    let deg=0;setInterval(()=>{if(_ptrActive){deg+=8;spin.style.transform='rotate('+deg+'deg)';}},30);
   }
   document.addEventListener('touchstart',e=>{
     if(window.scrollY===0&&e.touches.length===1){_ptrY=e.touches[0].clientY;_ptrCreate();}
@@ -14801,9 +14813,14 @@ loadAll();applySettings();registerDevice();
     if(dy>0&&_ptrBar){
       const h=Math.min(dy*.4,44);
       _ptrBar.style.height=h+'px';
-      const lbl=document.getElementById('_ptr_lbl');
-      if(lbl)lbl.textContent=dy>80?'↑ Release to refresh':'↓ Pull to refresh';
-      _ptrActive=dy>80;
+      const willTrigger=dy>80;
+      if(willTrigger!==_ptrActive){
+        _ptrActive=willTrigger;
+        const spin=_ptrBar.querySelector('svg');
+        if(spin)spin.style.animationPlayState=willTrigger?'running':'paused';
+        const lbl=_ptrBar.querySelector('span');
+        if(lbl)lbl.textContent=willTrigger?'↑ Release to refresh':'↓ Pull to refresh';
+      }
     }
   },{passive:true});
   document.addEventListener('touchend',e=>{

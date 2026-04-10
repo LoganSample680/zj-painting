@@ -5337,12 +5337,8 @@ function logPayment(){
       '</div>';
     document.body.appendChild(banner);
     setTimeout(()=>banner.remove(),5000);
-    const alreadyLogged=income.find(i=>i.client_id===bid.client_id&&Math.abs(i.amount-bid.amount)<0.01);
-    if(!alreadyLogged){
-      const c=getClientById(bid.client_id);
-      income.unshift({id:Date.now(),date:todayKey(),client_id:bid.client_id,client_name:c?c.name:'',type:getBidIncomeLabel(bid),amount:bid.amount,pay:v('pay-method')||'Check',inv:'',notes:bid.addr||''});
-      saveAll();
-    }
+    // NOTE: do NOT auto-log to income here — payments array is the source of truth for bid revenue.
+    // Income array is for manual non-bid entries only. Auto-logging caused dashboard double-counting.
   } else {
     const banner=document.createElement('div');
     banner.style.cssText='position:fixed;top:0;left:0;right:0;z-index:9999;animation:slideDown .3s ease';
@@ -5738,7 +5734,7 @@ function confirmStartDrive(){
   gps.timerInt=setInterval(updateDriveTimer,1000);
   if(c&&c.phone){
     const phone=c.phone.replace(/\D/g,'');
-    const msg='Hi '+c.name.split(' ')[0]+', this is '+((S.bname||"ZJ's Painting"))+' — I\'m on my way! I\'ll be there shortly.';
+    const msg='Hi '+c.name.split(' ')[0]+', this is '+(S.bname||"ZJ's Painting & Special Coatings")+' — I\'m on my way! I\'ll be there shortly.';
     const smsLink='sms:'+phone+'&body='+encodeURIComponent(msg);
     window.location.href=smsLink;
   }
@@ -8579,8 +8575,11 @@ function calcEst(){
 }
 function renderEstRunning(){
   const el=document.getElementById('est-running');if(!el)return;
-  const{lines,bid}=calcEst();
+  const{lines,bid,laborTotal,matTotal}=calcEst();
   if(!lines.length){el.innerHTML='<div class="empty">Add surfaces to see pricing.</div>';return;}
+  const tierMult=(typeof estPropertyTier!=='undefined'&&estPropertyTier.mult)||1.00;
+  const subtotal=Math.round((laborTotal+matTotal)*100)/100;
+  const tierPremium=tierMult!==1.00?Math.round((bid-subtotal)*100)/100:0;
   let html='<div style="display:grid;grid-template-columns:1fr auto auto;gap:4px 12px;font-size:12px">';
   lines.forEach(l=>{
     if(l.surfType){
@@ -8594,7 +8593,14 @@ function renderEstRunning(){
       html+='<span>'+l.label+'</span><span style="color:var(--text3)">'+l.qty.toLocaleString()+' '+l.unit+'</span><span style="font-weight:700;text-align:right">'+fmt(l.sub)+'</span>';
     }
   });
-  html+='</div><hr><div style="display:flex;justify-content:space-between;font-size:15px;font-weight:700"><span>Estimated bid</span><span style="color:var(--blue)">'+fmt(bid)+'</span></div>';
+  html+='</div>';
+  if(tierPremium>0){
+    const tierPct=Math.round((tierMult-1)*100);
+    const tierLabel=(estPropertyTier?.label)||'Property tier';
+    html+='<div style="display:flex;justify-content:space-between;font-size:11px;color:var(--text3);margin-top:6px;border-top:1px solid var(--border);padding-top:4px"><span>Base subtotal</span><span>'+fmt(subtotal)+'</span></div>'+
+          '<div style="display:flex;justify-content:space-between;font-size:11px;color:var(--amber);font-weight:700;margin-top:2px"><span>'+tierLabel+' (+'+tierPct+'%)</span><span>+'+fmt(tierPremium)+'</span></div>';
+  }
+  html+='<hr><div style="display:flex;justify-content:space-between;font-size:15px;font-weight:700"><span>Estimated bid</span><span style="color:var(--blue)">'+fmt(bid)+'</span></div>';
   el.innerHTML=html;
 }
 function renderEstReview(){
@@ -8689,10 +8695,15 @@ function renderEstReview(){
     '<span>Total paintable sq ft</span><span style="color:var(--blue)">'+totalSqft.toLocaleString()+' sq ft</span></div>';
 
   // Metrics summary
+  const _tierMult=(typeof estPropertyTier!=='undefined'&&estPropertyTier.mult)||1.00;
+  const _subtotal=Math.round((laborTotal+matTotal)*100)/100;
+  const _tierPremium=_tierMult!==1.00?Math.round((final-_subtotal)*100)/100:0;
+  const _tierPct=Math.round((_tierMult-1)*100);
   html+='<div class="mets" style="margin-bottom:12px">'+
     '<div class="met"><div class="met-l">Labor hours</div><div class="met-v">'+totalLaborHours.toFixed(1)+'h</div></div>'+
-    '<div class="met"><div class="met-l">Labor cost</div><div class="met-v" style="color:var(--blue)">'+fmt(laborTotal)+'</div></div>'+
+    '<div class="met"><div class="met-l">Labor</div><div class="met-v" style="color:var(--blue)">'+fmt(laborTotal)+'</div></div>'+
     '<div class="met"><div class="met-l">Materials</div><div class="met-v" style="color:var(--blue)">'+fmt(matTotal)+'</div></div>'+
+    (_tierPremium>0?'<div class="met"><div class="met-l" style="color:var(--amber)">'+(estPropertyTier?.label||'Tier')+' +'+_tierPct+'%</div><div class="met-v" style="color:var(--amber)">+'+fmt(_tierPremium)+'</div></div>':'')+
     '<div class="met"><div class="met-l">Total</div><div class="met-v" style="color:var(--green-mid);font-size:18px">'+fmt(final)+'</div></div>'+
   '</div>';
 
@@ -9095,16 +9106,22 @@ function buildProposal(){
     r.total=Math.round((r.surfCost+r.scopeCost)*100)/100;
   });
 
-  // Normalize room totals to match laborTotal exactly
+  // Property tier multiplier — applied to both labor and materials so proposal math adds up
+  const _propTierMult=(typeof estPropertyTier!=='undefined'&&estPropertyTier.mult)||1.00;
+
+  // Normalize room totals to match laborTotal * tierMult so the row totals + materials = final
   const roomTotalSum=roomNames.reduce((s,r)=>s+roomCosts[r].total,0);
+  const targetLaborTotal=Math.round(laborTotal*_propTierMult*100)/100;
   if(roomTotalSum>0&&roomNames.length>0){
-    const scale=laborTotal/roomTotalSum;
+    const scale=targetLaborTotal/roomTotalSum;
     roomNames.forEach(room=>{roomCosts[room].total=Math.round(roomCosts[room].total*scale*100)/100;});
     // Fix rounding: add diff to last room
-    const diff=Math.round((laborTotal-roomNames.reduce((s,r)=>s+roomCosts[r].total,0))*100)/100;
+    const diff=Math.round((targetLaborTotal-roomNames.reduce((s,r)=>s+roomCosts[r].total,0))*100)/100;
     if(diff&&roomNames.length)roomCosts[roomNames[roomNames.length-1]].total+=diff;
   }
-  // Use final from calcEst directly — room/mat breakdown is display only
+  // Scale materials by tier multiplier too
+  const scaledMatLine=Math.round((matLine)*_propTierMult*100)/100;
+  // Use final from calcEst directly — row breakdown is display only, final is authoritative
   const proposalTotal=final;
 
   // Compute per-room customer paint flags
@@ -9210,7 +9227,7 @@ function buildProposal(){
           <strong>${anyRoomCustomerPaint?'Paint, Primer &amp; Materials (partial)':(customerPaint?'Prep &amp; Application Supplies':'Paint, Primer &amp; Materials')}</strong><br>
           <span style="font-size:11px;color:#666">${anyRoomCustomerPaint?'Includes all paint, primer, and supplies for contractor-painted rooms. For rooms where client supplies paint: all prep supplies and application labor included. No warranty on finish quality for client-supplied paint.':customerPaint?'All prep supplies, tape, plastic sheeting, rollers, brushes, and drop cloths included. Paint to be supplied by client prior to start date. No warranty on finish quality.':'Includes paint, primer, tape, plastic sheeting, rollers, brushes, drop cloths and all supplies needed to complete the job.'}</span>
         </td>
-        <td style="padding:10px 8px 10px 4px;text-align:right;font-weight:700;vertical-align:top;white-space:nowrap">${fmt(matLine)}</td>
+        <td style="padding:10px 8px 10px 4px;text-align:right;font-weight:700;vertical-align:top;white-space:nowrap">${fmt(scaledMatLine)}</td>
       </tr>
       ${adj?`<tr style="border-bottom:1px solid var(--border)"><td style="padding:8px 16px;color:var(--text2)">${adjReason||'Price adjustment'}</td><td style="padding:8px 16px;text-align:right">${adj>0?'+':''}${fmt(adj)}</td></tr>`:''}
     </tbody>
@@ -12699,7 +12716,7 @@ function sendOMWText(clientId){
   const c=getClientById(clientId);
   if(!c||!c.phone)return;
   const firstName=c.name.split(' ')[0];
-  const biz=S.bname||'us';
+  const biz=S.bname||"ZJ's Painting & Special Coatings";
   const msg='Hi '+firstName+', this is '+biz+' — I\'m on my way! I\'ll be there shortly.';
   window.location.href='sms:'+c.phone.replace(/\D/g,'')+'&body='+encodeURIComponent(msg);
 }
@@ -12906,12 +12923,8 @@ function markMoneyPaidFull(bidId,btn){
     if(!b.completion_date)b.completion_date=todayKey();
     payments.push({id:Date.now(),bid_id:bidId,client_id:b.client_id,client_name:b.client_name,
       date:todayKey(),type:'Final payment — paid in full',amount:balance,method:'Cash',ref:''});
-    // Auto-log income if not already
-    const already=income.find(i=>i.client_id===b.client_id&&Math.abs(i.amount-b.amount)<0.01);
-    if(!already){
-      const c=getClientById(b.client_id);
-      income.unshift({id:Date.now()+1,date:todayKey(),client_id:b.client_id,client_name:c?c.name:'',type:getBidIncomeLabel(b),amount:b.amount,pay:'Cash',inv:'',notes:b.addr||''});
-    }
+    // NOTE: do NOT auto-log to income — payments array already records this payment.
+    // Auto-logging caused revenue to double on the dashboard.
     saveAll();
     renderMoneyPage();
     renderJobsPage();

@@ -1951,6 +1951,7 @@ let clients=[],bids=[],jobs=[],income=[],expenses=[],mileage=[],checksState={},p
 function _newBidId(){return Date.now()*1000+Math.floor(Math.random()*999);}
 let currentClientId=null,editClientId=null,clientFilter='new';
 let estSurfaces=[],estSurfId=0,estStep=1,estLinkedClientId=null,editingBidId=null,lastCreatedBidId=null;
+let _pendingSignToken=null; // {bidId,token,proposalKey} — committed to bid only when SMS/email is actually sent
 let _estAddrOptions=[];
 function _pickEstAddr(i){
   const a=_estAddrOptions[i];if(!a)return;
@@ -2808,7 +2809,8 @@ function renderDash(){
     const draft=loadEstFullDraft();
     const hasDraft=!!(draft&&draft.cname);
     // In-progress = any unsent bid (no signingToken, not yet won)
-    const inProgressBids=bids.filter(b=>!b.signingToken&&b.status!=='Closed Won').sort((a,b)=>(b.bid_date||'').localeCompare(a.bid_date||''));
+    // In-progress = explicitly marked as draft (draft:true) and never sent. Excludes Closed Lost orphans.
+    const inProgressBids=bids.filter(b=>b.draft&&!b.signingToken&&b.status!=='Closed Won'&&b.status!=='Closed Lost').sort((a,b)=>(b.bid_date||'').localeCompare(a.bid_date||''));
     const total=inProgressBids.length+(hasDraft?1:0);
     if(!total){resumeEl.innerHTML='';} else {
       let html='<div style="background:var(--bg);border:1px solid var(--border);border-radius:var(--rl);padding:10px 14px">';
@@ -2842,7 +2844,7 @@ function renderDash(){
   const sentEl=document.getElementById('dash-sent-proposals');
   if(sentEl){
     // Sent = any bid with a signingToken that isn't yet won
-    const sentBids=bids.filter(b=>b.signingToken&&b.status!=='Closed Won').sort((a,b)=>(b.bid_date||'').localeCompare(a.bid_date||''));
+    const sentBids=bids.filter(b=>b.signingToken&&b.status!=='Closed Won'&&b.status!=='Closed Lost').sort((a,b)=>(b.bid_date||'').localeCompare(a.bid_date||''));
     if(!sentBids.length){sentEl.innerHTML='';} else {
       let html='<div style="background:var(--bg);border:1px solid var(--border);border-radius:var(--rl);padding:10px 14px">';
       html+='<div style="font-size:12px;font-weight:700;color:var(--text);margin-bottom:8px">📨 Sent proposals — awaiting signature ('+sentBids.length+')</div>';
@@ -9208,27 +9210,18 @@ async function sendProposalLink(){
     }
     if(shorturlEl)shorturlEl.textContent=shortUrl.replace(/^https?:\/\//,'');
     const anchorEl=document.getElementById('proposal-link-anchor');if(anchorEl)anchorEl.href=shortUrl;
+    // Store token in memory only — bid is NOT marked as sent yet.
+    // It moves to "Sent proposals" only when the user actually taps SMS or Email.
+    _pendingSignToken={bidId,token,proposalKey};
+    // Save followup date update (don't touch signingToken yet)
     const bid=bids.find(b=>b.id===bidId);
-    if(bid){
-      bid.signingToken=token;bid.signingKey=proposalKey;
-      // Promote to Pending so it shows in "Sent proposals" section
-      if(bid.status==='Draft'||!bid.status)bid.status='Pending';
-      if(!bid.followup)bid.followup=addDays(todayKey(),7);
-      // Clean up any other orphan draft bids for this client (caused by mobile nav re-opens)
-      if(bid.client_id){
-        bids.forEach(b=>{
-          if(b.id!==bidId&&b.client_id===bid.client_id&&!b.signingToken&&b.status!=='Closed Won'&&(b.status==='Draft'||b.draft)){
-            b.status='Closed Lost';b.draft=false;
-          }
-        });
-      }
-      saveAll();
-    }
+    if(bid&&!bid.followup)bid.followup=addDays(todayKey(),7);
+    saveAll();
     // Reset sig-check window so any missed signatures get caught
     const _lastCheck=localStorage.getItem('zp3_last_sig_check');
     if(!_lastCheck)localStorage.setItem('zp3_last_sig_check',new Date(Date.now()-86400000*7).toISOString());
-    if(btn){btn.textContent='✓ Link ready';btn.disabled=false;}
-    showToast('Signing link ready — copy and send to client','🔗');
+    if(btn){btn.textContent='✓ Link ready — tap SMS or Email below';btn.disabled=false;}
+    showToast('Link ready — tap SMS or Email to send','🔗');
   }catch(e){
     console.error('sendProposalLink failed:',e);
     const msg=e.message||'Unknown error';
@@ -9255,9 +9248,33 @@ function _proposalShareData(){
   const defBname=S.bname||"ZJ's Painting & Special Coatings";
   return bar?{url:bar.dataset.signingUrl||'',cname:bar.dataset.cname||'Client',bname:bar.dataset.bname||defBname,cphone:bar.dataset.cphone||'',cemail:bar.dataset.cemail||''}:{url:'',cname:'Client',bname:defBname,cphone:'',cemail:''};
 }
+// Called when user actually taps SMS or Email — THIS is when the bid moves to "Sent proposals"
+function _commitProposalSent(){
+  if(!_pendingSignToken)return;
+  const{bidId,token,proposalKey}=_pendingSignToken;
+  const bid=bids.find(b=>b.id===bidId);
+  if(bid){
+    bid.signingToken=token;bid.signingKey=proposalKey;
+    if(bid.status==='Draft'||!bid.status)bid.status='Pending';
+    bid.draft=false;
+    if(!bid.followup)bid.followup=addDays(todayKey(),7);
+    // Clean up any other unsent draft bids for this client
+    if(bid.client_id){
+      bids.forEach(b=>{
+        if(b.id!==bidId&&b.client_id===bid.client_id&&!b.signingToken&&b.status!=='Closed Won'&&(b.status==='Draft'||b.draft)){
+          b.status='Closed Lost';b.draft=false;
+        }
+      });
+    }
+    saveAll();
+  }
+  _pendingSignToken=null;
+  renderDash();
+}
 function sendProposalViaSms(){
   const d=_proposalShareData();
   if(!d.url){zAlert('Generate the proposal link first.',{title:'No link yet'});return;}
+  _commitProposalSent(); // ← bid moves to "Sent proposals" NOW (user is actually sending)
   const firstName=d.cname.split(/[\s,&]+/)[0];
   const msg=
     'Hey '+firstName+'!\n\n'+
@@ -9267,13 +9284,12 @@ function sendProposalViaSms(){
     'Any questions at all, just shoot me a text. Talk soon!\n\n'+
     '— '+d.bname;
   const href='sms:'+(d.cphone||'')+'&body='+encodeURIComponent(msg);
-  // Update dash before navigating so state is fresh if app resumes
-  setTimeout(renderDash,300);
   window.location.href=href;
 }
 function sendProposalViaEmail(){
   const d=_proposalShareData();
   if(!d.url){zAlert('Generate the proposal link first.',{title:'No link yet'});return;}
+  _commitProposalSent(); // ← bid moves to "Sent proposals" NOW (user is actually sending)
   const firstName=d.cname.split(/[\s,&]+/)[0];
   const subject='Your Painting Proposal from '+d.bname+' is Ready!';
   const body=
@@ -9286,7 +9302,6 @@ function sendProposalViaEmail(){
     'Looking forward to working with you,\n\n'+
     d.bname;
   const href='mailto:'+(d.cemail||'')+'?subject='+encodeURIComponent(subject)+'&body='+encodeURIComponent(body);
-  setTimeout(renderDash,300);
   window.location.href=href;
 }
 function buildDescription(){
@@ -9543,17 +9558,6 @@ function buildProposal(){
       <div style="font-size:11px;color:var(--text3);margin-top:4px">Valid until: ${expD}</div>
     </div>
   </div>
-  <!-- "What's included" callout — pre-empts the most common client questions -->
-  <div style="background:#f0f7ff;border-bottom:1px solid #c9dff7;padding:12px 16px;display:flex;flex-wrap:wrap;gap:10px 20px">
-    <div style="font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.06em;color:#1a365d;width:100%;margin-bottom:2px">Included with this project</div>
-    ${[
-      'Full surface prep (fill, sand, caulk as needed)',
-      coats>1?`${coats}-coat application`:'Single-coat application',
-      customerPaint?'All prep supplies & application materials':'Premium Sherwin-Williams paint & all supplies',
-      'Drop cloths & complete cleanup',
-      '1-year workmanship warranty',
-    ].map(item=>`<div style="font-size:11px;color:#1e4d8c;display:flex;align-items:center;gap:5px"><span style="color:#2d7d46;font-weight:700;font-size:12px">✓</span> ${item}</div>`).join('')}
-  </div>
   <table style="width:100%;border-collapse:collapse;font-size:12px">
     <thead>
       <tr style="background:var(--bg2);border-bottom:2px solid var(--border)">
@@ -9710,10 +9714,28 @@ function sendEstimateEmail(){
   document.body.appendChild(overlay);
 }
 function markEstSigned(){
-  if(lastCreatedBidId){const b=bids.find(x=>x.id===lastCreatedBidId);if(b){b.signedAt=new Date().toISOString();b.estStatus='signed';saveAll();}}
+  const bidId=lastCreatedBidId||editingBidId;
+  if(bidId){
+    const b=bids.find(x=>x.id===bidId);
+    if(b){
+      b.signedAt=new Date().toISOString();
+      b.estStatus='signed';
+      b.status='Closed Won'; // ← was missing: must be Closed Won to leave home page + trigger schedule
+      b.draft=false;
+      const clientId=b.client_id;
+      const clientName=b.client_name||b.name||'Client';
+      saveAll();
+      renderDash();
+      // Queue schedule alert — same flow as remote signing
+      const existing=JSON.parse(localStorage.getItem('zp3_schedule_alerts')||'[]');
+      existing.push({name:clientName,bidId:b.id,clientId,isPaid:false});
+      localStorage.setItem('zp3_schedule_alerts',JSON.stringify(existing));
+      setTimeout(showScheduleAlerts,600);
+    }
+  }
   const bar=document.getElementById('est-sent-bar');
-  if(bar)bar.innerHTML='<div style="font-size:12px;color:var(--green);font-weight:700">✓ Marked as signed — proceed to schedule</div>';
-  setTimeout(()=>goEstStep(6),1000);
+  if(bar)bar.innerHTML='<div style="font-size:12px;color:var(--green);font-weight:700">✓ Signed — scheduling prompt will open</div>';
+  setTimeout(()=>goEstStep(6),800);
 }
 function checkConfirmReady(){
   const btn=document.getElementById('confirm-btn');
@@ -15146,6 +15168,8 @@ async function supaLoadFromCloud(){
     // Check for new signatures on load + poll every 90s while app is open
     setTimeout(()=>checkNewSignatures(),2000);
     setInterval(()=>checkNewSignatures(),90000);
+    // Also check when user returns to the app (e.g., after sending SMS to client)
+    document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')checkNewSignatures();});
     setTimeout(()=>requestLocationPermission(()=>{},()=>{}),1200);
   }catch(e){
     console.warn('Cloud load failed:',e);

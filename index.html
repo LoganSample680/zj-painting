@@ -9267,17 +9267,10 @@ function _commitProposalSent(){
     if(bid.status==='Draft'||!bid.status)bid.status='Pending';
     bid.draft=false;
     if(!bid.followup)bid.followup=addDays(todayKey(),7);
-    // Clean up ALL other unsent bids for this client (Draft, Pending, or any unsent status)
-    if(bid.client_id){
-      bids.forEach(b=>{
-        if(b.id!==bidId&&b.client_id===bid.client_id&&!b.signingToken&&b.status!=='Closed Won'){
-          b.status='Closed Lost';b.draft=false;
-        }
-      });
-    }
     saveAll();
   }
   _pendingSignToken=null;
+  clearEstFullDraft(); // clear localStorage draft — proposal is now sent
   renderDash();
   // Navigate home so user sees the bid in "Sent proposals"
   goPg('pg-dash');

@@ -2551,8 +2551,9 @@ function _doOpenEstimate(c){
   surfRoom='';surfColor='';surfWhatSelected=[];surfBQueue=[];surfBIdx=0;surfBMeasurements={};_swLastProductByCategory={};
   estLinkedClientId=currentClientId;
   editingBidId=null;
-  // Reuse existing unsent draft bid for this client — prevents orphan bids on re-open/mobile nav
-  const _existingDraft=bids.find(b=>b.client_id===c.id&&!b.signingToken&&b.status!=='Closed Won'&&(b.status==='Draft'||b.draft));
+  // Reuse existing unsent bid for this client — prevents orphan bids on re-open/mobile nav
+  // Matches Draft (new), Pending (saved-not-sent), or any unsent status
+  const _existingDraft=bids.find(b=>b.client_id===c.id&&!b.signingToken&&b.status!=='Closed Won'&&b.status!=='Closed Lost');
   if(_existingDraft){
     lastCreatedBidId=_existingDraft.id;
     if(_existingDraft.surfaces&&_existingDraft.surfaces.length){
@@ -2791,9 +2792,10 @@ function renderDash(){
   if(resumeEl){
     const draft=loadEstFullDraft();
     const hasDraft=!!(draft&&draft.cname);
-    // In-progress = any unsent bid (no signingToken, not yet won)
-    // In-progress = explicitly marked as draft (draft:true) and never sent. Excludes Closed Lost orphans.
-    const inProgressBids=bids.filter(b=>!b.signingToken&&b.status!=='Closed Won'&&b.status!=='Closed Lost'&&b.status!=='Abandoned').sort((a,b)=>(b.bid_date||'').localeCompare(a.bid_date||''));
+    // In-progress = any unsent bid (no signingToken, not yet won/lost)
+    // Exclude the bid associated with the active localStorage draft — that's already shown as "Unsaved draft"
+    const _activeDraftBidId=draft?.lastBidId||null;
+    const inProgressBids=bids.filter(b=>!b.signingToken&&b.status!=='Closed Won'&&b.status!=='Closed Lost'&&b.status!=='Abandoned'&&b.id!==_activeDraftBidId).sort((a,b)=>(b.bid_date||'').localeCompare(a.bid_date||''));
     const total=inProgressBids.length+(hasDraft?1:0);
     if(!total){resumeEl.innerHTML='';} else {
       let html='<div style="background:var(--bg);border:1px solid var(--border);border-radius:var(--rl);padding:10px 14px">';
@@ -7715,13 +7717,36 @@ function initSurfStep(){
   renderSurfRoomsLogged();
   if(!surfJobType)setSurfJobType('interior');
   setSurfJobType(surfJobType); // refresh toggle state
-  goSurfStepA();
   updateSurfWhatUI();
   if(estSurfaces.length>0){
+    // Already have rooms — hide the empty add-room form, show the done-summary view
+    document.getElementById('surf-step-a').style.display='none';
+    document.getElementById('surf-step-b').style.display='none';
+    let doneDiv=document.getElementById('surf-room-done');
+    if(!doneDiv){
+      doneDiv=document.createElement('div');
+      doneDiv.id='surf-room-done';
+      const stepB=document.getElementById('surf-step-b');
+      if(stepB&&stepB.parentNode)stepB.parentNode.insertBefore(doneDiv,stepB.nextSibling);
+    }
+    const rooms=new Set(estSurfaces.map(s=>cleanRoomName(s.room)));
+    doneDiv.style.display='block';
+    doneDiv.innerHTML=
+      '<div style="padding:14px 0 10px">'+
+        '<div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">'+
+          '<div style="font-size:28px;color:var(--green-mid)">✓</div>'+
+          '<div style="font-size:16px;font-weight:800;color:var(--green-mid)">'+rooms.size+' room'+(rooms.size!==1?'s':'')+' loaded</div>'+
+        '</div>'+
+      '</div>'+
+      '<div style="display:grid;gap:10px">'+
+        '<button onclick="addAnotherRoom()" style="padding:14px;border-radius:var(--rl);border:2px solid var(--border2);background:var(--bg2);color:var(--text);font-size:14px;font-weight:700;cursor:pointer;font-family:inherit">+ Add another room</button>'+
+      '</div>';
+    // Enable the next button
     const btn=document.getElementById('est-s3-next-btn');
     if(btn){btn.disabled=false;btn.style.background='var(--blue)';btn.style.color='#fff';btn.style.borderColor='var(--blue)';btn.style.cursor='pointer';}
-    const rooms=new Set(estSurfaces.map(s=>cleanRoomName(s.room)));
     const rcl=document.getElementById('surf-room-count');if(rcl)rcl.textContent=rooms.size+' room'+(rooms.size!==1?'s':'')+' added';
+  } else {
+    goSurfStepA();
   }
 }
 
@@ -9242,10 +9267,10 @@ function _commitProposalSent(){
     if(bid.status==='Draft'||!bid.status)bid.status='Pending';
     bid.draft=false;
     if(!bid.followup)bid.followup=addDays(todayKey(),7);
-    // Clean up any other unsent draft bids for this client
+    // Clean up ALL other unsent bids for this client (Draft, Pending, or any unsent status)
     if(bid.client_id){
       bids.forEach(b=>{
-        if(b.id!==bidId&&b.client_id===bid.client_id&&!b.signingToken&&b.status!=='Closed Won'&&(b.status==='Draft'||b.draft)){
+        if(b.id!==bidId&&b.client_id===bid.client_id&&!b.signingToken&&b.status!=='Closed Won'){
           b.status='Closed Lost';b.draft=false;
         }
       });

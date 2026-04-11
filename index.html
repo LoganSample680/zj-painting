@@ -1614,6 +1614,18 @@ input:checked+.dm-slider:before{transform:translateX(22px)}</style>
       <div class="f"><label>Business name</label><input id="set-bname"></div>
       <div class="f"><label>Phone</label><input id="set-bphone" type="tel" maxlength="12" oninput="fmtPhone(this)"></div>
       <div class="f"><label>License / insured</label><input id="set-blic"></div>
+      <div class="f" style="grid-column:1/-1">
+        <label>Proposal logo <span style="font-size:10px;font-weight:400;color:var(--text3)">(replaces business name text on client proposals)</span></label>
+        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+          <div id="set-logo-preview" style="height:60px;min-width:120px;background:linear-gradient(135deg,#1a365d,#2a4a7f);border-radius:6px;display:flex;align-items:center;justify-content:center;padding:0 10px;box-sizing:border-box;flex-shrink:0"></div>
+          <div style="flex:1;min-width:160px">
+            <input type="file" id="set-logo-file" accept="image/*" style="display:none" onchange="handleLogoUpload(this)">
+            <button class="btn btn-sm" onclick="document.getElementById('set-logo-file').click()">Upload image</button>
+            <button class="btn btn-sm" onclick="clearLogoSetting()" style="margin-left:6px">Remove</button>
+            <div style="font-size:10px;color:var(--text3);margin-top:5px">PNG, JPG, or SVG. Shown on the dark blue header of every proposal you send.</div>
+          </div>
+        </div>
+      </div>
       <div class="f"><label>Reply-to email</label><input type="email" id="set-bemail" placeholder="zach@yourpainting.com"></div>
       <div class="f"><label>Google review link <span style="font-size:10px;font-weight:400;color:var(--text3)">(sent to clients after job completion)</span></label><input type="url" id="set-review-url" placeholder="https://g.page/r/..."></div>
       <div class="f" style="grid-column:1/-1" id="settings-vehicles-section">
@@ -2097,7 +2109,25 @@ const CHECKS=[
 ];
 const CAT_CFG={urgent:{label:'Do right away',color:'#A32D2D'},biz:{label:'Business setup in Kansas',color:'#185FA5'},tax:{label:'Tax & accounting',color:'#854F0B'},ks:{label:'Kansas market & marketing',color:'#27500A'}};
 
-let S={stripePk:'',bitlyKey:'',goalMonthly:0,laborRate:45,irsRate:.700,taxYear:2026,fedSingle:14600,fedMFJ:29200,fedMFS:14600,fedHOH:21900,b10:11600,b12:47150,b22:100525,b24:191950,b32:243725,b35:609350,ksLow:3.1,ksTop:33000,ksHigh:5.7,ksStdS:3500,ksStdM:8000,bname:"ZJ's Painting & Special Coatings",bphone:'',blic:'Licensed & Insured',veh:'',margin:40,cov:350,p1:83,p2:65,p3:95,mm:15,rWalls:1.30,rCeil:1.00,rTrim:3.25,rDoor:95,rWin:50,rExt:1.10,rDeck:1.00,timeOff:[],employees:[],devices:[]};
+let S={stripePk:'',bitlyKey:'',goalMonthly:0,laborRate:45,irsRate:.700,taxYear:2026,fedSingle:14600,fedMFJ:29200,fedMFS:14600,fedHOH:21900,b10:11600,b12:47150,b22:100525,b24:191950,b32:243725,b35:609350,ksLow:3.1,ksTop:33000,ksHigh:5.7,ksStdS:3500,ksStdM:8000,bname:"ZJ's Painting & Special Coatings",bphone:'',blic:'Licensed & Insured',veh:'',margin:40,cov:350,p1:83,p2:65,p3:95,mm:15,rWalls:1.30,rCeil:1.00,rTrim:3.25,rDoor:95,rWin:50,rExt:1.10,rDeck:1.00,timeOff:[],employees:[],devices:[],logoData:''};
+
+// ZJ's logo — SVG recreation for proposal header (dark-background safe: white Z, gray J, slash)
+// Only shown for ZJ's Painting account — other accounts see plain business name text.
+const _ZJ_LOGO_SVG='<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 198 78"><defs><linearGradient id="zjg" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="#fff" stop-opacity=".85"/><stop offset="1" stop-color="#888" stop-opacity=".8"/></linearGradient></defs><text x="5" y="54" font-family="Impact,Arial Black,sans-serif" font-size="56" font-style="italic" fill="#fff" opacity=".97">Z</text><text x="75" y="54" font-family="Impact,Arial Black,sans-serif" font-size="56" font-style="italic" fill="url(#zjg)">J</text><line x1="57" y1="2" x2="104" y2="62" stroke="#fff" stroke-width="3.5" stroke-linecap="round"/><line x1="62" y1="2" x2="109" y2="62" stroke="#fff" stroke-width="1.5" stroke-linecap="round" opacity=".25"/><line x1="5" y1="63" x2="53" y2="63" stroke="rgba(255,255,255,.5)" stroke-width=".75"/><text x="75" y="68" font-family="Impact,Arial,sans-serif" font-size="9.5" fill="#fff" text-anchor="middle" letter-spacing="3">ZJ\'S</text><line x1="100" y1="63" x2="148" y2="63" stroke="rgba(255,255,255,.5)" stroke-width=".75"/><text x="5" y="77" font-family="Arial,Helvetica,sans-serif" font-size="7.5" fill="rgba(190,210,240,.9)" letter-spacing="1.2" font-weight="600">PAINTING &amp; SPECIAL COATINGS</text></svg>';
+// Returns logo <img> for branded accounts, plain text for others
+// Priority: 1) S.logoData (user-uploaded), 2) ZJ auto-embed, 3) plain text
+function _proposalBizHeader(bname,bphone,blic){
+  const customLogo=S.logoData||'';
+  const isZJ=!customLogo&&(S.bname||'').toLowerCase().includes("zj's painting");
+  const logoSrc=customLogo||(isZJ?('data:image/svg+xml;charset=utf-8,'+encodeURIComponent(_ZJ_LOGO_SVG)):'');
+  const logoHtml=logoSrc
+    ?'<img src="'+logoSrc+'" style="height:72px;max-width:220px;object-fit:contain;display:block" alt="'+escHtml(bname)+'">'
+    :'<div style="font-size:21px;font-weight:800;line-height:1.1">'+escHtml(bname)+'</div>';
+  return '<div>'+logoHtml+
+    (bphone?'<div style="font-size:12px;margin-top:4px;opacity:.85">P '+escHtml(bphone)+'</div>':'')+
+    (blic?'<div style="font-size:11px;margin-top:2px;opacity:.75">'+escHtml(blic)+'</div>':'')+
+  '</div>';
+}
 
 // ── Account / User / Config global state ─────────────────────────────
 let _account=null;   // accounts row
@@ -2371,6 +2401,7 @@ function loadSettingsForm(){
   sf('set-ksl',S.ksLow);sf('set-kst',S.ksTop);sf('set-ksh',S.ksHigh);sf('set-kss',S.ksStdS);sf('set-ksm',S.ksStdM);
   sf('set-goal-monthly',S.goalMonthly||'');
   sf('set-labor-rate',S.laborRate||45);sf('set-owner-name',getOwnerName()||'');sf('set-bname',S.bname);sf('set-state',S.state||'KS');
+  _renderLogoPreview();
   if(S.state){const lbl=document.getElementById('set-state-label');const info=STATE_TAX[S.state];if(lbl&&info)lbl.textContent=info.name+' tax rates';}sf('set-stripe-pk',S.stripePk||'');sf('set-bitly-key',S.bitlyKey||'');sf('set-bphone',S.bphone);sf('set-blic',S.blic);sf('set-bemail',S.bemail||'');sf('set-veh',S.veh);
   sf('set-margin',S.margin);sf('set-cov',S.cov);sf('set-p1',S.p1);sf('set-p2',S.p2);sf('set-p3',S.p3);sf('set-mm',S.mm);sf('set-r-walls',S.rWalls||1.30);sf('set-r-ceil',S.rCeil||1.00);sf('set-r-trim',S.rTrim||4.00);sf('set-r-door',S.rDoor||95);sf('set-r-win',S.rWin||50);sf('set-r-ext',S.rExt||1.10);sf('set-r-deck',S.rDeck||1.00);
   sf('set-review-url',S.reviewUrl||'');
@@ -2380,6 +2411,26 @@ function saveSettings(){
   setOwnerName(gs('set-owner-name')||getOwnerName()||'');S={...S,goalMonthly:gf('set-goal-monthly')||0,irsRate:gf('set-irs')||.670,taxYear:parseInt(v('set-year'))||2024,fedSingle:gf('set-fs')||14600,fedMFJ:gf('set-fm')||29200,fedMFS:gf('set-fms')||14600,fedHOH:gf('set-fh')||21900,b10:gf('set-b10')||11600,b12:gf('set-b12')||47150,b22:gf('set-b22')||100525,b24:gf('set-b24')||191950,b32:gf('set-b32')||243725,b35:gf('set-b35')||609350,ksLow:gf('set-ksl')||3.1,ksTop:gf('set-kst')||33000,ksHigh:gf('set-ksh')||5.7,ksStdS:gf('set-kss')||3500,ksStdM:gf('set-ksm')||8000,laborRate:gf('set-labor-rate')||45,bname:gs('set-bname'),bphone:gs('set-bphone'),blic:gs('set-blic'),state:gs('set-state')||S.state||'',bemail:gs('set-bemail'),veh:gs('set-veh'),stripePk:gs('set-stripe-pk')||'',bitlyKey:gs('set-bitly-key')||'',vehicles:S.vehicles||[],margin:gf('set-margin')||25,cov:gf('set-cov')||350,p1:gf('set-p1')||83,p2:gf('set-p2')||65,p3:gf('set-p3')||95,mm:gf('set-mm')||20,rWalls:gf('set-r-walls')||1.30,rCeil:gf('set-r-ceil')||1.00,rTrim:gf('set-r-trim')||3.25,rDoor:gf('set-r-door')||95,rWin:gf('set-r-win')||50,rExt:gf('set-r-ext')||1.10,rDeck:gf('set-r-deck')||1.00,reviewUrl:gs('set-review-url')||''};
   applySettings();saveAll();
   const el=document.getElementById('set-saved');if(el){el.style.display='block';setTimeout(()=>el.style.display='none',3000);}
+}
+function _renderLogoPreview(){
+  const el=document.getElementById('set-logo-preview');if(!el)return;
+  const src=S.logoData||(_proposalBizHeader&&(S.bname||'').toLowerCase().includes("zj's painting")?('data:image/svg+xml;charset=utf-8,'+encodeURIComponent(_ZJ_LOGO_SVG)):'');
+  el.innerHTML=src
+    ?'<img src="'+src+'" style="height:48px;max-width:180px;object-fit:contain;display:block" alt="Logo preview">'
+    :'<span style="font-size:11px;color:rgba(255,255,255,.5)">No logo</span>';
+}
+function handleLogoUpload(input){
+  const file=input.files&&input.files[0];if(!file)return;
+  const reader=new FileReader();
+  reader.onload=e=>{
+    S.logoData=e.target.result;saveAll();_renderLogoPreview();
+    showToast('Logo saved — proposals will use your logo','🎨');
+  };
+  reader.readAsDataURL(file);
+}
+function clearLogoSetting(){
+  S.logoData='';saveAll();_renderLogoPreview();
+  showToast('Logo removed — proposals will show business name','✓');
 }
 function clearAllData(){
   zConfirm('This will permanently delete ALL clients, bids, jobs, income, expenses, and mileage. This cannot be undone.',()=>{
@@ -9470,11 +9521,7 @@ function buildProposal(){
   document.getElementById('est-proposal').innerHTML=`
 <div class="proposal" style="background:#fff;color:#1a1a1a;border-radius:10px;overflow:hidden;border:1px solid #e2e8f0;box-shadow:0 4px 24px rgba(0,0,0,.10)">
   <div style="background:linear-gradient(135deg,#1a365d 0%,#2a4a7f 100%);color:#fff;padding:24px 28px;display:flex;justify-content:space-between;align-items:flex-start">
-    <div>
-      <div style="font-size:21px;font-weight:800;line-height:1.1">${bname}</div>
-      ${bphone?`<div style="font-size:12px;margin-top:4px;opacity:.85">P ${bphone}</div>`:''}
-      ${blic?`<div style="font-size:11px;margin-top:2px;opacity:.75">${blic}</div>`:''}
-    </div>
+    ${_proposalBizHeader(bname,bphone,blic)}
     <div style="text-align:right">
       <div style="font-size:16px;font-weight:800">Paint Proposal</div>
       <div style="font-size:11px;margin-top:4px;opacity:.85"># ${estNum}</div>

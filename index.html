@@ -923,6 +923,14 @@ input:checked+.dm-slider:before{transform:translateX(22px)}</style>
           <div style="font-size:12px;font-weight:800;color:var(--text)">High-End</div>
           <div style="font-size:10px;color:#856404;margin-top:1px">+50% · Duration</div>
         </button>
+        <button type="button" id="ptier-commercial" onclick="selectPropertyTier('commercial')"
+          style="padding:10px 8px;border-radius:var(--r);border:2px solid var(--border2);background:var(--bg2);cursor:pointer;font-family:inherit;text-align:left;transition:all .15s;grid-column:1/-1;display:flex;align-items:center;gap:10px">
+          <div style="font-size:22px;line-height:1">🏢</div>
+          <div style="flex:1">
+            <div style="font-size:12px;font-weight:800;color:var(--text)">Commercial</div>
+            <div style="font-size:10px;color:#856404;margin-top:1px">+65% · Duration · Genie lifts &amp; equipment included in price</div>
+          </div>
+        </button>
       </div>
       <div id="prop-tier-hint" style="margin-top:8px;font-size:11px;color:var(--text3);text-align:center;min-height:14px"></div>
       <!-- Advanced rates — collapsed -->
@@ -10094,6 +10102,8 @@ const PROP_TIERS={
     products:{interior:'sp',exterior:'spe',trim:'pclassw'}},
   premium:{key:'premium',mult:1.50,paint:'Duration Home',label:'High-End / Premium',hint:'Demanding client or luxury home — Duration or Emerald. Top quality throughout.',
     products:{interior:'dur',exterior:'dure',ceiling:'emceil',trim:'pclassw'}},
+  commercial:{key:'commercial',mult:1.65,paint:'Duration',label:'Commercial',hint:'Commercial building — accounts for equipment (genie lifts, scaffolding), extended setup time, and Duration paint throughout.',
+    products:{interior:'dur',exterior:'dure',ceiling:'emceil',trim:'pclassw'}},
 };
 function selectPropertyTier(key){
   const tier=PROP_TIERS[key];if(!tier)return;
@@ -10241,8 +10251,14 @@ function goEstStep(n){
   if(n===2){
     setTimeout(checkStep2Ready,50);
     if(estStep<2&&!document.getElementById('e-cond')?.value)applyDefaultScope();
-    // Auto-select current tier visually (defaults to 'avg')
-    setTimeout(()=>selectPropertyTier(estPropertyTier&&estPropertyTier.key||'avg'),80);
+    // Auto-select current tier visually — default to 'commercial' if property type is Commercial
+    setTimeout(()=>{
+      const cprop=(document.getElementById('e-cprop')?.value||'').toLowerCase();
+      const isCommercial=cprop==='commercial';
+      const currentKey=estPropertyTier&&estPropertyTier.key;
+      const key=isCommercial&&(!currentKey||currentKey==='avg')?'commercial':currentKey||'avg';
+      selectPropertyTier(key);
+    },80);
   }
   if(n===4){
     if(!estSurfaces.length){zAlert('Add at least one room and surface before reviewing.',{title:'No surfaces yet'});return;}

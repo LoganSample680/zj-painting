@@ -1281,7 +1281,7 @@ input:checked+.dm-slider:before{transform:translateX(22px)}</style>
         </div>
       </details>
     </div>
-    <div class="card"><div class="card-hd">Terms &amp; conditions</div><div id="est-terms" style="font-size:11px;color:var(--text3);line-height:1.7;max-height:120px;overflow-y:auto"></div></div>
+    <div class="card"><div class="card-hd">Terms &amp; conditions</div><div id="est-terms" style="font-size:11px;color:var(--text3);line-height:1.8"></div></div>
     <div class="brow"><button class="btn" onclick="goEstStep(5)">&#8592; Back to proposal</button><button class="btn btn-xl" id="confirm-btn" onclick="confirmContract()" style="background:var(--bg2);color:var(--text3);border-color:var(--border2);cursor:not-allowed" disabled>Confirm &amp; close job</button></div>
     <div class="brow" style="margin-top:6px"><button class="btn" onclick="saveAndExitEstimate()" style="width:100%;background:var(--bg2);border-color:var(--border2);color:var(--text2);font-size:13px">💾 Not signing now — save &amp; exit</button></div>
   </div>
@@ -5465,6 +5465,13 @@ function openPayPanel(bidId, autoType){
     '<div><div style="font-size:14px;font-weight:700;color:#A32D2D">↩ Issue refund to client</div><div style="font-size:12px;color:var(--text3);margin-top:2px">Price reduced after payment</div></div>'+
     '<div style="font-size:14px;font-weight:800;color:#A32D2D">'+(overpaidAmt>0.01?'-'+fmt(overpaidAmt):'')+'</div>'+
   '</button>';
+  // Cancellation refund — shown whenever a deposit has been collected
+  const cancelRefundBtn=rawPaid>0.01
+    ?'<button type="button" onclick="closePayPanel();showCancellationRefund('+bidId+')" style="text-align:left;padding:12px 14px;border-radius:var(--r);border:2px solid var(--border2);background:var(--bg2);cursor:pointer;font-family:inherit;display:flex;justify-content:space-between;align-items:center">'+
+        '<div><div style="font-size:14px;font-weight:700;color:#A32D2D">✕ Client cancelled</div>'+
+        '<div style="font-size:12px;color:var(--text3);margin-top:2px">Return paint + refund deposit minus materials</div></div>'+
+      '</button>'
+    :'';
   const overpaidBanner=overpaidAmt>0.01
     ?'<div style="background:#FFF3CD;border:1px solid #FFC107;border-radius:var(--r);padding:10px 12px;margin-bottom:12px;display:flex;justify-content:space-between;align-items:center">'+
         '<div><div style="font-size:13px;font-weight:700;color:#856404">⚠ Refund owed</div>'+
@@ -5492,7 +5499,7 @@ function openPayPanel(bidId, autoType){
       '<button type="button" data-ptype="custom" onclick="selectPayType(this,'+bidId+')" style="text-align:left;padding:12px 14px;border-radius:var(--r);border:2px solid var(--border2);background:var(--bg2);cursor:pointer;font-family:inherit;display:flex;justify-content:space-between;align-items:center">'+
         '<div><div style="font-size:14px;font-weight:700">Custom amount</div><div style="font-size:12px;color:var(--text3);margin-top:2px">Enter exact amount received</div></div>'+
         '<div style="font-size:13px;color:var(--text3)">manual</div>'+
-      '</button>'+refundBtn;
+      '</button>'+refundBtn+cancelRefundBtn;
 
   overlay.innerHTML=
     '<div class="zmodal">'+
@@ -5536,6 +5543,70 @@ function autoFillPayAmount(){
   // No-op — amounts are entered manually, not pre-filled
 }
 function closePayPanel(){document.querySelectorAll('.pay-modal-overlay').forEach(e=>e.remove());const cdp=document.getElementById('cd-pay-panel');if(cdp)cdp.style.display='none';activePayBidId=null;}
+function showCancellationRefund(bidId){
+  const bid=bids.find(b=>b.id===bidId);if(!bid)return;
+  const totalPaid=getBidPaid(bidId);
+  if(totalPaid<=0){zAlert('No deposit recorded for this job — nothing to refund.',{title:'No payment on record'});return;}
+  const ov=document.createElement('div');ov.className='zmodal-overlay';ov.id='_cr-overlay';
+  const box=document.createElement('div');box.className='zmodal';
+  box.innerHTML=
+    '<div style="font-size:17px;font-weight:800;margin-bottom:4px">Cancellation refund</div>'+
+    '<div style="font-size:13px;color:var(--text3);margin-bottom:16px">'+(bid.client_name||'Client')+' · Deposit collected: <strong>'+fmt(totalPaid)+'</strong></div>'+
+    '<div class="f" style="margin-bottom:14px">'+
+      '<label>Materials purchased for this job ($)</label>'+
+      '<input type="number" id="_cr-mat" data-paid="'+totalPaid+'" placeholder="0.00" step="0.01" min="0" inputmode="decimal"'+
+        ' style="font-size:22px;font-weight:800;padding:12px;border-radius:var(--r);border:1px solid var(--border2);background:var(--bg2);width:100%;box-sizing:border-box;color:var(--text);font-family:inherit;text-align:center"'+
+        ' oninput="_crCalc()">'+
+    '</div>'+
+    '<div id="_cr-result" style="border-radius:var(--r);padding:12px 14px;margin-bottom:14px;font-size:13px;color:var(--text3);background:var(--bg2);text-align:center;line-height:1.8">Enter materials cost above</div>'+
+    '<div class="f" style="margin-bottom:14px">'+
+      '<label>Date of refund</label>'+
+      '<input type="date" id="_cr-date" style="font-size:14px;padding:10px;border-radius:var(--r);border:1px solid var(--border2);background:var(--bg2);width:100%;box-sizing:border-box;color:var(--text);font-family:inherit">'+
+    '</div>'+
+    '<button id="_cr-submit" onclick="_submitCancellationRefund('+bidId+')" style="width:100%;padding:14px;border-radius:var(--r);border:none;background:#A32D2D;color:#fff;font-size:15px;font-weight:700;cursor:pointer;font-family:inherit;margin-bottom:8px">Issue refund &amp; cancel job</button>'+
+    '<button onclick="document.getElementById(\'_cr-overlay\').remove()" style="width:100%;padding:10px;border-radius:var(--r);border:1px solid var(--border2);background:none;color:var(--text3);font-size:14px;cursor:pointer;font-family:inherit">Back</button>';
+  ov.appendChild(box);document.body.appendChild(ov);
+  document.getElementById('_cr-date').value=todayKey();
+  setTimeout(()=>document.getElementById('_cr-mat')?.focus(),80);
+  ov.addEventListener('click',e=>{if(e.target===ov)ov.remove();});
+}
+function _crCalc(){
+  const inp=document.getElementById('_cr-mat');
+  const res=document.getElementById('_cr-result');
+  const submit=document.getElementById('_cr-submit');
+  if(!inp||!res)return;
+  const paid=parseFloat(inp.dataset.paid)||0;
+  const mat=parseFloat(inp.value)||0;
+  const refund=Math.max(0,Math.round((paid-mat)*100)/100);
+  if(mat>=paid){
+    res.innerHTML='<span style="color:#A32D2D;font-weight:700">Materials cost equals or exceeds deposit — no refund owed.</span><br><span style="font-size:11px">Zach keeps the deposit to cover materials.</span>';
+    res.style.background='#FEF2F2';
+    if(submit)submit.textContent='Cancel job (no refund)';
+  } else {
+    res.innerHTML='Deposit: <strong>'+fmt(paid)+'</strong> &minus; Materials: <strong>'+fmt(mat)+'</strong><br><span style="font-size:18px;font-weight:800;color:#A32D2D">Refund to client: '+fmt(refund)+'</span>';
+    res.style.background='var(--bg2)';
+    if(submit)submit.textContent='Issue '+fmt(refund)+' refund & cancel job';
+  }
+}
+function _submitCancellationRefund(bidId){
+  const inp=document.getElementById('_cr-mat');
+  const dateEl=document.getElementById('_cr-date');
+  if(!inp)return;
+  const paid=parseFloat(inp.dataset.paid)||0;
+  const mat=parseFloat(inp.value)||0;
+  const refund=Math.max(0,Math.round((paid-mat)*100)/100);
+  const pdate=(dateEl?dateEl.value:'')||todayKey();
+  const bid=bids.find(b=>b.id===bidId);if(!bid)return;
+  if(refund>0){
+    payments.push({id:Date.now(),bid_id:bidId,client_id:bid.client_id,client_name:bid.client_name,
+      date:pdate,type:'refund',amount:-refund,method:'',ref:'Cancellation — materials: '+fmt(mat)});
+  }
+  bid.status='Abandoned';bid.draft=false;
+  saveAll();
+  document.getElementById('_cr-overlay')?.remove();
+  renderDash();
+  showToast(refund>0?'Refund of '+fmt(refund)+' issued · Job cancelled':'Job cancelled','↩');
+}
 function selectPayType(btn, bidId){
   // Deselect all
   const typeContainer=document.getElementById('mpay-type-btns');
@@ -9698,14 +9769,12 @@ function buildProposal(){
   <div style="padding:20px 24px;display:grid;grid-template-columns:1fr 1fr;gap:20px;border-top:3px solid #1a365d;background:#f8fafc">
     <div>
       <div style="font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.08em;color:#1a365d;margin-bottom:10px">Payment Terms</div>
-      <div style="font-size:11.5px;color:#2d3748;line-height:2">
+      <div style="font-size:11.5px;color:#2d3748;line-height:2.1">
         <div style="display:flex;align-items:baseline;gap:8px;margin-bottom:2px"><span style="color:#1a365d;font-weight:700;min-width:16px">1.</span><span><strong>Deposit:</strong> 25% due before work begins.</span></div>
-        <div style="display:flex;align-items:baseline;gap:8px;margin-bottom:2px"><span style="color:#1a365d;font-weight:700;min-width:16px">2.</span><span><strong>Balance:</strong> Remainder due on completion.</span></div>
-        <div style="display:flex;align-items:baseline;gap:8px;margin-bottom:2px"><span style="color:#1a365d;font-weight:700;min-width:16px">3.</span><span><strong>Cancellation:</strong> If canceled after materials are purchased, client receives all purchased paint and a deposit refund minus documented materials cost. No other fee.</span></div>
-        <div style="display:flex;align-items:baseline;gap:8px;margin-bottom:2px"><span style="color:#1a365d;font-weight:700;min-width:16px">4.</span><span><strong>Warranty:</strong> All workmanship warranted for 1 year. Excludes pre-existing conditions and substrate failure.</span></div>
-        <div style="display:flex;align-items:baseline;gap:8px;margin-bottom:2px"><span style="color:#1a365d;font-weight:700;min-width:16px">5.</span><span><strong>Liability:</strong> Contractor not responsible for pre-existing damage or conditions present before work began.</span></div>
-        <div style="display:flex;align-items:baseline;gap:8px"><span style="color:#1a365d;font-weight:700;min-width:16px">6.</span><span><strong>Lien Notice:</strong> Unpaid balances may result in a mechanic's lien on this property (K.S.A. 60-1101).</span></div>
+        <div style="display:flex;align-items:baseline;gap:8px;margin-bottom:2px"><span style="color:#1a365d;font-weight:700;min-width:16px">2.</span><span><strong>Balance:</strong> Remainder due upon completion.</span></div>
+        <div style="display:flex;align-items:baseline;gap:8px"><span style="color:#1a365d;font-weight:700;min-width:16px">3.</span><span><strong>Warranty:</strong> All workmanship warranted for 1 year.</span></div>
       </div>
+      <div style="margin-top:10px;font-size:10px;color:#718096;line-height:1.5">Full terms &amp; conditions — including cancellation, lien rights, and liability — are on the signing page.</div>
     </div>
     <div>
       <div style="font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.08em;color:#1a365d;margin-bottom:10px">Authorized by Contractor</div>

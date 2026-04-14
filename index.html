@@ -467,7 +467,12 @@ input:checked+.dm-slider:before{transform:translateX(22px)}
   <div class="tbar"><div><div class="tbar-title" id="dash-greet">Good Morning, Zach</div><div class="tbar-sub" id="dash-date"></div></div><div style="display:flex;align-items:center;gap:5px"><span style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.04em">Year</span><select id="dash-year-sel" onchange="setDashYear(this.value)" style="font-size:13px;font-weight:700;padding:6px 10px;border-radius:var(--r);border:1px solid var(--border2);background:var(--bg2);color:var(--text)"></select></div></select></div>
   
   <div id="dash-kpi" style="margin-bottom:10px"></div>
-  
+
+  <div class="card" id="dash-money-feed-card" style="padding:0;margin-bottom:10px">
+    <div class="card-hd">Make Money Today</div>
+    <div id="dash-money-feed"></div>
+  </div>
+
   <div id="dash-quick" style="margin-bottom:12px">
     <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--text3);margin-bottom:10px">Quick actions</div>
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(95px,1fr));gap:8px">
@@ -507,12 +512,6 @@ input:checked+.dm-slider:before{transform:translateX(22px)}
   <div id="dash-collect" style="display:none"></div>
   <div id="dash-summary-leads" style="display:none"></div>
   <div id="dash-summary-collect" style="display:none"></div>
-  <div class="card" id="dash-money-feed-card" style="padding:0">
-    <div id="dash-money-feed"></div>
-  </div>
-  <div class="card" id="dash-action-card" style="padding:0;display:none">
-    <div id="dash-action-queue"></div>
-  </div>
   <div class="card" id="dash-coldleads-card" style="display:none">
     <div class="card-hd">Cold leads <span id="dash-coldleads-count"></span></div>
     <div id="dash-coldleads"></div>
@@ -1476,7 +1475,7 @@ input:checked+.dm-slider:before{transform:translateX(22px)}
   </div>
   <div id="tr-mileage" style="display:none">
     <div style="display:flex;gap:8px;margin-bottom:10px;align-items:center">
-      <button class="btn btn-p" style="flex:1;min-height:48px;font-size:15px;font-weight:700" onclick="openLogTripModal()">🚗 Log a trip</button>
+      <button class="btn btn-p" style="flex:1;min-height:48px;font-size:15px;font-weight:700" onclick="openDriveModal()">🚗 Log a trip</button>
     </div>
     <div id="tr-mile-mets"></div>
     <input type="hidden" id="mil-date"><input type="hidden" id="mil-vehicle"><input type="hidden" id="mil-from">
@@ -3343,7 +3342,8 @@ function renderTodayFeed(){
           '<div class="tf-sub" style="color:#A32D2D">'+fmt(bal)+' owed · job done '+daysAgo+'d ago</div>'+
         '</div>'+
         '<div class="tf-acts">'+
-          (c.phone?'<a href="sms:'+c.phone.replace(/\D/g,'')+'&body='+smsBody+'" onclick="autoLogContact('+c.id+',\'payment_reminder_sms\')" class="btn btn-sm" style="font-size:11px;border-color:var(--border2)">Text</a>':'')+
+          (c.phone?'<a href="tel:'+c.phone.replace(/\D/g,'')+'" onclick="autoLogContact('+c.id+',\'call\')" class="btn btn-sm" style="font-size:11px">Call</a>':'')+
+          (c.phone?'<a href="sms:'+c.phone.replace(/\D/g,'')+'&body='+smsBody+'" onclick="autoLogContact('+c.id+',\'payment_reminder_sms\')" class="btn btn-sm" style="font-size:11px">Text</a>':'')+
           '<button onclick="openPayPanel('+b.id+')" class="btn btn-sm btn-g" style="font-size:11px">Collect →</button>'+
         '</div>'+
       '</div>'});
@@ -3383,9 +3383,9 @@ function renderTodayFeed(){
           '<div class="tf-sub" style="color:#A32D2D">2nd follow-up needed · '+fmt(b.amount)+' · '+Math.abs(daysOut)+'d waiting</div>'+
         '</div>'+
         '<div class="tf-acts">'+
+          (c.phone?'<a href="tel:'+c.phone.replace(/\D/g,'')+'" onclick="autoLogContact('+c.id+',\'call\')" class="btn btn-sm" style="font-size:11px">Call</a>':'')+
           (c.phone?'<a href="sms:'+c.phone.replace(/\D/g,'')+'&body='+smsBody+'" onclick="autoLogContact('+c.id+',\'second_followup\');markFollowupSent('+b.id+')" class="btn btn-sm" style="font-size:11px;border-color:var(--amber);color:#856404;background:var(--amber-lt)">Text</a>':'')+
           '<button onclick="markFUWon('+b.id+','+b.client_id+')" class="btn btn-sm btn-g" style="font-size:11px">Won ✓</button>'+
-          '<button onclick="markFUAbandoned('+b.id+','+b.client_id+')" class="btn btn-sm" style="font-size:11px;color:var(--text3)">Cold</button>'+
         '</div>'+
       '</div>'});
   });
@@ -3404,9 +3404,9 @@ function renderTodayFeed(){
           '<div class="tf-sub" style="color:var(--amber)">'+(daysOut>0?daysOut+'d overdue':'Due today')+' · '+fmt(b.amount)+' estimate</div>'+
         '</div>'+
         '<div class="tf-acts">'+
+          (c.phone?'<a href="tel:'+c.phone.replace(/\D/g,'')+'" onclick="autoLogContact('+c.id+',\'call\')" class="btn btn-sm" style="font-size:11px">Call</a>':'')+
           (c.phone?'<a href="sms:'+c.phone.replace(/\D/g,'')+'&body='+smsBody+'" onclick="autoLogContact('+c.id+',\'followup_sent\');markFollowupSent('+b.id+')" class="btn btn-sm" style="font-size:11px;border-color:var(--amber);color:#856404;background:var(--amber-lt)">Text</a>':'')+
           '<button onclick="markFUWon('+b.id+','+b.client_id+')" class="btn btn-sm btn-g" style="font-size:11px">Won ✓</button>'+
-          '<button onclick="openEditBid('+b.id+',5)" class="btn btn-sm" style="font-size:11px">View</button>'+
         '</div>'+
       '</div>'});
   });
@@ -3467,23 +3467,12 @@ function renderTodayFeed(){
   }
 
   if(!items.length){
-    el.innerHTML=
-      '<div style="padding:20px 14px;text-align:center">'+
-        '<div style="font-size:24px;margin-bottom:8px">✅</div>'+
-        '<div style="font-size:13px;font-weight:700;color:var(--text)">You\'re all caught up</div>'+
-        '<div style="font-size:12px;color:var(--text3);margin-top:4px">No money actions needed right now</div>'+
-      '</div>';
+    el.innerHTML='<div style="padding:14px;font-size:13px;color:var(--text3)">You\'re caught up — nothing to chase right now.</div>';
     return;
   }
 
   items.sort((a,b)=>a.priority-b.priority);
-  const count=items.length;
-  el.innerHTML=
-    '<div style="padding:12px 14px 8px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center">'+
-      '<div style="font-size:13px;font-weight:800;color:var(--text)">Today\'s money actions</div>'+
-      '<span style="font-size:11px;font-weight:700;color:#A32D2D;background:var(--red-lt);border-radius:10px;padding:2px 8px">'+count+'</span>'+
-    '</div>'+
-    items.map(i=>i.html).join('');
+  el.innerHTML=items.slice(0,5).map(i=>i.html).join('');
 }
 
 function checkGoalPrompt(){
@@ -11036,19 +11025,7 @@ function quickAction(type){
   const wonUnscheduled=bids.filter(b=>b.status==='Closed Won'&&!jobs.find(j=>j.bid_id===b.id||j.client_id===b.client_id&&j.eventType!=='estimate'&&j.start>=tk));
 
   if(type==='drive'){
-    // Build optional suggestions from today's schedule (shown as chips, not forced)
-    const suggestions=[];
-    todayJobs.filter(j=>j.eventType!=='estimate').forEach(j=>{
-      const c=getClientById(j.client_id);
-      if(c&&!suggestions.find(s=>s.clientId===j.client_id))
-        suggestions.push({label:c.name,addr:c.addr||'',clientId:j.client_id,icon:'🔨',purpose:'Job site'});
-    });
-    todayEstimates.forEach(j=>{
-      const c=getClientById(j.client_id);
-      if(c&&!suggestions.find(s=>s.clientId===j.client_id))
-        suggestions.push({label:c.name,addr:c.addr||'',clientId:j.client_id,icon:'📋',purpose:'Estimate'});
-    });
-    openLogTripModal({suggestions});
+    openDriveModal();
   } else if(type==='expense'){
     openExpenseFlow();
   } else if(type==='estimate'){
@@ -12619,12 +12596,172 @@ async function calcTripRoute(fromAddr,toAddr){
   return _valhallaRoute(from,to);
 }
 function startDriveToClient(){
-  const c=getClientById(currentClientId);
+  const c=getClientById(currentClientId);if(!c)return;
   const hasWon=bids.some(b=>b.client_id===currentClientId&&b.status==='Closed Won');
   const hasPending=bids.some(b=>b.client_id===currentClientId&&b.status==='Pending');
   const purpose=hasWon?'Job site':hasPending?'Estimate':'Estimate';
-  openLogTripModal({clientId:currentClientId,toAddress:c?c.addr:'',purpose,clientName:c?c.name:''});
+  openDriveModal({toAddress:c.addr||'',clientName:c.name,clientId:c.id,purpose});
 }
+// ─── Streamlined Drive Modal ──────────────────────────────────────────────────
+function openDriveModal(opts){
+  opts=opts||{};
+  // If destination already known (e.g. from client page), skip picker
+  if(opts.toAddress){_showDriveForm(opts.toAddress,opts.clientName||'',opts.clientId||null,opts.purpose||'Job site');return;}
+  const tk=todayKey();
+  // Today's scheduled stops as quick-pick chips
+  const chips=[];
+  jobs.forEach(j=>{
+    if(j.status==='canceled')return;
+    const c=getClientById(j.client_id);if(!c||!c.addr)return;
+    const d=parseInt(j.days)||1;
+    for(let i=0;i<d;i++){if(addDays(j.start,i)===tk&&!chips.find(x=>x.cid===c.id)){chips.push({name:c.name,addr:c.addr,cid:c.id,purpose:j.eventType==='estimate'?'Estimate':'Job site',icon:j.eventType==='estimate'?'📋':'🔨'});}}
+  });
+  const chipsHtml=chips.slice(0,4).map(x=>'<button onclick="_drivePickDest('+JSON.stringify(x.addr)+','+JSON.stringify(x.name)+','+x.cid+','+JSON.stringify(x.purpose)+')" style="display:flex;align-items:center;gap:6px;padding:9px 14px;border-radius:22px;border:1.5px solid var(--border2);background:var(--bg2);font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;white-space:nowrap">'+x.icon+' <span>'+escHtml(x.name)+'</span></button>').join('');
+  // All clients with addresses
+  const cliRows=clients.filter(c=>c.addr).slice(0,30).map(c=>'<div onclick="_drivePickDest('+JSON.stringify(c.addr)+','+JSON.stringify(c.name)+','+c.id+',\'Job site\')" style="display:flex;align-items:center;gap:10px;padding:10px 14px;border-bottom:1px solid var(--border);cursor:pointer"><div style="flex:1;min-width:0"><div style="font-size:13px;font-weight:700">'+escHtml(c.name)+'</div><div style="font-size:11px;color:var(--text3)">'+escHtml(c.addr.split(',')[0])+'</div></div><span style="color:var(--text3)">›</span></div>').join('');
+  const ov=document.createElement('div');ov.className='zmodal-overlay';ov.id='drive-picker-ov';
+  ov.innerHTML='<div style="background:var(--bg);border-radius:var(--rl);width:100%;max-width:400px;max-height:88vh;overflow:hidden;display:flex;flex-direction:column">'+
+    '<div style="display:flex;justify-content:space-between;align-items:center;padding:18px 18px 12px;flex-shrink:0">'+
+      '<div style="font-size:17px;font-weight:800">🚗 Drive where?</div>'+
+      '<button onclick="this.closest(\'.zmodal-overlay\').remove()" style="background:none;border:none;font-size:22px;cursor:pointer;color:var(--text3);padding:0 4px;line-height:1">×</button>'+
+    '</div>'+
+    '<div style="padding:0 18px 14px;flex-shrink:0">'+
+      '<div style="position:relative">'+
+        '<input id="drive-dest-input" placeholder="Search address or business..." autocomplete="off" '+
+          'style="width:100%;padding:12px 12px 12px 36px;font-size:15px;border-radius:var(--r);border:1.5px solid var(--border2);background:var(--bg2);color:var(--text);font-family:inherit;box-sizing:border-box" '+
+          'oninput="_driveSearch(this.value)">'+
+        '<span style="position:absolute;left:12px;top:50%;transform:translateY(-50%);font-size:16px;pointer-events:none">🔍</span>'+
+        '<div id="drive-dest-sugg" style="display:none;position:absolute;top:100%;left:0;right:0;background:var(--bg);border:1px solid var(--border2);border-radius:var(--r);margin-top:2px;overflow:hidden;max-height:220px;overflow-y:auto;z-index:999;box-shadow:0 4px 16px rgba(0,0,0,.12)"></div>'+
+      '</div>'+
+    '</div>'+
+    (chipsHtml?'<div style="padding:0 18px 12px;flex-shrink:0"><div style="font-size:10px;font-weight:700;text-transform:uppercase;color:var(--text3);margin-bottom:8px;letter-spacing:.06em">Today\'s schedule</div><div style="display:flex;flex-wrap:wrap;gap:6px">'+chipsHtml+'</div></div>':'')+
+    (cliRows?'<div style="border-top:1px solid var(--border);overflow-y:auto;flex:1"><div style="font-size:10px;font-weight:700;text-transform:uppercase;color:var(--text3);padding:10px 18px 4px;letter-spacing:.06em">Clients</div>'+cliRows+'</div>':'')+
+  '</div>';
+  document.body.appendChild(ov);
+  setTimeout(()=>document.getElementById('drive-dest-input')?.focus(),100);
+}
+let _driveSearchTimer;
+function _driveSearch(val){
+  clearTimeout(_driveSearchTimer);
+  const box=document.getElementById('drive-dest-sugg');if(!box)return;
+  if(!val||val.length<2){box.style.display='none';return;}
+  _driveSearchTimer=setTimeout(async()=>{
+    try{
+      const bias=(S.weatherLat&&S.weatherLon)?'&lat='+S.weatherLat+'&lon='+S.weatherLon:'&lat=37.6922&lon=-97.3375';
+      const r=await fetch('https://photon.komoot.io/api/?q='+encodeURIComponent(val)+'&limit=5'+bias+'&lang=en');
+      const d=await r.json();
+      if(!d||!d.features||!d.features.length){box.style.display='none';return;}
+      box.innerHTML=d.features.map(f=>{
+        const p=f.properties||{};
+        const name=p.name||'';const num=p.housenumber||'';const street=p.street||'';
+        const city=p.city||p.town||p.village||'';const state=p.state||'';
+        const line1=name||(num?num+' '+street:street)||city;
+        const streetPart=(name&&(num||street))?(num?num+' '+street:street):'';
+        const line2=[streetPart,city,state].filter(Boolean).join(', ');
+        const fullAddr=(line1+(line2?', '+line2:'')).trim();
+        return '<div onclick="_drivePickDest('+JSON.stringify(fullAddr)+','+JSON.stringify(line1)+',null,\'Other\')" style="padding:10px 14px;cursor:pointer;border-bottom:1px solid var(--border)">'+
+          '<div style="font-size:13px;font-weight:600">'+escHtml(line1)+'</div>'+
+          (line2?'<div style="font-size:11px;color:var(--text3)">'+escHtml(line2)+'</div>':'')+
+        '</div>';
+      }).join('');
+      box.style.display='block';
+    }catch(e){box.style.display='none';}
+  },250);
+}
+function _drivePickDest(addr,name,clientId,purpose){
+  document.getElementById('drive-picker-ov')?.remove();
+  _showDriveForm(addr,name,clientId,purpose);
+}
+let _dmMiles=0,_dmMins=0;
+function _showDriveForm(toAddr,toName,clientId,purpose){
+  const vehs=getVehicles();
+  const singleVeh=vehs.length===1?vehs[0].name:'';
+  const vehOpts=vehs.length?vehs.map(v=>'<option value="'+escHtml(v.name)+'"'+(v.name===singleVeh?' selected':'')+'>'+escHtml(getVehicleFullLabel(v))+'</option>').join(''):'<option value="">— Add vehicle in Settings —</option>';
+  const PURPOSES=['Estimate','Job site','Supply run','Other'];
+  const purposeChips=PURPOSES.map(p=>'<button type="button" onclick="this.parentElement.querySelectorAll(\'button\').forEach(b=>b.classList.remove(\'active-surf-btn\'));this.classList.add(\'active-surf-btn\');document.getElementById(\'dm-purpose\').value=\''+p+'\'" class="surf-type-btn'+(p===purpose?' active-surf-btn':'')+'" style="flex:1;text-align:center;padding:8px 4px;font-size:12px">'+p+'</button>').join('');
+  const ov=document.createElement('div');ov.className='zmodal-overlay';
+  _dmMiles=0;_dmMins=0;
+  ov.innerHTML='<div style="background:var(--bg);border-radius:var(--rl);width:100%;max-width:400px">'+
+    '<div style="display:flex;justify-content:space-between;align-items:center;padding:18px 18px 14px">'+
+      '<div style="font-size:17px;font-weight:800">🚗 Log trip</div>'+
+      '<button onclick="this.closest(\'.zmodal-overlay\').remove()" style="background:none;border:none;font-size:22px;cursor:pointer;color:var(--text3);padding:0 4px;line-height:1">×</button>'+
+    '</div>'+
+    '<div style="padding:0 18px 18px">'+
+      '<div style="margin-bottom:14px;background:var(--green-lt);border:1px solid var(--green-mid);border-radius:var(--r);padding:10px 12px;display:flex;align-items:center;gap:8px">'+
+        '<span style="font-size:16px">📍</span>'+
+        '<div style="flex:1;min-width:0">'+
+          '<div style="font-size:10px;font-weight:700;color:var(--green);text-transform:uppercase;letter-spacing:.04em;margin-bottom:1px">Destination</div>'+
+          '<div style="font-size:13px;font-weight:600;color:var(--text)">'+escHtml(toName||toAddr)+'</div>'+
+          (toName&&toAddr!==toName?'<div style="font-size:11px;color:var(--text3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+escHtml(toAddr)+'</div>':'')+
+        '</div>'+
+        '<button onclick="this.closest(\'.zmodal-overlay\').remove();openDriveModal()" style="background:none;border:none;font-size:12px;color:var(--text3);cursor:pointer;font-family:inherit;padding:2px 4px;text-decoration:underline;white-space:nowrap">Change</button>'+
+      '</div>'+
+      (vehs.length>1?'<div class="f" style="margin-bottom:12px"><label>Vehicle</label><select id="dm-vehicle" style="width:100%">'+vehOpts+'</select></div>':'<input type="hidden" id="dm-vehicle" value="'+escHtml(singleVeh)+'">')+
+      '<div class="f" style="margin-bottom:14px"><label>Purpose</label><div style="display:flex;gap:6px;margin-top:6px">'+purposeChips+'</div><input type="hidden" id="dm-purpose" value="'+escHtml(purpose||'Job site')+'"></div>'+
+      '<input type="hidden" id="dm-client" value="'+(clientId||'')+'">'+
+      '<input type="hidden" id="dm-to" value="'+escHtml(toAddr)+'">'+
+      '<div id="dm-route-result" style="display:none;background:var(--blue-lt);border:1px solid var(--blue);border-radius:var(--r);padding:12px;margin-bottom:12px;text-align:center">'+
+        '<div id="dm-miles-display" style="font-size:28px;font-weight:800;color:var(--blue-dk)"></div>'+
+        '<div id="dm-time-display" style="font-size:12px;color:var(--text2);margin-top:2px"></div>'+
+      '</div>'+
+      '<div id="dm-calc-status" style="font-size:12px;color:var(--text3);margin-bottom:8px;min-height:16px"></div>'+
+      '<div style="display:flex;gap:8px">'+
+        '<button onclick="this.closest(\'.zmodal-overlay\').remove()" class="btn" style="flex:1">Cancel</button>'+
+        '<button onclick="_saveDriveTrip()" class="btn btn-p" style="flex:2;min-height:48px;font-size:15px;font-weight:700">✓ Save trip</button>'+
+      '</div>'+
+    '</div>'+
+  '</div>';
+  document.body.appendChild(ov);
+  _driveAutoCalc(toAddr);
+}
+async function _driveAutoCalc(toAddr){
+  const status=document.getElementById('dm-calc-status');
+  if(status)status.textContent='Calculating distance...';
+  try{
+    let fromCoords=null;
+    if(S.weatherLat&&S.weatherLon)fromCoords={lat:S.weatherLat,lng:S.weatherLon};
+    if(!fromCoords){
+      try{fromCoords=await new Promise((res,rej)=>navigator.geolocation.getCurrentPosition(p=>res({lat:p.coords.latitude,lng:p.coords.longitude}),rej,{timeout:5000,maximumAge:60000}));}catch(e){}
+    }
+    const toCoords=await _photonGeocode(toAddr);
+    if(fromCoords){
+      const route=await _valhallaRoute(fromCoords,toCoords);
+      _dmMiles=route.miles;_dmMins=route.mins;
+      const rd=document.getElementById('dm-route-result');
+      const md=document.getElementById('dm-miles-display');
+      const td=document.getElementById('dm-time-display');
+      if(rd&&md&&td){
+        md.textContent=route.miles.toFixed(1)+' miles';
+        td.textContent='~'+route.mins+' min · '+fmt(route.miles*(S.irsRate||.700))+' deduction';
+        rd.style.display='block';
+      }
+    }
+    if(status)status.textContent='';
+  }catch(e){if(status)status.textContent='';}
+}
+function _saveDriveTrip(){
+  const vehicle=document.getElementById('dm-vehicle')?.value||'';
+  const purpose=document.getElementById('dm-purpose')?.value||'Job site';
+  const cidStr=document.getElementById('dm-client')?.value||'';
+  const toAddr=document.getElementById('dm-to')?.value||'';
+  const vehs=getVehicles();
+  if(!vehicle&&vehs.length)return zAlert('Select a vehicle in Settings first.',{title:'No vehicle'});
+  const cid=cidStr?parseInt(cidStr):null;
+  const c=cid?getClientById(cid):null;
+  const miles=Math.round((_dmMiles||0)*10)/10;
+  mileage.unshift({id:Date.now(),date:todayKey(),vehicle,from:'',to:toAddr,start:0,end:0,miles,purpose,client_id:cid,client_name:c?c.name:'',calc_method:'address'});
+  if(cid)autoLogContact(cid,'drive');
+  emitEvent('drive_logged',cid,{to:toAddr,miles,purpose});
+  saveAll();
+  document.querySelector('.zmodal-overlay')?.remove();
+  const banner=document.createElement('div');
+  banner.style.cssText='position:fixed;top:0;left:0;right:0;z-index:9999;animation:slideDown .3s ease';
+  banner.innerHTML='<div style="background:var(--green);color:#fff;padding:14px 16px;text-align:center;font-size:14px;font-weight:700">✓ Trip saved'+(miles>0?' · '+miles.toFixed(1)+' miles':'')+' · '+purpose+'</div>';
+  document.body.appendChild(banner);
+  setTimeout(()=>banner.remove(),3000);
+  renderAllMileage();renderDash();
+}
+
 let _lmCoords={from:null,to:null};
 let _tripSearchTimers={};
 function tripPlaceSearch(fieldId,suggId,val){

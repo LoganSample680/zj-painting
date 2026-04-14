@@ -12490,11 +12490,15 @@ async function getCurrentLocAddress(){
     },err=>reject(err),{timeout:10000,enableHighAccuracy:false,maximumAge:60000});
   });
 }
-function _haversineMiles(lat1,lon1,lat2,lon2){
-  const R=3958.8,toRad=x=>x*Math.PI/180;
-  const dLat=toRad(lat2-lat1),dLon=toRad(lon2-lon1);
-  const a=Math.sin(dLat/2)**2+Math.cos(toRad(lat1))*Math.cos(toRad(lat2))*Math.sin(dLon/2)**2;
-  return R*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a))*1.27; // 1.27 = avg road vs straight-line factor
+async function _valhallaRoute(fromCoords,toCoords){
+  // Valhalla routing — OpenStreetMap Foundation production server, no API key, fast
+  const body={locations:[{lon:fromCoords.lng,lat:fromCoords.lat},{lon:toCoords.lng,lat:toCoords.lat}],costing:'auto',directions_options:{units:'miles'}};
+  const r=await fetch('https://valhalla1.openstreetmap.de/route',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+  const d=await r.json();
+  if(!d||!d.trip)throw new Error('No route found between these locations');
+  const miles=Math.round(d.trip.summary.length*10)/10;
+  const mins=Math.round(d.trip.summary.time/60);
+  return{miles,mins};
 }
 async function calcTripRoute(fromAddr,toAddr){
   const geocode=async addr=>{
@@ -12504,8 +12508,7 @@ async function calcTripRoute(fromAddr,toAddr){
     return{lat:parseFloat(d[0].lat),lng:parseFloat(d[0].lon)};
   };
   const [from,to]=await Promise.all([geocode(fromAddr),geocode(toAddr)]);
-  const miles=Math.round(_haversineMiles(from.lat,from.lng,to.lat,to.lng)*10)/10;
-  return{miles,mins:Math.round(miles/35*60)}; // ~35 mph avg for local trips
+  return _valhallaRoute(from,to);
 }
 function startDriveToClient(){
   const c=getClientById(currentClientId);
@@ -12667,7 +12670,7 @@ async function calculateAndShowRoute(){
   try{
     let fromCoords=_lmCoords.from;
     let toCoords=_lmCoords.to;
-    // Only geocode addresses that weren't picked from autocomplete (coords not cached)
+    // Geocode any addresses not already resolved from autocomplete selection
     if(!fromCoords||!toCoords){
       const geocode=async addr=>{
         const r=await fetch('https://nominatim.openstreetmap.org/search?q='+encodeURIComponent(addr)+'&format=json&limit=1&countrycodes=us',{headers:{'Accept-Language':'en-US','User-Agent':'TradeDesk/1.0'}});
@@ -12680,9 +12683,8 @@ async function calculateAndShowRoute(){
       if(!toCoords)needed.push(geocode(toVal).then(c=>{toCoords=c;}));
       await Promise.all(needed);
     }
-    // Haversine + road factor — instant, no routing API needed
-    const miles=Math.round(_haversineMiles(fromCoords.lat,fromCoords.lng,toCoords.lat,toCoords.lng)*10)/10;
-    const mins=Math.round(miles/35*60);
+    // Valhalla exact road routing — production OSM server, no API key, fast
+    const{miles,mins}=await _valhallaRoute(fromCoords,toCoords);
     document.getElementById('lm-miles-val').value=miles;
     document.getElementById('lm-miles-display').textContent=miles.toFixed(1)+' miles';
     document.getElementById('lm-time-display').textContent='~'+mins+' min drive · IRS deduction: '+fmt(miles*IRS());

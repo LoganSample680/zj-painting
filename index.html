@@ -451,7 +451,15 @@ body.dark .fbar .fb.active{background:var(--blue);color:#fff;border-color:var(--
 .dm-slider{position:absolute;cursor:pointer;inset:0;background:#ccc;border-radius:13px;transition:.3s}
 .dm-slider:before{content:"";position:absolute;width:20px;height:20px;left:3px;top:3px;background:#fff;border-radius:50%;transition:.3s}
 input:checked+.dm-slider{background:var(--blue)}
-input:checked+.dm-slider:before{transform:translateX(22px)}</style>
+input:checked+.dm-slider:before{transform:translateX(22px)}
+/* ── Today Feed / Prompt engine ── */
+.tf-card{display:flex;align-items:flex-start;gap:10px;padding:12px 14px;border-bottom:1px solid var(--border)}
+.tf-card:last-child{border-bottom:none}
+.tf-icon{font-size:22px;flex-shrink:0;margin-top:1px;width:28px;text-align:center;line-height:1}
+.tf-body{flex:1;min-width:0}
+.tf-name{font-size:13px;font-weight:700;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.3}
+.tf-sub{font-size:11px;margin-top:2px;line-height:1.4}
+.tf-acts{display:flex;gap:5px;flex-shrink:0;flex-wrap:wrap;justify-content:flex-end;align-items:flex-start;padding-top:1px}</style>
 </head>
 <body>
 <div id="app">
@@ -499,7 +507,10 @@ input:checked+.dm-slider:before{transform:translateX(22px)}</style>
   <div id="dash-collect" style="display:none"></div>
   <div id="dash-summary-leads" style="display:none"></div>
   <div id="dash-summary-collect" style="display:none"></div>
-  <div class="card" id="dash-action-card" style="padding:0">
+  <div class="card" id="dash-money-feed-card" style="padding:0">
+    <div id="dash-money-feed"></div>
+  </div>
+  <div class="card" id="dash-action-card" style="padding:0;display:none">
     <div id="dash-action-queue"></div>
   </div>
   <div class="card" id="dash-coldleads-card" style="display:none">
@@ -1922,7 +1933,7 @@ function guardedSubmit(fn){
   setTimeout(()=>{_submitting=false;},1200);
   try{fn();}catch(e){_submitting=false;throw e;}
 }
-let clients=[],bids=[],jobs=[],income=[],expenses=[],mileage=[],checksState={},payments=[],liens=[];
+let clients=[],bids=[],jobs=[],income=[],expenses=[],mileage=[],checksState={},payments=[],liens=[],events=[];
 // Collision-resistant bid ID: milliseconds * 1000 + random 0-998 = 13-16 digit unique number
 function _newBidId(){return Date.now()*1000+Math.floor(Math.random()*999);}
 let currentClientId=null,editClientId=null,clientFilter='new';
@@ -2153,8 +2164,8 @@ let STD_DED={single:14600,mfj:29200,mfs:14600,hoh:21900};
 let KS_BRACKETS={single:[],mfj:[],mfs:[],hoh:[]};
 let KS_STD={single:3500,mfj:8000,mfs:4000,hoh:6000};
 
-function saveAll(){try{const lp=(k,d)=>localStorage.setItem(k,JSON.stringify(d));lp('zp3_clients',clients);lp('zp3_bids',bids);lp('zp3_jobs',jobs);lp('zp3_inc',income);lp('zp3_exp',expenses);lp('zp3_mil',mileage);lp('zp3_chk',checksState);lp('zp3_S',S);lp('zp3_pay',payments);lp('zp3_lien',liens);}catch(e){}supaSaveDebounced();}
-function loadAll(){try{const lp=(k,d)=>{const s=localStorage.getItem(k);return s?JSON.parse(s):d;};clients=lp('zp3_clients',[]);bids=lp('zp3_bids',[]);jobs=lp('zp3_jobs',[]);income=lp('zp3_inc',[]);expenses=lp('zp3_exp',[]);mileage=lp('zp3_mil',[]);checksState=lp('zp3_chk',{});payments=lp('zp3_pay',[]);liens=lp('zp3_lien',[]);const ss=lp('zp3_S',null);if(ss)S={...S,...ss};}catch(e){}
+function saveAll(){try{const lp=(k,d)=>localStorage.setItem(k,JSON.stringify(d));lp('zp3_clients',clients);lp('zp3_bids',bids);lp('zp3_jobs',jobs);lp('zp3_inc',income);lp('zp3_exp',expenses);lp('zp3_mil',mileage);lp('zp3_chk',checksState);lp('zp3_S',S);lp('zp3_pay',payments);lp('zp3_lien',liens);lp('zp3_ev',events.slice(-600));}catch(e){}supaSaveDebounced();}
+function loadAll(){try{const lp=(k,d)=>{const s=localStorage.getItem(k);return s?JSON.parse(s):d;};clients=lp('zp3_clients',[]);bids=lp('zp3_bids',[]);jobs=lp('zp3_jobs',[]);income=lp('zp3_inc',[]);expenses=lp('zp3_exp',[]);mileage=lp('zp3_mil',[]);checksState=lp('zp3_chk',{});payments=lp('zp3_pay',[]);liens=lp('zp3_lien',[]);events=lp('zp3_ev',[]);const ss=lp('zp3_S',null);if(ss)S={...S,...ss};}catch(e){}
   // One-time orphan cleanup: remove truly empty Draft bids (no surfaces, no amount) that have
   // no business being in Estimates in Progress — these were created by navigating away at step 1
   // before the _doOpenEstimate dedup fix. Safe to remove: they have zero data.
@@ -2898,6 +2909,7 @@ function renderDash(){
   renderDashCollect();
   renderDashFollowups();
   renderDashActionQueue();
+  renderTodayFeed();
   // Update new nav badges
   const _owing=bids.filter(b=>b.status==='Closed Won'&&getBidBalance(b)>0.01);
   const _cl=document.getElementById('qa-collect-label');
@@ -3216,6 +3228,12 @@ function getNextCollAction(stage){
   return map[stage]||map['none'];
 }
 
+function emitEvent(type,clientId,extra){if(!events)events=[];events.push({id:Date.now()+'_'+Math.random().toString(36).slice(2,6),type,ts:new Date().toISOString(),client_id:clientId,...(extra||{})});if(events.length>600)events=events.slice(-600);}
+function autoLogContact(clientId,note){const c=getClientById(clientId);if(!c)return;c.last_contact_date=todayKey();const pb=bids.find(b=>b.client_id===clientId&&b.status==='Pending');if(pb){pb.last_followup_date=todayKey();if(!pb.followup||pb.followup<=todayKey())pb.followup=addDays(todayKey(),7);}emitEvent(note||'contact',clientId);try{saveAll();}catch(e){}}
+function markFollowupSent(bidId){const b=bids.find(x=>x.id===bidId);if(!b)return;b.last_followup_date=todayKey();b.followup=addDays(todayKey(),7);b.noResponseCount=(b.noResponseCount||0)+1;saveAll();setTimeout(renderDash,600);}
+function openExpenseForJob(jobId,clientId){const j=jobs.find(x=>x.id===jobId);goPg('pg-tracker');setTimeout(()=>{const sel=document.getElementById('exp-job');if(sel){for(let i=0;i<sel.options.length;i++){if(sel.options[i].value==jobId){sel.selectedIndex=i;break;}}}const expSec=document.getElementById('add-exp-form')||document.getElementById('exp-add-section');if(expSec)expSec.scrollIntoView({behavior:'smooth'});},200);}
+function markJobNoExpenses(jobId){const j=jobs.find(x=>x.id===jobId);if(j){j._noExpenses=true;saveAll();renderDash();}}
+function showActionPrompt(cfg){const ov=document.createElement('div');ov.className='zmodal-overlay';const box=document.createElement('div');box.className='zmodal';const actHtml=(cfg.actions||[]).map(a=>{const S_={p:'background:var(--blue);color:#fff;border:none',g:'background:var(--green);color:#fff;border:none',r:'background:#A32D2D;color:#fff;border:none',a:'background:#C0720A;color:#fff;border:none'};const s=S_[a.style]||'background:var(--bg2);color:var(--text2);border:1px solid var(--border2)';return'<button class="_ap-act" style="flex:1;padding:13px 6px;border-radius:var(--r);'+s+';font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;min-width:0">'+escHtml(a.label)+'</button>';}).join('');box.innerHTML='<div style="text-align:center;font-size:28px;margin-bottom:8px">'+cfg.emoji+'</div><div style="font-size:16px;font-weight:800;text-align:center;margin-bottom:6px">'+escHtml(cfg.title)+'</div>'+(cfg.body?'<div style="font-size:13px;color:var(--text2);text-align:center;margin-bottom:18px;line-height:1.5">'+escHtml(cfg.body)+'</div>':'')+'<div style="display:flex;gap:8px;margin-bottom:12px">'+actHtml+'</div>'+(cfg.dismissLabel!==false?'<div style="text-align:center"><button class="_ap-dismiss" style="background:none;border:none;color:var(--text3);font-size:12px;cursor:pointer;font-family:inherit;padding:4px 8px">'+escHtml(cfg.dismissLabel||'Do later')+'</button></div>':'');ov.appendChild(box);document.body.appendChild(ov);box.querySelectorAll('._ap-act').forEach((btn,i)=>{btn.addEventListener('click',()=>{ov.remove();if(cfg.actions[i]&&cfg.actions[i].fn)cfg.actions[i].fn();});});const dis=box.querySelector('._ap-dismiss');if(dis)dis.addEventListener('click',()=>{ov.remove();if(cfg.onDismiss)cfg.onDismiss();});ov.addEventListener('click',e=>{if(e.target===ov){ov.remove();if(cfg.onDismiss)cfg.onDismiss();}});return ov;}
 function renderDashCollect(){
   const el=document.getElementById('dash-collect');if(!el)return;
   const tk=todayKey();
@@ -3295,7 +3313,7 @@ function renderDashFollowups(){
           '<div style="font-size:11px;color:'+(daysOut>0?'#A32D2D':'var(--amber)')+'">'+overdue+' · '+fmt(b.amount)+'</div>'+
         '</div>'+
         '<div style="display:flex;gap:6px;flex-shrink:0">'+
-          (c&&c.phone?'<a href="sms:'+c.phone.replace(/\D/g,'')+'&body='+encodeURIComponent('Hi '+c.name.split(' ')[0]+', just checking in on the estimate I sent over — any questions?')+'" style="padding:5px 10px;border-radius:20px;background:var(--amber-lt);color:#856404;font-size:11px;font-weight:700;text-decoration:none">Text</a>':'')+
+          (c&&c.phone?'<a href="sms:'+c.phone.replace(/\D/g,'')+'&body='+encodeURIComponent('Hi '+c.name.split(' ')[0]+', just checking in on the estimate I sent over — any questions?')+'" onclick="autoLogContact('+c.id+',\'followup_sent\');markFollowupSent('+b.id+')" style="padding:5px 10px;border-radius:20px;background:var(--amber-lt);color:#856404;font-size:11px;font-weight:700;text-decoration:none">Text</a>':'')+
         '</div>'+
       '</div>';
     }).join('')+
@@ -3303,81 +3321,169 @@ function renderDashFollowups(){
 }
 
 // ── Prioritized action queue for Home screen ─────────────────────────────────
-function renderDashActionQueue(){
-  const el=document.getElementById('dash-action-queue');if(!el)return;
+function renderDashActionQueue(){}
+function renderTodayFeed(){
+  const el=document.getElementById('dash-money-feed');if(!el)return;
   const tk=todayKey();
   const items=[];
 
-  // 1. Follow-ups overdue (highest urgency)
-  const dueBids=bids.filter(b=>b.status==='Pending'&&b.followup&&b.followup<=tk);
-  dueBids.forEach(b=>{
-    const c=getClientById(b.client_id);
-    const name=c?c.name:(b.client_name||'Client');
-    const daysOut=Math.floor((new Date(tk+'T12:00')-new Date((b.followup||tk)+'T12:00'))/86400000);
-    const urgency=daysOut>3?2:1;
-    const smsBody=encodeURIComponent('Hi '+name.split(' ')[0]+', just checking in on the estimate I sent — any questions?');
-    items.push({priority:urgency,icon:'⏰',label:name,sub:(daysOut>0?daysOut+'d overdue':'Due today')+' · '+fmt(b.amount),subColor:daysOut>0?'#A32D2D':'var(--amber)',
-      actions:(c&&c.phone?'<a href="sms:'+c.phone.replace(/\D/g,'')+'&body='+smsBody+'" class="btn btn-sm" style="border-color:var(--amber);color:var(--amber)">Text</a>':'')+
-              '<button onclick="openEditBid('+b.id+',5)" class="btn btn-sm">View bid</button>'});
-  });
-
-  // 2. Unpaid balance on completed jobs (collect money)
-  const collectBids=bids.filter(b=>b.status==='Closed Won'&&getBidBalance(b)>0.01&&b.completion_date);
-  collectBids.forEach(b=>{
-    const c=getClientById(b.client_id);
-    const name=c?c.name:(b.client_name||'Client');
+  // TIER 1 — Collect money (completed job, balance owed) — highest urgency
+  bids.filter(b=>b.status==='Closed Won'&&getBidBalance(b)>0.01&&b.completion_date).forEach(b=>{
+    const c=getClientById(b.client_id);if(!c)return;
     const bal=getBidBalance(b);
-    items.push({priority:3,icon:'💰',label:name,sub:fmt(bal)+' outstanding',subColor:'#A32D2D',
-      actions:'<button onclick="openPayPanel('+b.id+',\'final\')" class="btn btn-sm btn-g">Collect →</button>'});
+    const daysAgo=Math.floor((new Date(tk+'T12:00')-new Date(b.completion_date+'T12:00'))/86400000);
+    const urgTag=daysAgo>=30?'<span style="display:inline-block;font-size:9px;font-weight:800;text-transform:uppercase;padding:2px 5px;border-radius:3px;background:#A32D2D;color:#fff;margin-left:4px">30+ days</span>':
+                 daysAgo>=7?'<span style="display:inline-block;font-size:9px;font-weight:800;text-transform:uppercase;padding:2px 5px;border-radius:3px;background:#C0720A;color:#fff;margin-left:4px">Overdue</span>':'';
+    const smsBody=encodeURIComponent('Hi '+c.name.split(' ')[0]+', just checking in — your balance of '+fmt(bal)+' for the painting work is still outstanding. Let us know when you can take care of it. Thanks!');
+    items.push({priority:daysAgo>=7?1:2,html:
+      '<div class="tf-card">'+
+        '<div class="tf-icon">💰</div>'+
+        '<div class="tf-body">'+
+          '<div class="tf-name">'+escHtml(c.name)+urgTag+'</div>'+
+          '<div class="tf-sub" style="color:#A32D2D">'+fmt(bal)+' owed · job done '+daysAgo+'d ago</div>'+
+        '</div>'+
+        '<div class="tf-acts">'+
+          (c.phone?'<a href="sms:'+c.phone.replace(/\D/g,'')+'&body='+smsBody+'" onclick="autoLogContact('+c.id+',\'payment_reminder_sms\')" class="btn btn-sm" style="font-size:11px;border-color:var(--border2)">Text</a>':'')+
+          '<button onclick="openPayPanel('+b.id+')" class="btn btn-sm btn-g" style="font-size:11px">Collect →</button>'+
+        '</div>'+
+      '</div>'});
   });
 
-  // 3. Active jobs with no deposit
-  const activeNoDeposit=bids.filter(b=>b.status==='Closed Won'&&getBidBalance(b)===b.amount&&!b.completion_date);
-  activeNoDeposit.forEach(b=>{
-    const c=getClientById(b.client_id);
-    const name=c?c.name:(b.client_name||'Client');
-    items.push({priority:4,icon:'📌',label:name,sub:'No deposit yet · '+fmt(b.amount),subColor:'var(--amber)',
-      actions:'<button onclick="openPayPanel('+b.id+',\'deposit\')" class="btn btn-sm btn-p">Get deposit</button>'});
+  // TIER 2 — Won bid, no job scheduled yet (lock it in)
+  bids.filter(b=>b.status==='Closed Won'&&!b.completion_date).forEach(b=>{
+    if(jobs.some(j=>j.bid_id===b.id&&j.eventType!=='estimate'))return; // already has a job
+    const c=getClientById(b.client_id);if(!c)return;
+    const depositPaid=getBidPaid(b.id)>0;
+    const daysAgo=b.bid_date?Math.floor((new Date(tk+'T12:00')-new Date(b.bid_date+'T12:00'))/86400000):0;
+    items.push({priority:3,html:
+      '<div class="tf-card">'+
+        '<div class="tf-icon">🗓️</div>'+
+        '<div class="tf-body">'+
+          '<div class="tf-name">'+escHtml(c.name)+'</div>'+
+          '<div class="tf-sub" style="color:var(--blue)">Approved '+fmt(b.amount)+' · '+(!depositPaid?'no deposit · ':'deposit paid · ')+'not scheduled</div>'+
+        '</div>'+
+        '<div class="tf-acts">'+
+          (!depositPaid?'<button onclick="openPayPanel('+b.id+',\'deposit\')" class="btn btn-sm" style="font-size:11px;border-color:var(--blue);color:var(--blue)">Deposit</button>':'')+
+          '<button onclick="schedFromBid('+b.id+')" class="btn btn-sm btn-p" style="font-size:11px">Schedule →</button>'+
+        '</div>'+
+      '</div>'});
   });
 
-  // 4. Sent proposals awaiting signature
-  const sentBids=bids.filter(b=>b.signingToken&&b.status!=='Closed Won');
-  sentBids.forEach(b=>{
-    const c=getClientById(b.client_id);
-    const name=c?c.name:(b.client_name||'Client');
-    const days=b.bid_date?Math.floor((new Date(tk)-new Date(b.bid_date+'T12:00:00'))/86400000):0;
-    const daysStr=days===0?'Sent today':days+'d waiting';
-    items.push({priority:5,icon:'📨',label:name,sub:fmt(b.amount)+' · '+daysStr,subColor:days>=7?'var(--amber)':'var(--text3)',
-      actions:'<button onclick="resendProposalLink('+b.id+')" class="btn btn-sm">Resend</button>'});
+  // TIER 3 — Second follow-up (noResponseCount >= 1, still Pending)
+  bids.filter(b=>b.status==='Pending'&&(b.noResponseCount||0)>=1).forEach(b=>{
+    const c=getClientById(b.client_id);if(!c)return;
+    const fn=c.name.split(' ')[0];
+    const smsBody=encodeURIComponent('Hey '+fn+', just wanted to see if this is still something you\'re wanting to move forward with?');
+    const daysOut=b.followup?Math.floor((new Date(tk+'T12:00')-new Date(b.followup+'T12:00'))/86400000):0;
+    items.push({priority:4,html:
+      '<div class="tf-card">'+
+        '<div class="tf-icon">🔥</div>'+
+        '<div class="tf-body">'+
+          '<div class="tf-name">'+escHtml(c.name)+'</div>'+
+          '<div class="tf-sub" style="color:#A32D2D">2nd follow-up needed · '+fmt(b.amount)+' · '+Math.abs(daysOut)+'d waiting</div>'+
+        '</div>'+
+        '<div class="tf-acts">'+
+          (c.phone?'<a href="sms:'+c.phone.replace(/\D/g,'')+'&body='+smsBody+'" onclick="autoLogContact('+c.id+',\'second_followup\');markFollowupSent('+b.id+')" class="btn btn-sm" style="font-size:11px;border-color:var(--amber);color:#856404;background:var(--amber-lt)">Text</a>':'')+
+          '<button onclick="markFUWon('+b.id+','+b.client_id+')" class="btn btn-sm btn-g" style="font-size:11px">Won ✓</button>'+
+          '<button onclick="markFUAbandoned('+b.id+','+b.client_id+')" class="btn btn-sm" style="font-size:11px;color:var(--text3)">Cold</button>'+
+        '</div>'+
+      '</div>'});
   });
 
-  // 5. New leads (need estimate)
+  // TIER 4 — Follow-up overdue (Pending, followup date passed, no noResponseCount yet)
+  bids.filter(b=>b.status==='Pending'&&b.followup&&b.followup<=tk&&!(b.noResponseCount>=1)).forEach(b=>{
+    const c=getClientById(b.client_id);if(!c)return;
+    const fn=c.name.split(' ')[0];
+    const daysOut=Math.floor((new Date(tk+'T12:00')-new Date(b.followup+'T12:00'))/86400000);
+    const smsBody=encodeURIComponent('Hey '+fn+', just checking in on the estimate I sent over — any questions or thoughts?');
+    items.push({priority:5,html:
+      '<div class="tf-card">'+
+        '<div class="tf-icon">⏰</div>'+
+        '<div class="tf-body">'+
+          '<div class="tf-name">'+escHtml(c.name)+'</div>'+
+          '<div class="tf-sub" style="color:var(--amber)">'+(daysOut>0?daysOut+'d overdue':'Due today')+' · '+fmt(b.amount)+' estimate</div>'+
+        '</div>'+
+        '<div class="tf-acts">'+
+          (c.phone?'<a href="sms:'+c.phone.replace(/\D/g,'')+'&body='+smsBody+'" onclick="autoLogContact('+c.id+',\'followup_sent\');markFollowupSent('+b.id+')" class="btn btn-sm" style="font-size:11px;border-color:var(--amber);color:#856404;background:var(--amber-lt)">Text</a>':'')+
+          '<button onclick="markFUWon('+b.id+','+b.client_id+')" class="btn btn-sm btn-g" style="font-size:11px">Won ✓</button>'+
+          '<button onclick="openEditBid('+b.id+',5)" class="btn btn-sm" style="font-size:11px">View</button>'+
+        '</div>'+
+      '</div>'});
+  });
+
+  // TIER 5 — Job just done, no expenses logged
+  jobs.filter(j=>j.status==='done'&&j.completion_date&&j.completion_date>=addDays(tk,-7)).forEach(j=>{
+    const hasExp=expenses.some(e=>e.job_id===j.id||e.client_id===j.client_id&&e.date>=j.completion_date);
+    if(hasExp)return;
+    const bid=j.bid_id?bids.find(b=>b.id===j.bid_id):null;
+    if(!bid)return;
+    const profit=fmt(bid.amount);
+    items.push({priority:6,html:
+      '<div class="tf-card">'+
+        '<div class="tf-icon">🧾</div>'+
+        '<div class="tf-body">'+
+          '<div class="tf-name">'+escHtml(bid.client_name||j.name||'Job')+'</div>'+
+          '<div class="tf-sub" style="color:var(--text2)">Job done · log materials to see real profit on '+profit+'</div>'+
+        '</div>'+
+        '<div class="tf-acts">'+
+          '<button onclick="openExpenseForJob('+j.id+','+j.client_id+')" class="btn btn-sm btn-p" style="font-size:11px">Add expense</button>'+
+          '<button onclick="markJobNoExpenses('+j.id+')" class="btn btn-sm" style="font-size:11px;color:var(--text3)">No costs</button>'+
+        '</div>'+
+      '</div>'});
+  });
+
+  // TIER 6 — Sent proposals, no signature yet (waiting)
+  bids.filter(b=>b.signingToken&&b.status==='Pending').forEach(b=>{
+    const c=getClientById(b.client_id);if(!c)return;
+    const days=b.bid_date?Math.floor((new Date(tk+'T12:00')-new Date(b.bid_date+'T12:00'))/86400000):0;
+    if(days<1)return; // skip same-day
+    items.push({priority:7,html:
+      '<div class="tf-card">'+
+        '<div class="tf-icon">📨</div>'+
+        '<div class="tf-body">'+
+          '<div class="tf-name">'+escHtml(c.name)+'</div>'+
+          '<div class="tf-sub" style="color:var(--text3)">'+fmt(b.amount)+' · proposal sent '+days+'d ago · no signature</div>'+
+        '</div>'+
+        '<div class="tf-acts">'+
+          '<button onclick="resendProposalLink('+b.id+')" class="btn btn-sm" style="font-size:11px">Resend</button>'+
+        '</div>'+
+      '</div>'});
+  });
+
+  // TIER 7 — New leads needing estimate
   const newLeads=clients.filter(c=>{const s=getClientStage(c.id).stage;return s==='new'||s==='est_scheduled';});
   if(newLeads.length){
-    items.push({priority:6,icon:'🙋',label:newLeads.length+' new lead'+(newLeads.length!==1?'s':''),sub:'Need an estimate',subColor:'var(--blue)',
-      actions:'<button onclick="goPg(\'pg-leads\')" class="btn btn-sm btn-p">View leads</button>'});
+    items.push({priority:8,html:
+      '<div class="tf-card">'+
+        '<div class="tf-icon">🙋</div>'+
+        '<div class="tf-body">'+
+          '<div class="tf-name">'+newLeads.length+' new lead'+(newLeads.length!==1?'s':'')+' need an estimate</div>'+
+          '<div class="tf-sub" style="color:var(--blue)">Go build estimates to move them forward</div>'+
+        '</div>'+
+        '<div class="tf-acts">'+
+          '<button onclick="goPg(\'pg-leads\')" class="btn btn-sm btn-p" style="font-size:11px">View leads →</button>'+
+        '</div>'+
+      '</div>'});
   }
 
   if(!items.length){
-    el.innerHTML='<div style="padding:16px 14px;text-align:center;font-size:13px;color:var(--text3)">You\'re all caught up. Nice work.</div>';
+    el.innerHTML=
+      '<div style="padding:20px 14px;text-align:center">'+
+        '<div style="font-size:24px;margin-bottom:8px">✅</div>'+
+        '<div style="font-size:13px;font-weight:700;color:var(--text)">You\'re all caught up</div>'+
+        '<div style="font-size:12px;color:var(--text3);margin-top:4px">No money actions needed right now</div>'+
+      '</div>';
     return;
   }
 
-  // Sort by priority (lower = more urgent)
   items.sort((a,b)=>a.priority-b.priority);
-
+  const count=items.length;
   el.innerHTML=
-    '<div style="padding:12px 14px 8px;border-bottom:1px solid var(--border)">'+
-      '<div style="font-size:13px;font-weight:800;color:var(--text)">Action queue <span style="font-size:11px;font-weight:500;color:var(--text3)">'+items.length+' item'+(items.length!==1?'s':'')+'</span></div>'+
+    '<div style="padding:12px 14px 8px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center">'+
+      '<div style="font-size:13px;font-weight:800;color:var(--text)">Today\'s money actions</div>'+
+      '<span style="font-size:11px;font-weight:700;color:#A32D2D;background:var(--red-lt);border-radius:10px;padding:2px 8px">'+count+'</span>'+
     '</div>'+
-    items.map((item,i)=>'<div style="display:flex;align-items:center;gap:10px;padding:10px 14px;'+(i<items.length-1?'border-bottom:1px solid var(--border)':'')+'">'+
-      '<div style="font-size:20px;flex-shrink:0">'+item.icon+'</div>'+
-      '<div style="flex:1;min-width:0">'+
-        '<div style="font-size:13px;font-weight:700;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+item.label+'</div>'+
-        '<div style="font-size:11px;color:'+item.subColor+';margin-top:1px">'+item.sub+'</div>'+
-      '</div>'+
-      '<div style="display:flex;gap:5px;flex-shrink:0">'+item.actions+'</div>'+
-    '</div>').join('');
+    items.map(i=>i.html).join('');
 }
 
 function checkGoalPrompt(){
@@ -4761,6 +4867,7 @@ function confirmJobDone(jobId){
   const jobMiles=getClientMileage(j.client_id).filter(m=>m.date>=j.start&&m.date<=addDays(dateStr,3));
   jobMiles.forEach(m=>{m.job_id=jobId;m.job_name=j.name;});
   saveAll();
+  emitEvent('job_completed',j.client_id,{job_id:j.id,bid_id:j.bid_id});
   renderClientDetail();
   renderDash();
   renderJobsPage();
@@ -5681,7 +5788,7 @@ function logPayment(){
   const storedAmount=isRefund?-a:a;
   payments.push({id:Date.now(),bid_id:activePayBidId,client_id:bid.client_id,client_name:bid.client_name,date:pdate,type:type,amount:storedAmount,method:'',ref:pref});
   const _savedBidId=activePayBidId;
-  saveAll();closePayPanel();renderCDBids();renderCDTimeline();
+  saveAll();emitEvent('payment_received',bid.client_id,{bid_id:activePayBidId,amount:storedAmount});closePayPanel();renderCDBids();renderCDTimeline();
 
   if(isRefund){
     const banner=document.createElement('div');

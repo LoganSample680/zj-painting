@@ -1305,6 +1305,7 @@ input:checked+.dm-slider:before{transform:translateX(22px)}</style>
     </div>
     <div class="cal-grid" id="cal-grid"></div>
   </div>
+  <div id="cal-day-detail" style="display:none;background:var(--bg);border:1.5px solid var(--border2);border-radius:var(--rl);padding:16px;margin-bottom:14px;overflow-y:auto;max-height:65vh"></div>
   <div class="two-col">
     <div class="card"><div class="card-hd">This week</div><div id="cal-week"></div></div>
     <div class="card"><div class="card-hd">Upcoming</div><div id="cal-upcoming"></div></div>
@@ -12768,54 +12769,40 @@ function renderJobsPage(){
     const st=getBidStage(b);
     const paid=getBidPaid(b.id);
     const balance=getBidBalance(b);
-    const hasSurfaces=(b.surfaces||[]).length>0;
-    // Next job for this bid
     const nextJob=st.jobs.filter(j=>j.start>=tk).sort((a,x)=>a.start.localeCompare(x.start))[0];
-    // Interior vs exterior detection
     const isExt=b.type==='Exterior painting'||(b.surfaces||[]).some(s=>s.type&&(s.type.startsWith('ext')||s.type==='deck'));
     const typeColor=isExt?'#C47840':'#185FA5';
-    const typeLabel=isExt?'Exterior':'Interior';
-    const typeBg=isExt?'#FFF0E0':'#EBF2FB';
-    // Property address (bid addr takes precedence over client addr for multi-property clients)
     const propAddr=(b.addr||c.addr||'').split(',')[0];
     const nextStart=nextJob?parseD(nextJob.start).toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'}):'';
-    const daysOut=nextJob?Math.round((parseD(nextJob.start)-parseD(tk))/86400000):null;
-    const canMoveUp=nextJob&&!isExt&&daysOut!==null&&daysOut>14;
-    // Inline action buttons
-    const isActiveOrScheduled=st.stage==='active'||st.stage==='scheduled'||st.stage==='signed';
     const nextJobId=nextJob?nextJob.id:null;
-    const canDone=isActiveOrScheduled&&nextJobId&&!nextJob.completion_date;
-    const canPay=balance>0.01;
-    const canOMW=isActiveOrScheduled&&c.phone;
-    const inlineActions=(isActiveOrScheduled&&(canDone||canPay||canOMW))?
-      '<div style="display:flex;gap:6px;margin-top:7px;padding-bottom:2px" onclick="event.stopPropagation()">'+
-        (canOMW?'<button onclick="sendOMWText('+c.id+')" class="btn btn-sm" style="flex:1;font-size:11px;padding:5px 0">🚗 OMW</button>':'')+
-        (canDone?'<button onclick="markJobDone('+nextJobId+')" class="btn btn-sm" style="flex:1;background:var(--green-lt);color:var(--green-mid);border-color:var(--green-mid);font-size:11px;padding:5px 0">✓ Done</button>':'')+
-        (canPay?'<button onclick="openPayPanel('+b.id+',\''+(paid<=0?\'deposit\':\'final\')+'\')" class="btn btn-sm" style="flex:1;background:var(--blue);color:#fff;border-color:var(--blue);font-size:11px;padding:5px 0">💰 '+(paid<=0?'Deposit':'Pay')+'</button>':'')+
-      '</div>':'';
-    return '<div onclick="openJobSheet('+c.id+')" style="display:flex;align-items:center;gap:0;border-bottom:1px solid var(--border);cursor:pointer">'+
-      '<div style="width:4px;align-self:stretch;background:'+typeColor+';border-radius:3px 0 0 3px;flex-shrink:0"></div>'+
-      '<div style="display:flex;justify-content:space-between;align-items:flex-start;padding:11px 0 11px 10px;gap:10px;flex:1;min-width:0">'+
+    // One primary action button max
+    let primaryBtn='';
+    if(st.stage==='active'&&nextJobId&&!nextJob.completion_date){
+      primaryBtn='<button onclick="markJobDone('+nextJobId+')" style="padding:5px 14px;border-radius:20px;border:none;background:var(--green-mid);color:#fff;font-size:11px;font-weight:700;cursor:pointer;font-family:inherit">✓ Mark done</button>';
+    } else if(st.stage==='balance_due'){
+      primaryBtn='<button onclick="openPayPanel('+b.id+',\'final\')" style="padding:5px 14px;border-radius:20px;border:none;background:#A32D2D;color:#fff;font-size:11px;font-weight:700;cursor:pointer;font-family:inherit">Collect '+fmt(balance)+'</button>';
+    } else if(paid<=0&&balance>0.01&&st.stage==='scheduled'){
+      primaryBtn='<button onclick="openPayPanel('+b.id+',\'deposit\')" style="padding:5px 14px;border-radius:20px;border:none;background:var(--blue);color:#fff;font-size:11px;font-weight:700;cursor:pointer;font-family:inherit">Log deposit</button>';
+    } else if(st.stage==='signed'){
+      primaryBtn='<button onclick="schedFromBid('+b.id+')" style="padding:5px 14px;border-radius:20px;border:none;background:var(--blue);color:#fff;font-size:11px;font-weight:700;cursor:pointer;font-family:inherit">Schedule →</button>';
+    }
+    // Right side: amount + balance state
+    const amtColor=balance>0.01?'#A32D2D':paid>0?'var(--green-mid)':'var(--text)';
+    const amtSub=balance>0.01?'<div style="font-size:10px;font-weight:700;color:#A32D2D;margin-top:1px">'+fmt(balance)+' due</div>':
+                 paid>0?'<div style="font-size:10px;font-weight:600;color:var(--green-mid);margin-top:1px">Paid ✓</div>':'';
+    return '<div onclick="openJobSheet('+c.id+')" style="display:flex;align-items:stretch;border-bottom:1px solid var(--border);cursor:pointer;min-height:60px">'+
+      '<div style="width:4px;background:'+typeColor+';border-radius:3px 0 0 3px;flex-shrink:0"></div>'+
+      '<div style="flex:1;min-width:0;padding:11px 12px;display:flex;justify-content:space-between;align-items:center;gap:10px">'+
         '<div style="min-width:0;flex:1">'+
-          '<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:2px">'+
-            '<span style="font-size:14px;font-weight:700;color:var(--text)">'+escHtml(c.name)+'</span>'+
-            '<span style="font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:.05em;background:'+typeBg+';color:'+typeColor+';padding:1px 6px;border-radius:8px">'+typeLabel+'</span>'+
-            (canMoveUp?'<span style="font-size:9px;font-weight:700;background:#FEF3C7;color:#92400E;padding:1px 6px;border-radius:8px">📞 can move up</span>':'')+
-          '</div>'+
-          '<div style="font-size:11px;color:var(--text3)">'+
+          '<div style="font-size:14px;font-weight:700;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+escHtml(c.name)+'</div>'+
+          '<div style="font-size:11px;color:var(--text3);margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+
             escHtml(propAddr)+(nextStart?' · '+nextStart:'')+
           '</div>'+
-          '<div style="display:flex;gap:6px;margin-top:5px;flex-wrap:wrap">'+
-            (paid>0?'<span style="font-size:10px;font-weight:700;background:var(--green-lt);color:var(--green-mid);padding:2px 7px;border-radius:10px">'+fmt(paid)+' paid</span>':
-                    '<span style="font-size:10px;font-weight:700;background:var(--amber-lt);color:#856404;padding:2px 7px;border-radius:10px">No deposit</span>')+
-            (balance>0.01?'<span style="font-size:10px;font-weight:700;background:#FEE8E8;color:#A32D2D;padding:2px 7px;border-radius:10px">'+fmt(balance)+' due</span>':'')+
-            (hasSurfaces?'<span style="font-size:10px;font-weight:600;background:var(--bg2);color:var(--text3);padding:2px 7px;border-radius:10px">📦 Supplies</span>':'')+
-          '</div>'+
-          inlineActions+
+          (primaryBtn?'<div style="margin-top:7px" onclick="event.stopPropagation()">'+primaryBtn+'</div>':'')+
         '</div>'+
-        '<div style="text-align:right;flex-shrink:0">'+
-          '<div style="font-size:11px;font-weight:700;color:'+st.color+'">'+st.label+'</div>'+
-          '<div style="font-size:13px;font-weight:800;color:var(--text);margin-top:2px">'+fmt(b.amount)+'</div>'+
+        '<div style="text-align:right;flex-shrink:0;padding-left:4px">'+
+          '<div style="font-size:14px;font-weight:800;color:'+amtColor+'">'+fmt(b.amount)+'</div>'+
+          amtSub+
         '</div>'+
       '</div>'+
     '</div>';
@@ -13065,7 +13052,36 @@ function openJobSheet(clientId){
       '</div>'+
     '</div>';
 
-  body.innerHTML=payHtml+schedHtml+supplyHtml+scopeHtml+photosHtml+visitNotesHtml+actionsHtml;
+  // ── Change order history ─────────────────────────────────────
+  let coHistoryHtml='';
+  const allCOs=wonBids.flatMap(wb=>(wb.changeOrders||[]).map(co=>({...co,bidId:wb.id})));
+  if(allCOs.length){
+    coHistoryHtml='<div style="padding:14px 20px;border-bottom:1px solid var(--border)">'+
+      '<div style="font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.06em;color:var(--text3);margin-bottom:10px">📋 Change Orders</div>'+
+      allCOs.map(co=>{
+        const deltaColor=co.type==='add'?'var(--blue)':'#A32D2D';
+        const deltaLabel=co.type==='add'?'+'+fmt(co.amount):'-'+fmt(co.amount);
+        const signedLabel=co.signedAt?new Date(co.signedAt).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}):'Unsigned';
+        return '<div style="border:1px solid var(--border2);border-radius:var(--r);padding:12px 14px;margin-bottom:8px;background:var(--bg2)">'+
+          '<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;margin-bottom:6px">'+
+            '<div style="font-size:12px;font-weight:800;color:var(--text)">CO #'+co.coNum+'</div>'+
+            '<div style="display:flex;align-items:center;gap:6px">'+
+              '<span style="font-size:13px;font-weight:800;color:'+deltaColor+'">'+deltaLabel+'</span>'+
+              (co.signedAt?'<span style="font-size:10px;font-weight:700;background:#D1FAE5;color:#065F46;padding:2px 7px;border-radius:10px">Signed</span>':
+                           '<span style="font-size:10px;font-weight:700;background:#FEF3C7;color:#92400E;padding:2px 7px;border-radius:10px">Unsigned</span>')+
+            '</div>'+
+          '</div>'+
+          '<div style="font-size:12px;color:var(--text2);line-height:1.4;margin-bottom:6px">'+escHtml(co.desc)+'</div>'+
+          '<div style="display:flex;justify-content:space-between;align-items:center;font-size:11px;color:var(--text3)">'+
+            '<span>'+fmt(co.originalAmount)+' → <strong style="color:var(--text)">'+fmt(co.newAmount)+'</strong></span>'+
+            '<span>'+(co.signerName?'Signed by '+escHtml(co.signerName)+' · ':'')+signedLabel+'</span>'+
+          '</div>'+
+        '</div>';
+      }).join('')+
+    '</div>';
+  }
+
+  body.innerHTML=payHtml+schedHtml+coHistoryHtml+supplyHtml+scopeHtml+photosHtml+visitNotesHtml+actionsHtml;
   box.appendChild(body);
   ov.appendChild(box);
   ov.onclick=e=>{if(e.target===ov)ov.remove();};
@@ -13110,72 +13126,232 @@ function saveVisitNotes(jobId,val){
   saveAll();
   showToast('Notes saved','📝');
 }
+// ── Change Order System ───────────────────────────────────────────────────────
+let _coBidId=null,_coClientId=null,_coType=null,_coSignCanvas=null,_coSignCtx=null,_coSignDrawing=false;
+
 function showChangeOrderModal(bidId,clientId){
   const b=bids.find(x=>x.id===bidId);if(!b)return;
+  _coBidId=bidId;_coClientId=clientId;_coType=null;
+  const c=getClientById(b.client_id)||{name:b.client_name||'Client'};
+  const coNum=(b.changeOrders||[]).length+1;
+  // Build original scope summary
+  const surfLines=(b.surfaces||[]).filter(s=>s.qty>0).map(s=>{
+    const t=SURF_TYPES.find(x=>x.v===s.type);
+    return t?t.label+(s.room?' ('+s.room.split(' — ')[0]+')':''):'';
+  }).filter(Boolean);
+  const scopeSummary=surfLines.length?surfLines.slice(0,4).join(', ')+(surfLines.length>4?' + '+(surfLines.length-4)+' more':''):'No surfaces recorded';
+
   const overlay=document.createElement('div');overlay.className='zmodal-overlay';
-  const box=document.createElement('div');box.className='zmodal';
+  const box=document.createElement('div');
+  box.style.cssText='background:var(--bg);border-radius:var(--rl);width:100%;max-width:500px;max-height:92vh;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:20px;box-sizing:border-box';
   box.innerHTML=
-    '<div style="font-size:17px;font-weight:800;margin-bottom:4px">Change Order</div>'+
-    '<div style="font-size:13px;color:var(--text3);margin-bottom:14px">Current contract: <strong>'+fmt(b.amount)+'</strong></div>'+
-    '<div class="f" style="margin-bottom:10px">'+
-      '<label style="font-size:11px;font-weight:700;color:var(--text3)">Description of change <span style="color:#A32D2D">*</span></label>'+
-      '<textarea id="co-desc" placeholder="e.g. Added master bedroom ceiling, customer requested accent wall in living room..." '+
-        'style="width:100%;min-height:70px;font-size:13px;padding:10px;border-radius:var(--r);border:1px solid var(--border2);background:var(--bg2);color:var(--text);font-family:inherit;resize:none;box-sizing:border-box"></textarea>'+
-    '</div>'+
-    '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:14px">'+
-      '<button id="co-add-btn" onclick="setCOType(\'add\')" style="padding:10px;border-radius:var(--r);border:2px solid var(--border2);background:var(--bg2);font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;color:var(--text)">+ Add to contract</button>'+
-      '<button id="co-sub-btn" onclick="setCOType(\'sub\')" style="padding:10px;border-radius:var(--r);border:2px solid var(--border2);background:var(--bg2);font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;color:var(--text)">− Reduce contract</button>'+
-    '</div>'+
-    '<div id="co-amount-wrap" style="display:none;margin-bottom:14px">'+
-      '<div class="f">'+
-        '<label style="font-size:11px;font-weight:700;color:var(--text3)">Amount ($) <span style="color:#A32D2D">*</span></label>'+
-        '<input type="number" id="co-amount" min="0" step="25" placeholder="0" inputmode="decimal" '+
-          'style="font-size:22px;font-weight:700;padding:10px;border-radius:var(--r);border:1px solid var(--border2);background:var(--bg2);width:100%;box-sizing:border-box;color:var(--text);text-align:center" '+
-          'oninput="_previewCO('+bidId+')">'+
+    // Header
+    '<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:16px">'+
+      '<div>'+
+        '<div style="font-size:18px;font-weight:800">Change Order #'+coNum+'</div>'+
+        '<div style="font-size:12px;color:var(--text3);margin-top:2px">'+escHtml(c.name)+'</div>'+
       '</div>'+
-      '<div id="co-preview" style="font-size:13px;font-weight:700;text-align:center;min-height:20px;margin-top:8px"></div>'+
+      '<button onclick="this.closest(\'.zmodal-overlay\').remove()" style="background:var(--bg2);border:1px solid var(--border2);color:var(--text3);font-size:18px;cursor:pointer;border-radius:50%;width:32px;height:32px;display:flex;align-items:center;justify-content:center;flex-shrink:0;line-height:1">✕</button>'+
     '</div>'+
+    // Original contract box
+    '<div style="background:var(--bg2);border:1px solid var(--border2);border-radius:var(--r);padding:12px 14px;margin-bottom:16px">'+
+      '<div style="font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.07em;color:var(--text3);margin-bottom:6px">Original Contract</div>'+
+      '<div style="font-size:20px;font-weight:800;color:var(--text);margin-bottom:4px">'+fmt(b.amount)+'</div>'+
+      '<div style="font-size:11px;color:var(--text3);line-height:1.4">'+escHtml(scopeSummary)+'</div>'+
+    '</div>'+
+    // Description
+    '<div class="f" style="margin-bottom:12px">'+
+      '<label style="font-size:11px;font-weight:700;color:var(--text3)">What changed? <span style="color:#A32D2D">*</span></label>'+
+      '<textarea id="co-desc" placeholder="e.g. Added master bedroom ceiling, client requested accent wall in hallway..." '+
+        'style="width:100%;min-height:72px;font-size:13px;padding:10px;border-radius:var(--r);border:1px solid var(--border2);background:var(--bg2);color:var(--text);font-family:inherit;resize:none;box-sizing:border-box;line-height:1.5"></textarea>'+
+    '</div>'+
+    // Add / Reduce toggle
+    '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px">'+
+      '<button id="co-add-btn" onclick="setCOType(\'add\','+bidId+')" style="padding:11px 8px;border-radius:var(--r);border:2px solid var(--border2);background:var(--bg2);font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;color:var(--text)">+ Add work</button>'+
+      '<button id="co-sub-btn" onclick="setCOType(\'sub\','+bidId+')" style="padding:11px 8px;border-radius:var(--r);border:2px solid var(--border2);background:var(--bg2);font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;color:var(--text)">− Remove work</button>'+
+    '</div>'+
+    // Amount input (hidden until type selected)
+    '<div id="co-amount-wrap" style="display:none;margin-bottom:16px">'+
+      '<label style="font-size:11px;font-weight:700;color:var(--text3);display:block;margin-bottom:6px">Dollar amount <span style="color:#A32D2D">*</span></label>'+
+      '<input type="number" id="co-amount" min="0" step="25" placeholder="0" inputmode="decimal" '+
+        'style="font-size:26px;font-weight:800;padding:10px;border-radius:var(--r);border:1.5px solid var(--border2);background:var(--bg2);width:100%;box-sizing:border-box;color:var(--text);text-align:center;font-family:inherit" '+
+        'oninput="_previewCO('+bidId+')">'+
+      '<div id="co-preview" style="font-size:14px;font-weight:700;text-align:center;min-height:22px;margin-top:10px;padding:10px;background:var(--bg2);border-radius:var(--r)"></div>'+
+    '</div>'+
+    // Buttons
     '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">'+
-      '<button onclick="this.closest(\'.zmodal-overlay\').remove()" style="padding:12px;border-radius:var(--r);border:1px solid var(--border2);background:var(--bg2);font-size:14px;font-weight:600;cursor:pointer;font-family:inherit">Cancel</button>'+
-      '<button onclick="confirmChangeOrder('+bidId+','+clientId+')" style="padding:12px;border-radius:var(--r);border:none;background:var(--blue);color:#fff;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit">Save change order</button>'+
+      '<button onclick="this.closest(\'.zmodal-overlay\').remove()" style="padding:13px;border-radius:var(--r);border:1px solid var(--border2);background:var(--bg2);font-size:14px;font-weight:600;cursor:pointer;font-family:inherit">Cancel</button>'+
+      '<button onclick="_reviewCO('+bidId+','+clientId+')" style="padding:13px;border-radius:var(--r);border:none;background:var(--blue);color:#fff;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit">Review &amp; Sign →</button>'+
     '</div>';
   overlay.appendChild(box);document.body.appendChild(overlay);
   overlay.addEventListener('click',e=>{if(e.target===overlay)overlay.remove();});
 }
-let _coType=null;
-function setCOType(t){
+
+function setCOType(t,bidId){
   _coType=t;
-  const ab=document.getElementById('co-add-btn');const sb=document.getElementById('co-sub-btn');const aw=document.getElementById('co-amount-wrap');
-  if(ab){ab.style.borderColor=t==='add'?'var(--blue)':'var(--border2)';ab.style.background=t==='add'?'var(--blue-lt)':'var(--bg2)';}
-  if(sb){sb.style.borderColor=t==='sub'?'#A32D2D':'var(--border2)';sb.style.background=t==='sub'?'#FEE8E8':'var(--bg2)';}
+  const ab=document.getElementById('co-add-btn'),sb=document.getElementById('co-sub-btn'),aw=document.getElementById('co-amount-wrap');
+  if(ab){ab.style.borderColor=t==='add'?'var(--blue)':'var(--border2)';ab.style.background=t==='add'?'var(--blue-lt)':'var(--bg2)';ab.style.color=t==='add'?'var(--blue-dk)':'var(--text)';}
+  if(sb){sb.style.borderColor=t==='sub'?'#A32D2D':'var(--border2)';sb.style.background=t==='sub'?'#FEE8E8':'var(--bg2)';sb.style.color=t==='sub'?'#A32D2D':'var(--text)';}
   if(aw){aw.style.display='';setTimeout(()=>{const a=document.getElementById('co-amount');if(a){a.focus();a.select();}},60);}
+  _previewCO(bidId);
 }
+
 function _previewCO(bidId){
-  const b=bids.find(x=>x.id===bidId);if(!b)return;
+  const b=bids.find(x=>x.id===bidId);if(!b||!_coType)return;
   const amt=parseFloat(document.getElementById('co-amount')?.value)||0;
-  const pr=document.getElementById('co-preview');if(!pr||!amt)return;
+  const pr=document.getElementById('co-preview');if(!pr)return;
+  if(!amt){pr.innerHTML='<span style="color:var(--text3)">Enter amount above</span>';return;}
   const newTotal=_coType==='add'?b.amount+amt:Math.max(0,b.amount-amt);
+  const delta=_coType==='add'?'+'+fmt(amt):'-'+fmt(amt);
   const arrow=_coType==='add'?'↑':'↓';
-  const color=_coType==='add'?'var(--blue)':'var(--green-mid)';
-  pr.innerHTML='<span style="color:var(--text3)">'+fmt(b.amount)+'</span> <span style="color:'+color+'">'+arrow+' '+fmt(newTotal)+'</span>';
+  const color=_coType==='add'?'var(--blue)':'#A32D2D';
+  pr.innerHTML='<span style="color:var(--text3)">'+fmt(b.amount)+'</span>'+
+    ' <span style="color:'+color+'">'+arrow+' '+delta+'</span>'+
+    ' = <span style="font-size:18px;color:var(--text)">'+fmt(newTotal)+'</span>';
 }
-function confirmChangeOrder(bidId,clientId){
+
+function _reviewCO(bidId,clientId){
   const b=bids.find(x=>x.id===bidId);if(!b)return;
   const desc=(document.getElementById('co-desc')?.value||'').trim();
   const amt=parseFloat(document.getElementById('co-amount')?.value||0)||0;
   if(!desc||desc.length<5){const el=document.getElementById('co-desc');if(el){el.style.borderColor='#A32D2D';el.focus();}zAlert('Describe the change (at least 5 characters).',{title:'Description required'});return;}
-  if(!_coType){zAlert('Select whether this adds to or reduces the contract.',{title:'Direction required'});return;}
-  if(amt<=0){const el=document.getElementById('co-amount');if(el){el.style.borderColor='#A32D2D';el.focus();}zAlert('Enter the dollar amount.',{title:'Amount required'});return;}
+  if(!_coType){zAlert('Select whether this adds to or removes from the contract.',{title:'Select direction'});return;}
+  if(amt<=0){const el=document.getElementById('co-amount');if(el){el.style.borderColor='#A32D2D';el.focus();}zAlert('Enter the dollar amount for this change.',{title:'Amount required'});return;}
+  const c=getClientById(b.client_id)||{name:b.client_name||'Client'};
+  const coNum=(b.changeOrders||[]).length+1;
   const delta=_coType==='add'?amt:-amt;
-  b.amount=Math.max(0,Math.round((b.amount+delta)*100)/100);
-  if(!b.changeOrders)b.changeOrders=[];
-  b.changeOrders.push({type:_coType,amount:amt,desc,ts:new Date().toISOString()});
-  _coType=null;
-  saveAll();renderDash();renderJobsPage();
+  const newTotal=Math.max(0,Math.round((b.amount+delta)*100)/100);
+  const coData={desc,type:_coType,amount:amt,delta,originalAmount:b.amount,newAmount:newTotal,coNum};
+  // Show the CO document for signing
   document.querySelector('.zmodal-overlay')?.remove();
-  showToast('Change order saved — contract updated to '+fmt(b.amount),'📋');
+  _showCOSignDocument(b,c,coData,clientId);
+}
+
+function _showCOSignDocument(b,c,coData,clientId){
+  const {desc,type,amount,delta,originalAmount,newAmount,coNum}=coData;
+  const biz=S.bname||"ZJ's Painting & Special Coatings";
+  const dateStr=new Date().toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric',year:'numeric'});
+  // Build scope summary from original bid
+  const surfLines=(b.surfaces||[]).filter(s=>s.qty>0).map(s=>{
+    const t=SURF_TYPES.find(x=>x.v===s.type);
+    return t?t.label+(s.room?' ('+s.room.split(' — ')[0]+')':''):'';
+  }).filter(Boolean);
+  const deltaLabel=type==='add'?'+'+fmt(amount):'-'+fmt(amount);
+  const deltaColor=type==='add'?'var(--blue)':'#A32D2D';
+
+  const ov=document.createElement('div');
+  ov.style.cssText='position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.6);display:flex;align-items:flex-start;justify-content:center;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:16px;box-sizing:border-box';
+  const doc=document.createElement('div');
+  doc.style.cssText='background:#fff;border-radius:12px;width:100%;max-width:540px;margin:auto;overflow:hidden;font-family:inherit;color:#111';
+  doc.innerHTML=
+    // Document header
+    '<div style="background:#1a365d;color:#fff;padding:20px 24px">'+
+      '<div style="font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.1em;opacity:.7;margin-bottom:4px">Change Order</div>'+
+      '<div style="font-size:22px;font-weight:800;margin-bottom:2px">'+escHtml(biz)+'</div>'+
+      '<div style="font-size:13px;opacity:.8">'+escHtml(c.name)+' · '+dateStr+'</div>'+
+    '</div>'+
+    '<div style="padding:20px 24px">'+
+      // CO number badge
+      '<div style="display:inline-block;background:#EBF2FB;color:#1a365d;font-size:12px;font-weight:800;padding:4px 12px;border-radius:20px;margin-bottom:18px">CO #'+coNum+'</div>'+
+      // Original contract
+      '<div style="margin-bottom:18px;padding-bottom:18px;border-bottom:1.5px solid #e5e7eb">'+
+        '<div style="font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.07em;color:#6b7280;margin-bottom:8px">Original Contract</div>'+
+        '<div style="font-size:24px;font-weight:800;color:#111;margin-bottom:6px">'+fmt(originalAmount)+'</div>'+
+        (surfLines.length?'<div style="font-size:12px;color:#6b7280;line-height:1.5">'+escHtml(surfLines.join(' · '))+'</div>':'')+
+      '</div>'+
+      // Change description
+      '<div style="margin-bottom:18px;padding-bottom:18px;border-bottom:1.5px solid #e5e7eb">'+
+        '<div style="font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.07em;color:#6b7280;margin-bottom:8px">Change Requested</div>'+
+        '<div style="font-size:14px;color:#111;line-height:1.5;margin-bottom:10px">'+escHtml(desc)+'</div>'+
+        '<div style="display:flex;align-items:center;gap:8px">'+
+          '<span style="font-size:13px;color:#6b7280">Adjustment:</span>'+
+          '<span style="font-size:16px;font-weight:800;color:'+deltaColor+'">'+deltaLabel+'</span>'+
+        '</div>'+
+      '</div>'+
+      // New total
+      '<div style="background:#f0fdf4;border:2px solid #86efac;border-radius:10px;padding:14px 18px;margin-bottom:24px;display:flex;justify-content:space-between;align-items:center">'+
+        '<div style="font-size:13px;font-weight:700;color:#166534">New Contract Total</div>'+
+        '<div style="font-size:26px;font-weight:800;color:#166534">'+fmt(newAmount)+'</div>'+
+      '</div>'+
+      // Legal
+      '<div style="font-size:11px;color:#6b7280;line-height:1.5;margin-bottom:20px;padding:12px;background:#f9fafb;border-radius:8px">'+
+        'By signing below, both parties agree to modify the original painting contract to reflect the scope and price changes described above. All other terms of the original contract remain in effect. This change order is legally binding upon signature per K.S.A. 16-1601 et seq.'+
+      '</div>'+
+      // Signature canvas
+      '<div style="font-size:11px;font-weight:700;color:#374151;margin-bottom:6px">Client signature</div>'+
+      '<canvas id="co-sign-canvas" width="500" height="140" '+
+        'style="width:100%;height:140px;border:1.5px solid #d1d5db;border-radius:8px;background:#fafafa;touch-action:none;cursor:crosshair;display:block;margin-bottom:4px"></canvas>'+
+      '<div style="display:flex;justify-content:flex-end;margin-bottom:14px">'+
+        '<button onclick="_clearCOCanvas()" style="font-size:11px;color:#6b7280;background:none;border:none;cursor:pointer;font-family:inherit;text-decoration:underline">Clear</button>'+
+      '</div>'+
+      // Typed name
+      '<div style="margin-bottom:20px">'+
+        '<label style="font-size:11px;font-weight:700;color:#374151;display:block;margin-bottom:6px">Type full name to confirm</label>'+
+        '<input type="text" id="co-sign-name" placeholder="Full name" autocomplete="off" '+
+          'style="width:100%;box-sizing:border-box;font-size:16px;padding:10px 12px;border-radius:8px;border:1.5px solid #d1d5db;background:#fff;font-family:inherit;color:#111">'+
+      '</div>'+
+      // Action buttons
+      '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">'+
+        '<button onclick="this.closest(\'[style*=fixed]\').remove();showChangeOrderModal('+b.id+','+clientId+')" style="padding:13px;border-radius:8px;border:1.5px solid #d1d5db;background:#f9fafb;font-size:14px;font-weight:600;cursor:pointer;font-family:inherit;color:#374151">← Back</button>'+
+        '<button onclick="_submitCOSign('+b.id+','+clientId+')" style="padding:13px;border-radius:8px;border:none;background:#2563eb;color:#fff;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit">✓ Sign Change Order</button>'+
+      '</div>'+
+    '</div>';
+  ov.appendChild(doc);document.body.appendChild(ov);
+  ov.addEventListener('click',e=>{if(e.target===ov)ov.remove();});
+  // Store CO data on the element for retrieval
+  ov.dataset.coData=JSON.stringify(coData);
+  // Wire up signature canvas
+  setTimeout(()=>{
+    const canvas=document.getElementById('co-sign-canvas');if(!canvas)return;
+    _coSignCanvas=canvas;_coSignCtx=canvas.getContext('2d');
+    _coSignCtx.strokeStyle='#111';_coSignCtx.lineWidth=2;_coSignCtx.lineCap='round';_coSignCtx.lineJoin='round';
+    const getPos=(e)=>{const r=canvas.getBoundingClientRect();const src=e.touches?e.touches[0]:e;return{x:(src.clientX-r.left)*(canvas.width/r.width),y:(src.clientY-r.top)*(canvas.height/r.height)};};
+    canvas.addEventListener('mousedown',e=>{_coSignDrawing=true;const p=getPos(e);_coSignCtx.beginPath();_coSignCtx.moveTo(p.x,p.y);});
+    canvas.addEventListener('mousemove',e=>{if(!_coSignDrawing)return;const p=getPos(e);_coSignCtx.lineTo(p.x,p.y);_coSignCtx.stroke();});
+    canvas.addEventListener('mouseup',()=>_coSignDrawing=false);
+    canvas.addEventListener('touchstart',e=>{e.preventDefault();_coSignDrawing=true;const p=getPos(e);_coSignCtx.beginPath();_coSignCtx.moveTo(p.x,p.y);},{passive:false});
+    canvas.addEventListener('touchmove',e=>{e.preventDefault();if(!_coSignDrawing)return;const p=getPos(e);_coSignCtx.lineTo(p.x,p.y);_coSignCtx.stroke();},{passive:false});
+    canvas.addEventListener('touchend',()=>_coSignDrawing=false);
+  },100);
+}
+
+function _clearCOCanvas(){
+  if(_coSignCanvas&&_coSignCtx)_coSignCtx.clearRect(0,0,_coSignCanvas.width,_coSignCanvas.height);
+}
+
+function _submitCOSign(bidId,clientId){
+  const b=bids.find(x=>x.id===bidId);if(!b)return;
+  const signerName=(document.getElementById('co-sign-name')?.value||'').trim();
+  if(!signerName){const el=document.getElementById('co-sign-name');if(el){el.style.borderColor='#A32D2D';el.focus();}zAlert('Type the client\'s full name to confirm.',{title:'Name required'});return;}
+  // Check canvas has something drawn
+  let sigData='';
+  if(_coSignCanvas){
+    const d=_coSignCtx.getImageData(0,0,_coSignCanvas.width,_coSignCanvas.height).data;
+    const hasSig=Array.from(d).some((v,i)=>i%4===3&&v>0);
+    if(!hasSig){zAlert('Client needs to sign in the box above.',{title:'Signature required'});return;}
+    sigData=_coSignCanvas.toDataURL('image/png');
+  }
+  // Retrieve coData stored on overlay
+  const ov=document.getElementById('co-sign-canvas')?.closest('[style*=fixed]');
+  const coData=ov?.dataset?.coData?JSON.parse(ov.dataset.coData):null;
+  if(!coData)return;
+  const{desc,type,amount,delta,originalAmount,newAmount,coNum}=coData;
+  // Save CO
+  if(!b.changeOrders)b.changeOrders=[];
+  b.changeOrders.push({
+    id:Date.now(),coNum,date:todayKey(),desc,type,amount,delta,
+    originalAmount,newAmount,
+    signedAt:new Date().toISOString(),signerName,sigData
+  });
+  b.amount=newAmount;
+  saveAll();renderDash();renderJobsPage();
+  ov?.remove();
+  showToast('CO #'+coNum+' signed — new total '+fmt(newAmount),'📋');
   setTimeout(()=>openJobSheet(clientId),300);
 }
+
+// legacy alias kept so any old calls still work
+function confirmChangeOrder(bidId,clientId){_reviewCO(bidId,clientId);}
 
 // ── Money page ────────────────────────────────────────────────────────────
 let moneyFilter='all';

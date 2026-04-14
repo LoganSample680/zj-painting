@@ -12490,18 +12490,22 @@ async function getCurrentLocAddress(){
     },err=>reject(err),{timeout:10000,enableHighAccuracy:false,maximumAge:60000});
   });
 }
+function _haversineMiles(lat1,lon1,lat2,lon2){
+  const R=3958.8,toRad=x=>x*Math.PI/180;
+  const dLat=toRad(lat2-lat1),dLon=toRad(lon2-lon1);
+  const a=Math.sin(dLat/2)**2+Math.cos(toRad(lat1))*Math.cos(toRad(lat2))*Math.sin(dLon/2)**2;
+  return R*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a))*1.27; // 1.27 = avg road vs straight-line factor
+}
 async function calcTripRoute(fromAddr,toAddr){
   const geocode=async addr=>{
-    const r=await fetch('https://nominatim.openstreetmap.org/search?q='+encodeURIComponent(addr)+'&format=json&limit=1',{headers:{'Accept-Language':'en-US','User-Agent':'TradeDesk/1.0'}});
+    const r=await fetch('https://nominatim.openstreetmap.org/search?q='+encodeURIComponent(addr)+'&format=json&limit=1&countrycodes=us',{headers:{'Accept-Language':'en-US','User-Agent':'TradeDesk/1.0'}});
     const d=await r.json();
     if(!d||!d.length)throw new Error('Address not found: "'+addr+'" — try adding city and state');
     return{lat:parseFloat(d[0].lat),lng:parseFloat(d[0].lon)};
   };
   const [from,to]=await Promise.all([geocode(fromAddr),geocode(toAddr)]);
-  const r=await fetch('https://router.project-osrm.org/route/v1/driving/'+from.lng+','+from.lat+';'+to.lng+','+to.lat+'?overview=false');
-  const d=await r.json();
-  if(!d||d.code!=='Ok'||!d.routes||!d.routes.length)throw new Error('No route found between these addresses');
-  return{miles:Math.round(d.routes[0].distance/1609.34*10)/10,mins:Math.round(d.routes[0].duration/60)};
+  const miles=Math.round(_haversineMiles(from.lat,from.lng,to.lat,to.lng)*10)/10;
+  return{miles,mins:Math.round(miles/35*60)}; // ~35 mph avg for local trips
 }
 function startDriveToClient(){
   const c=getClientById(currentClientId);
@@ -12518,32 +12522,30 @@ function tripPlaceSearch(fieldId,suggId,val){
   if(val.length<2){box.style.display='none';return;}
   _tripSearchTimers[fieldId]=setTimeout(async()=>{
     try{
-      const r=await fetch('https://photon.komoot.io/api/?q='+encodeURIComponent(val)+'&limit=6',{headers:{'Accept-Language':'en-US'}});
+      const r=await fetch('https://nominatim.openstreetmap.org/search?q='+encodeURIComponent(val)+'&format=json&limit=6&addressdetails=1&countrycodes=us',{headers:{'Accept-Language':'en-US','User-Agent':'TradeDesk/1.0'}});
       const d=await r.json();
-      const features=d.features||[];
-      if(!features.length){box.style.display='none';return;}
-      box.innerHTML=features.map(f=>{
-        const p=f.properties;
-        const name=p.name||'';
-        const num=p.housenumber||'';
-        const street=p.street||'';
-        const city=p.city||p.town||p.village||'';
-        const state=p.state||'';
-        const post=p.postcode||'';
-        const line1=name||(num?num+' '+street:street)||city;
-        const line2=[name&&street?(num?num+' '+street:street):'',city,state,post].filter(Boolean).join(', ');
-        const [lon,lat]=f.geometry.coordinates;
-        const whichKey=fieldId==='lm-from'?'from':'to';
+      if(!d||!d.length){box.style.display='none';return;}
+      const whichKey=fieldId==='lm-from'?'from':'to';
+      box.innerHTML=d.map(f=>{
+        const a=f.address||{};
+        const num=a.house_number||'';
+        const street=a.road||a.pedestrian||'';
+        const city=a.city||a.town||a.village||a.county||'';
+        const state=a.state||'';
+        const post=a.postcode||'';
+        const line1=(num?num+' '+street:street)||city||f.display_name.split(',')[0];
+        const line2=[city,state,post].filter(Boolean).join(', ');
+        const lat=parseFloat(f.lat),lon=parseFloat(f.lon);
         const safeL1=line1.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
         const safeL2=line2.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
         return '<div onclick="selectTripPlace(\''+fieldId+'\',\''+suggId+'\',\''+whichKey+'\',\''+safeL1+'\',\''+safeL2+'\','+lat+','+lon+')" style="padding:10px 14px;border-bottom:1px solid var(--border);cursor:pointer">'+
-          '<div style="font-size:13px;font-weight:600;color:var(--text)">'+line1+'</div>'+
-          (line2?'<div style="font-size:11px;color:var(--text3);margin-top:1px">'+line2+'</div>':'')+
+          '<div style="font-size:13px;font-weight:600;color:var(--text)">'+escHtml(line1)+'</div>'+
+          (line2?'<div style="font-size:11px;color:var(--text3);margin-top:1px">'+escHtml(line2)+'</div>':'')+
         '</div>';
       }).join('');
       box.style.display='block';
     }catch(e){if(box)box.style.display='none';}
-  },320);
+  },200);
 }
 function selectTripPlace(fieldId,suggId,coordKey,line1,line2,lat,lng){
   const full=line2?line1+', '+line2:line1;
@@ -12665,19 +12667,22 @@ async function calculateAndShowRoute(){
   try{
     let fromCoords=_lmCoords.from;
     let toCoords=_lmCoords.to;
-    const geocode=async addr=>{
-      const r=await fetch('https://nominatim.openstreetmap.org/search?q='+encodeURIComponent(addr)+'&format=json&limit=1',{headers:{'Accept-Language':'en-US','User-Agent':'TradeDesk/1.0'}});
-      const d=await r.json();
-      if(!d||!d.length)throw new Error('Address not found: "'+addr+'" — try adding city and state');
-      return{lat:parseFloat(d[0].lat),lng:parseFloat(d[0].lon)};
-    };
-    if(!fromCoords)fromCoords=await geocode(fromVal);
-    if(!toCoords)toCoords=await geocode(toVal);
-    const r=await fetch('https://router.project-osrm.org/route/v1/driving/'+fromCoords.lng+','+fromCoords.lat+';'+toCoords.lng+','+toCoords.lat+'?overview=false');
-    const rd=await r.json();
-    if(!rd||rd.code!=='Ok'||!rd.routes?.length)throw new Error('No route found between these locations');
-    const miles=Math.round(rd.routes[0].distance/1609.34*10)/10;
-    const mins=Math.round(rd.routes[0].duration/60);
+    // Only geocode addresses that weren't picked from autocomplete (coords not cached)
+    if(!fromCoords||!toCoords){
+      const geocode=async addr=>{
+        const r=await fetch('https://nominatim.openstreetmap.org/search?q='+encodeURIComponent(addr)+'&format=json&limit=1&countrycodes=us',{headers:{'Accept-Language':'en-US','User-Agent':'TradeDesk/1.0'}});
+        const d=await r.json();
+        if(!d||!d.length)throw new Error('Address not found: "'+addr+'" — try adding city and state');
+        return{lat:parseFloat(d[0].lat),lng:parseFloat(d[0].lon)};
+      };
+      const needed=[];
+      if(!fromCoords)needed.push(geocode(fromVal).then(c=>{fromCoords=c;}));
+      if(!toCoords)needed.push(geocode(toVal).then(c=>{toCoords=c;}));
+      await Promise.all(needed);
+    }
+    // Haversine + road factor — instant, no routing API needed
+    const miles=Math.round(_haversineMiles(fromCoords.lat,fromCoords.lng,toCoords.lat,toCoords.lng)*10)/10;
+    const mins=Math.round(miles/35*60);
     document.getElementById('lm-miles-val').value=miles;
     document.getElementById('lm-miles-display').textContent=miles.toFixed(1)+' miles';
     document.getElementById('lm-time-display').textContent='~'+mins+' min drive · IRS deduction: '+fmt(miles*IRS());

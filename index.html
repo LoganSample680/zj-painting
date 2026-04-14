@@ -12501,7 +12501,7 @@ function _photonGeocode(addr){
     });
 }
 async function _valhallaRoute(fromCoords,toCoords){
-  const body={locations:[{lon:fromCoords.lng,lat:fromCoords.lat},{lon:toCoords.lng,lat:toCoords.lat}],costing:'auto',directions_options:{units:'miles'}};
+  const body={locations:[{lon:fromCoords.lng,lat:fromCoords.lat},{lon:toCoords.lng,lat:toCoords.lat}],costing:'auto',costing_options:{auto:{max_distance:8046720}},directions_options:{units:'miles'}};
   const r=await fetch('https://valhalla1.openstreetmap.de/route',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
   const d=await r.json();
   if(!d||!d.trip){const msg=d&&d.error?d.error:'No route found between these locations';throw new Error(msg);}
@@ -12523,6 +12523,10 @@ let _tripSearchTimers={};
 function tripPlaceSearch(fieldId,suggId,val){
   clearTimeout(_tripSearchTimers[fieldId]);
   const box=document.getElementById(suggId);if(!box)return;
+  // Clear verified chip when user edits the field
+  const chipId=fieldId==='lm-from'?'lm-from-chip':'lm-to-chip';
+  const chip=document.getElementById(chipId);if(chip)chip.style.display='none';
+  const ckey=fieldId==='lm-from'?'from':'to';_lmCoords[ckey]=null;
   if(val.length<2){box.style.display='none';return;}
   _tripSearchTimers[fieldId]=setTimeout(async()=>{
     try{
@@ -12559,6 +12563,11 @@ function selectTripPlace(fieldId,suggId,coordKey,line1,line2,lat,lng){
   const box=document.getElementById(suggId);if(box)box.style.display='none';
   const mv=document.getElementById('lm-miles-val');if(mv)mv.value='0';
   const rr=document.getElementById('lm-route-result');if(rr)rr.style.display='none';
+  // Show verified address chip
+  const chipId=fieldId==='lm-from'?'lm-from-chip':'lm-to-chip';
+  const chip=document.getElementById(chipId);
+  const chipTxt=document.getElementById(chipId+'-txt');
+  if(chip&&chipTxt){chipTxt.textContent=full;chip.style.display='inline-flex';}
 }
 function fillTripSuggestion(clientId,addr,purpose){
   const toInp=document.getElementById('lm-to');
@@ -12629,10 +12638,12 @@ function openLogTripModal(opts){
         '<button type="button" onclick="grabMyLocation()" class="btn btn-sm" id="lm-gps-btn" style="white-space:nowrap;flex-shrink:0;min-height:44px">📍 GPS</button>'+
       '</div>'+
       '<div id="lm-from-sugg" style="display:none;background:var(--bg);border:1px solid var(--border2);border-radius:var(--r);margin-top:2px;overflow:hidden;max-height:200px;overflow-y:auto;box-shadow:0 4px 12px rgba(0,0,0,.12)"></div>'+
+      '<div id="lm-from-chip" style="display:none;margin-top:5px;font-size:11px;color:var(--green-mid);background:var(--green-lt);border:1px solid var(--green-mid);border-radius:20px;padding:3px 10px;display:inline-flex;align-items:center;gap:4px"><span>📍</span><span id="lm-from-chip-txt"></span><span style="color:var(--green-mid);font-weight:700">✓</span></div>'+
       '</div>'+
     '<div class="f" style="margin-bottom:4px"><label>Driving to <span style="font-size:10px;font-weight:400;color:var(--text3)">— type a name or address</span></label>'+
       '<input id="lm-to" placeholder="e.g. Sherwin-Williams Topeka or 123 Main St" value="'+(opts.toAddress||'')+'" oninput="tripPlaceSearch(\'lm-to\',\'lm-to-sugg\',this.value)" autocomplete="off">'+
       '<div id="lm-to-sugg" style="display:none;background:var(--bg);border:1px solid var(--border2);border-radius:var(--r);margin-top:2px;overflow:hidden;max-height:200px;overflow-y:auto;box-shadow:0 4px 12px rgba(0,0,0,.12)"></div>'+
+      '<div id="lm-to-chip" style="display:none;margin-top:5px;font-size:11px;color:var(--green-mid);background:var(--green-lt);border:1px solid var(--green-mid);border-radius:20px;padding:3px 10px;display:inline-flex;align-items:center;gap:4px"><span>📍</span><span id="lm-to-chip-txt"></span><span style="color:var(--green-mid);font-weight:700">✓</span></div>'+
       '</div>'+
     '<button type="button" onclick="calculateAndShowRoute()" class="btn btn-p" style="width:100%;margin-bottom:10px;min-height:48px;font-size:15px" id="lm-calc-btn">🗺 Calculate miles</button>'+
     '<div id="lm-route-result" style="display:none;background:var(--blue-lt);border:1px solid var(--blue);border-radius:var(--r);padding:14px;margin-bottom:14px;text-align:center">'+

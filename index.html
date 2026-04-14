@@ -469,7 +469,7 @@ input:checked+.dm-slider:before{transform:translateX(22px)}
   <div id="dash-kpi" style="margin-bottom:10px"></div>
 
   <div class="card" id="dash-money-feed-card" style="padding:0;margin-bottom:10px">
-    <div class="card-hd">Make Money Today</div>
+    <div class="card-hd" style="padding:14px 14px 10px;margin-bottom:0">Make Money Today</div>
     <div id="dash-money-feed"></div>
   </div>
 
@@ -12584,12 +12584,38 @@ function _photonGeocode(addr){
       return{lat,lng:lon};
     });
 }
+function _haversineMiles(c1,c2){
+  const R=3958.8,toR=Math.PI/180;
+  const dLat=(c2.lat-c1.lat)*toR,dLon=(c2.lng-c1.lng)*toR;
+  const a=Math.sin(dLat/2)**2+Math.cos(c1.lat*toR)*Math.cos(c2.lat*toR)*Math.sin(dLon/2)**2;
+  return R*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a));
+}
 async function _valhallaRoute(fromCoords,toCoords){
-  const body={locations:[{lon:fromCoords.lng,lat:fromCoords.lat},{lon:toCoords.lng,lat:toCoords.lat}],costing:'auto',costing_options:{auto:{max_distance:8046720}},directions_options:{units:'miles'}};
-  const r=await fetch('https://valhalla1.openstreetmap.de/route',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
-  const d=await r.json();
-  if(!d||!d.trip){const msg=d&&d.error?d.error:'No route found between these locations';throw new Error(msg);}
-  return{miles:Math.round(d.trip.summary.length*10)/10,mins:Math.round(d.trip.summary.time/60)};
+  // Try Valhalla first
+  try{
+    const body={locations:[{lon:fromCoords.lng,lat:fromCoords.lat},{lon:toCoords.lng,lat:toCoords.lat}],costing:'auto',costing_options:{auto:{max_distance:8046720}},directions_options:{units:'miles'}};
+    const r=await fetch('https://valhalla1.openstreetmap.de/route',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+    const d=await r.json();
+    if(d&&d.trip)return{miles:Math.round(d.trip.summary.length*10)/10,mins:Math.round(d.trip.summary.time/60)};
+    // If it's not a distance error, throw original message
+    const isDistErr=d&&d.error&&/distance/i.test(d.error);
+    if(!isDistErr)throw new Error(d&&d.error?d.error:'No route found');
+    // Distance limit hit — fall through to OSRM
+  }catch(e){
+    if(!/distance/i.test(e.message||''))throw e; // re-throw non-distance errors
+  }
+  // Fall back to OSRM for long routes
+  try{
+    const url=`https://router.project-osrm.org/route/v1/driving/${fromCoords.lng},${fromCoords.lat};${toCoords.lng},${toCoords.lat}?overview=false`;
+    const r=await fetch(url);
+    const d=await r.json();
+    if(d&&d.code==='Ok'&&d.routes&&d.routes[0]){
+      return{miles:Math.round(d.routes[0].distance/1609.344*10)/10,mins:Math.round(d.routes[0].duration/60)};
+    }
+  }catch(e2){}
+  // Last resort: straight-line × 1.3 road factor
+  const straight=_haversineMiles(fromCoords,toCoords);
+  return{miles:Math.round(straight*1.3*10)/10,mins:Math.round(straight*1.3/55*60)};
 }
 async function calcTripRoute(fromAddr,toAddr){
   const [from,to]=await Promise.all([_photonGeocode(fromAddr),_photonGeocode(toAddr)]);
@@ -12741,12 +12767,12 @@ function openLogTripModal(opts){
         '<button type="button" onclick="grabMyLocation()" class="btn btn-sm" id="lm-gps-btn" style="white-space:nowrap;flex-shrink:0;min-height:44px">📍 GPS</button>'+
       '</div>'+
       '<div id="lm-from-sugg" style="display:none;background:var(--bg);border:1px solid var(--border2);border-radius:var(--r);margin-top:2px;overflow:hidden;max-height:200px;overflow-y:auto;box-shadow:0 4px 12px rgba(0,0,0,.12)"></div>'+
-      '<div id="lm-from-chip" style="display:none;margin-top:5px;font-size:11px;color:var(--green-mid);background:var(--green-lt);border:1px solid var(--green-mid);border-radius:20px;padding:3px 10px;display:inline-flex;align-items:center;gap:4px"><span>📍</span><span id="lm-from-chip-txt"></span><span style="color:var(--green-mid);font-weight:700">✓</span></div>'+
+      '<div id="lm-from-chip" style="display:none;margin-top:5px;font-size:11px;color:var(--green-mid);background:var(--green-lt);border:1px solid var(--green-mid);border-radius:20px;padding:3px 10px;align-items:center;gap:4px"><span>📍</span><span id="lm-from-chip-txt"></span><span style="color:var(--green-mid);font-weight:700">✓</span></div>'+
       '</div>'+
     '<div class="f" style="margin-bottom:4px"><label>Driving to <span style="font-size:10px;font-weight:400;color:var(--text3)">— type a name or address</span></label>'+
       '<input id="lm-to" placeholder="e.g. Sherwin-Williams Topeka or 123 Main St" value="'+(opts.toAddress||'')+'" oninput="tripPlaceSearch(\'lm-to\',\'lm-to-sugg\',this.value)" autocomplete="off">'+
       '<div id="lm-to-sugg" style="display:none;background:var(--bg);border:1px solid var(--border2);border-radius:var(--r);margin-top:2px;overflow:hidden;max-height:200px;overflow-y:auto;box-shadow:0 4px 12px rgba(0,0,0,.12)"></div>'+
-      '<div id="lm-to-chip" style="display:none;margin-top:5px;font-size:11px;color:var(--green-mid);background:var(--green-lt);border:1px solid var(--green-mid);border-radius:20px;padding:3px 10px;display:inline-flex;align-items:center;gap:4px"><span>📍</span><span id="lm-to-chip-txt"></span><span style="color:var(--green-mid);font-weight:700">✓</span></div>'+
+      '<div id="lm-to-chip" style="display:none;margin-top:5px;font-size:11px;color:var(--green-mid);background:var(--green-lt);border:1px solid var(--green-mid);border-radius:20px;padding:3px 10px;align-items:center;gap:4px"><span>📍</span><span id="lm-to-chip-txt"></span><span style="color:var(--green-mid);font-weight:700">✓</span></div>'+
       '</div>'+
     '<button type="button" onclick="calculateAndShowRoute()" class="btn btn-p" style="width:100%;margin-bottom:10px;min-height:48px;font-size:15px" id="lm-calc-btn">🗺 Calculate miles</button>'+
     '<div id="lm-route-result" style="display:none;background:var(--blue-lt);border:1px solid var(--blue);border-radius:var(--r);padding:14px;margin-bottom:14px;text-align:center">'+

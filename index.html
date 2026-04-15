@@ -497,8 +497,6 @@ input:checked+.dm-slider:before{transform:translateX(22px)}
     </div>
   </div>
   <div id="dash-resume" style="margin-bottom:10px;display:none"></div>
-  <div id="dash-resume-est" style="margin-bottom:10px"></div>
-  <div id="dash-sent-proposals" style="margin-bottom:10px"></div>
   <div id="dash-goal" style="margin-bottom:10px"></div>
   <div id="dash-pipeline"></div>
   <div class="card"><div class="card-hd">Today on the calendar</div><div id="dash-today"></div></div>
@@ -2838,73 +2836,7 @@ function renderDash(){
   const _btnStyle='font-size:11px;background:var(--bg);border-color:var(--border2)';
   const _btnPStyle='font-size:11px';
   const _xStyle='font-size:11px;color:var(--text3);padding:6px 8px;background:var(--bg);border-color:var(--border2)';
-  // ── Section 1: Estimates in progress (not yet sent to client) ──
-  const resumeEl=document.getElementById('dash-resume-est');
-  if(resumeEl){
-    const draft=loadEstFullDraft();
-    const hasDraft=!!(draft&&draft.cname);
-    // In-progress = any unsent bid (no signingToken, not yet won/lost)
-    // Exclude the bid associated with the active localStorage draft — that's already shown as "Unsaved draft"
-    const _activeDraftBidId=draft?.lastBidId||null;
-    const inProgressBids=bids.filter(b=>!b.signingToken&&b.status!=='Closed Won'&&b.status!=='Closed Lost'&&b.status!=='Abandoned'&&b.id!==_activeDraftBidId).sort((a,b)=>(b.bid_date||'').localeCompare(a.bid_date||''));
-    const total=inProgressBids.length+(hasDraft?1:0);
-    if(!total){resumeEl.innerHTML='';} else {
-      let html='<div style="background:var(--bg);border:1px solid var(--border);border-radius:var(--rl);padding:10px 14px">';
-      html+='<div style="font-size:12px;font-weight:700;color:var(--text);margin-bottom:8px">✏️ Estimates in progress ('+total+')</div>';
-      if(hasDraft){
-        html+='<div style="'+_rowStyle+'">'+
-          '<div style="flex:1;min-width:0"><div style="'+_nameStyle+'">'+draft.cname+'</div>'+
-          '<div style="font-size:11px;color:var(--text3);margin-top:1px">Unsaved draft</div></div>'+
-          '<div style="display:flex;gap:5px;flex-shrink:0">'+
-            '<button onclick="resumeEstimateDraft()" class="btn btn-sm btn-p" style="'+_btnPStyle+'">Resume</button>'+
-            '<button onclick="clearEstFullDraft();renderDash()" class="btn btn-sm" style="'+_xStyle+'">✕</button>'+
-          '</div></div>';
-      }
-      inProgressBids.forEach(b=>{
-        const cl=clients.find(c=>c.id===b.client_id);
-        const name=cl?cl.name:(b.client_name||b.name||'Client');
-        const amt=b.amount?fmt(b.amount):'No total yet';
-        html+='<div style="'+_rowStyle+'">'+
-          '<div style="flex:1;min-width:0"><div style="'+_nameStyle+'">'+name+'</div>'+
-          '<div style="font-size:11px;color:var(--text3);margin-top:1px">'+amt+' — saved, not sent</div></div>'+
-          '<div style="display:flex;gap:5px;flex-shrink:0">'+
-            '<button onclick="openEditBid('+b.id+',2)" class="btn btn-sm btn-p" style="'+_btnPStyle+'">Resume</button>'+
-            '<button onclick="discardInProgressBid('+b.id+')" class="btn btn-sm" style="'+_xStyle+'">✕</button>'+
-          '</div></div>';
-      });
-      html+='</div>';
-      resumeEl.innerHTML=html;
-    }
-  }
-  // ── Section 2: Sent proposals (link sent, awaiting signature) ──
-  const sentEl=document.getElementById('dash-sent-proposals');
-  if(sentEl){
-    // Sent = any bid with a signingToken that isn't yet won
-    const sentBids=bids.filter(b=>b.signingToken&&b.status!=='Closed Won'&&b.status!=='Closed Lost').sort((a,b)=>(b.bid_date||'').localeCompare(a.bid_date||''));
-    if(!sentBids.length){sentEl.innerHTML='';} else {
-      let html='<div style="background:var(--bg);border:1px solid var(--border);border-radius:var(--rl);padding:10px 14px">';
-      html+='<div style="font-size:12px;font-weight:700;color:var(--text);margin-bottom:8px">📨 Sent proposals — awaiting signature ('+sentBids.length+')</div>';
-      sentBids.forEach(b=>{
-        const cl=clients.find(c=>c.id===b.client_id);
-        const name=cl?cl.name:(b.client_name||b.name||'Client');
-        const days=b.bid_date?Math.floor((new Date(todayKey())-new Date(b.bid_date+'T12:00:00'))/86400000):0;
-        const urgency=days>=14?'color:#A32D2D':days>=7?'color:var(--amber)':'color:var(--text3)';
-        const daysStr=days===0?'Sent today':days===1?'1d waiting':days+'d waiting';
-        const amt=b.amount?fmt(b.amount):'—';
-        html+='<div style="'+_rowStyle+'">'+
-          '<div style="flex:1;min-width:0;cursor:pointer" onclick="viewBidClient('+b.client_id+')">'+
-          '<div style="'+_nameStyle+'">'+name+'</div>'+
-          '<div style="font-size:11px;'+urgency+';margin-top:1px">'+amt+' · '+daysStr+'</div></div>'+
-          '<div style="display:flex;gap:5px;flex-shrink:0">'+
-            (b.proposalHtml?'<button onclick="viewSavedProposal('+b.id+')" class="btn btn-sm" style="'+_btnStyle+'">View</button>':'')+
-            '<button onclick="resendProposalLink('+b.id+')" class="btn btn-sm" style="'+_btnStyle+'">Resend</button>'+
-            '<button onclick="markBidNoResponseFromDash('+b.id+')" class="btn btn-sm" style="'+_xStyle+'" title="No response — archive">✕</button>'+
-          '</div></div>';
-      });
-      html+='</div>';
-      sentEl.innerHTML=html;
-    }
-  }
+  // Estimates in progress + sent proposals now live in renderTodayFeed()
   renderGoal();
   checkGoalPrompt();
   renderLeadSources();
@@ -3415,28 +3347,65 @@ function renderTodayFeed(){
       '</div>'});
   });
 
-  // TIER 5 — Sent proposals, no signature yet (waiting)
+  // TIER 5 — Sent proposals awaiting signature (has signing link, not yet won)
   bids.filter(b=>b.signingToken&&b.status==='Pending').forEach(b=>{
     const c=getClientById(b.client_id);if(!c)return;
     const days=b.bid_date?Math.floor((new Date(tk+'T12:00')-new Date(b.bid_date+'T12:00'))/86400000):0;
-    if(days<1)return; // skip same-day
+    const urgColor=days>=14?'#A32D2D':days>=7?'var(--amber)':'var(--text3)';
+    const daysStr=days===0?'Sent today':days===1?'1 day waiting':days+'d waiting';
     items.push({priority:5,html:
       '<div class="tf-card">'+
         '<div class="tf-icon">📨</div>'+
         '<div class="tf-body">'+
           '<div class="tf-name">'+escHtml(c.name)+'</div>'+
-          '<div class="tf-sub" style="color:var(--text3)">'+fmt(b.amount)+' · proposal sent '+days+'d ago · no signature</div>'+
+          '<div class="tf-sub" style="color:'+urgColor+'">'+fmt(b.amount)+' · '+daysStr+' · awaiting signature</div>'+
         '</div>'+
         '<div class="tf-acts">'+
+          (b.proposalHtml?'<button onclick="viewSavedProposal('+b.id+')" class="btn btn-sm" style="font-size:11px">View</button>':'')+
           '<button onclick="resendProposalLink('+b.id+')" class="btn btn-sm" style="font-size:11px">Resend</button>'+
+          '<button onclick="markBidWon('+b.id+')" class="btn btn-sm btn-g" style="font-size:11px">Won ✓</button>'+
         '</div>'+
       '</div>'});
   });
 
-  // TIER 6 — New leads needing estimate
+  // TIER 6 — Estimates in progress (built but not yet sent)
+  const draft=loadEstFullDraft();
+  const _activeDraftBidId=draft?.lastBidId||null;
+  if(draft&&draft.cname){
+    items.push({priority:6,html:
+      '<div class="tf-card">'+
+        '<div class="tf-icon">✏️</div>'+
+        '<div class="tf-body">'+
+          '<div class="tf-name">'+escHtml(draft.cname)+'</div>'+
+          '<div class="tf-sub" style="color:var(--text3)">Unsaved draft — finish &amp; send</div>'+
+        '</div>'+
+        '<div class="tf-acts">'+
+          '<button onclick="resumeEstimateDraft()" class="btn btn-sm btn-p" style="font-size:11px">Resume →</button>'+
+          '<button onclick="clearEstFullDraft();renderDash()" class="btn btn-sm" style="font-size:11px;color:var(--text3)">Discard</button>'+
+        '</div>'+
+      '</div>'});
+  }
+  bids.filter(b=>!b.signingToken&&b.status==='Pending'&&b.id!==_activeDraftBidId).forEach(b=>{
+    const c=getClientById(b.client_id);if(!c)return;
+    const days=b.bid_date?Math.floor((new Date(tk+'T12:00')-new Date(b.bid_date+'T12:00'))/86400000):0;
+    items.push({priority:6,html:
+      '<div class="tf-card">'+
+        '<div class="tf-icon">✏️</div>'+
+        '<div class="tf-body">'+
+          '<div class="tf-name">'+escHtml(c.name)+'</div>'+
+          '<div class="tf-sub" style="color:var(--text3)">'+fmt(b.amount)+' · built '+(days===0?'today':days+'d ago')+' · not sent yet</div>'+
+        '</div>'+
+        '<div class="tf-acts">'+
+          '<button onclick="openEditBid('+b.id+',2)" class="btn btn-sm btn-p" style="font-size:11px">Send →</button>'+
+          '<button onclick="discardInProgressBid('+b.id+')" class="btn btn-sm" style="font-size:11px;color:var(--text3)">Discard</button>'+
+        '</div>'+
+      '</div>'});
+  });
+
+  // TIER 7 — New leads needing estimate
   const newLeads=clients.filter(c=>{const s=getClientStage(c.id).stage;return s==='new'||s==='est_scheduled';});
   if(newLeads.length){
-    items.push({priority:6,html:
+    items.push({priority:7,html:
       '<div class="tf-card">'+
         '<div class="tf-icon">🙋</div>'+
         '<div class="tf-body">'+
@@ -3455,7 +3424,7 @@ function renderTodayFeed(){
   }
 
   items.sort((a,b)=>a.priority-b.priority);
-  el.innerHTML=items.slice(0,5).map(i=>i.html).join('');
+  el.innerHTML=items.slice(0,8).map(i=>i.html).join('');
 }
 
 function checkGoalPrompt(){

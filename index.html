@@ -2595,6 +2595,10 @@ function _doOpenEstimate(c,_overrideAddr){
   scopeActiveMap={};scopeHrsStore={};roomScopeMap={};
   estPropertyTier={key:'avg',mult:1.00,paint:'ProMar 200',products:{interior:'pm200',exterior:'spe',trim:'pm200t'}};
   surfRoom='';surfColor='';surfWhatSelected=[];surfBQueue=[];surfBIdx=0;surfBMeasurements={};_swLastProductByCategory={};
+  // Clear persistent DOM fields so they don't bleed from the previous estimate
+  ['surf-room-name','laser-room-name','manual-room-name'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
+  const _sigTyped=document.getElementById('sig-typed');if(_sigTyped)_sigTyped.value='';
+  const _sigPrev=document.getElementById('sig-typed-preview');if(_sigPrev)_sigPrev.textContent='';
   estLinkedClientId=currentClientId;
   editingBidId=null;
   // Reuse only a truly empty draft for this client (no surfaces, never worked on) — prevents
@@ -3411,33 +3415,12 @@ function renderTodayFeed(){
       '</div>'});
   });
 
-  // TIER 5 — Job just done, no expenses logged
-  jobs.filter(j=>j.status==='done'&&j.completion_date&&j.completion_date>=addDays(tk,-7)).forEach(j=>{
-    const hasExp=expenses.some(e=>e.job_id===j.id||e.client_id===j.client_id&&e.date>=j.completion_date);
-    if(hasExp)return;
-    const bid=j.bid_id?bids.find(b=>b.id===j.bid_id):null;
-    if(!bid)return;
-    const profit=fmt(bid.amount);
-    items.push({priority:6,html:
-      '<div class="tf-card">'+
-        '<div class="tf-icon">🧾</div>'+
-        '<div class="tf-body">'+
-          '<div class="tf-name">'+escHtml(bid.client_name||j.name||'Job')+'</div>'+
-          '<div class="tf-sub" style="color:var(--text2)">Job done · log materials to see real profit on '+profit+'</div>'+
-        '</div>'+
-        '<div class="tf-acts">'+
-          '<button onclick="openExpenseForJob('+j.id+','+j.client_id+')" class="btn btn-sm btn-p" style="font-size:11px">Add expense</button>'+
-          '<button onclick="markJobNoExpenses('+j.id+')" class="btn btn-sm" style="font-size:11px;color:var(--text3)">No costs</button>'+
-        '</div>'+
-      '</div>'});
-  });
-
-  // TIER 6 — Sent proposals, no signature yet (waiting)
+  // TIER 5 — Sent proposals, no signature yet (waiting)
   bids.filter(b=>b.signingToken&&b.status==='Pending').forEach(b=>{
     const c=getClientById(b.client_id);if(!c)return;
     const days=b.bid_date?Math.floor((new Date(tk+'T12:00')-new Date(b.bid_date+'T12:00'))/86400000):0;
     if(days<1)return; // skip same-day
-    items.push({priority:7,html:
+    items.push({priority:5,html:
       '<div class="tf-card">'+
         '<div class="tf-icon">📨</div>'+
         '<div class="tf-body">'+
@@ -3450,10 +3433,10 @@ function renderTodayFeed(){
       '</div>'});
   });
 
-  // TIER 7 — New leads needing estimate
+  // TIER 6 — New leads needing estimate
   const newLeads=clients.filter(c=>{const s=getClientStage(c.id).stage;return s==='new'||s==='est_scheduled';});
   if(newLeads.length){
-    items.push({priority:8,html:
+    items.push({priority:6,html:
       '<div class="tf-card">'+
         '<div class="tf-icon">🙋</div>'+
         '<div class="tf-body">'+
@@ -4878,6 +4861,24 @@ function confirmJobDone(jobId){
       setTimeout(()=>setCDTab('bids',document.getElementById('cdt-bids')),200);
     },100);
   }
+  // Expense prompt — give payment panel time to open first
+  const _jid=jobId,_cid=j.client_id;
+  setTimeout(()=>{
+    const hasExp=expenses.some(e=>e.job_id===_jid);
+    if(hasExp)return;
+    const expOv=document.createElement('div');expOv.className='zmodal-overlay';
+    const expBox=document.createElement('div');expBox.className='zmodal';
+    expBox.innerHTML=
+      '<div style="font-size:17px;font-weight:800;margin-bottom:6px">Any material costs?</div>'+
+      '<div style="font-size:13px;color:var(--text2);margin-bottom:18px;line-height:1.5">Log paint, supplies, or other materials to track your real profit on this job.</div>'+
+      '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">'+
+        '<button onclick="this.closest(\'.zmodal-overlay\').remove()" style="padding:12px;border-radius:var(--r);border:1px solid var(--border2);background:var(--bg2);font-size:14px;font-weight:600;cursor:pointer;font-family:inherit">No costs</button>'+
+        '<button onclick="this.closest(\'.zmodal-overlay\').remove();openExpenseForJob('+_jid+','+_cid+')" style="padding:12px;border-radius:var(--r);border:none;background:var(--blue);color:#fff;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit">Log expenses →</button>'+
+      '</div>';
+    expOv.appendChild(expBox);
+    document.body.appendChild(expOv);
+    expOv.addEventListener('click',e=>{if(e.target===expOv)expOv.remove();});
+  },600);
   // Review request prompt — show after a delay so payment panel opens first
   if(S.reviewUrl){
     setTimeout(()=>showReviewRequestPrompt(j.client_id),800);

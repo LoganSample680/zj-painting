@@ -3082,9 +3082,9 @@ function openLienPanelGuarded(bidId){
 // ── Extend saveLien to set risk level ─────────────────────────────────────
 const _origSaveLien=saveLien;
 saveLien=function(){
-  _origSaveLien();
   const status=v('lien-status');
   const bidId=activeLienBidId;
+  _origSaveLien();
   const bid=bids.find(b=>b.id===bidId);
   if(bid&&(status==='filed'||status==='attorney')){
     setClientRisk(bid.client_id,'high_risk');
@@ -3092,6 +3092,10 @@ saveLien=function(){
   }
   if(bid&&status==='intent'){setBidCollStage(bid,'intent','Intent to lien recorded');}
   renderDashActiveLiens();
+  // Auto-generate printable lien document when filing
+  if(status==='filed'||status==='attorney'){
+    setTimeout(()=>printKansasLien(bidId),300);
+  }
 };
 
 // ── Release lien → require when balance = 0, set risk to watch ───────────
@@ -3223,6 +3227,221 @@ function renderDashCollect(){
   ).join('');
 }
 
+// ── On-load unpaid work alert ────────────────────────────────────────────────
+function checkUnpaidOnLoad(){
+  if(window._collOnLoadShown)return;
+  window._collOnLoadShown=true;
+  const tk=todayKey();
+  const unpaid=bids
+    .filter(b=>b.status==='Closed Won'&&getBidBalance(b)>0.01&&b.completion_date)
+    .map(b=>({b,days:Math.floor((new Date(tk+'T12:00')-new Date(b.completion_date+'T12:00'))/86400000),stage:getBidCollStage(b)}))
+    .filter(x=>x.days>0)
+    .sort((a,b)=>b.days-a.days);
+  if(!unpaid.length)return;
+  const {b,days,stage}=unpaid[0];
+  const c=getClientById(b.client_id);if(!c)return;
+  const bal=getBidBalance(b);
+  const biz=S.bname||"ZJ's Painting";
+  const next=getNextCollAction(stage);
+  const isFileable=stage==='intent'||stage==='lien_ready';
+  const lienFiled=stage==='lien_filed';
+  const otherCount=unpaid.length-1;
+  const urgIcon=days>=30?'🚨':days>=14?'⚠️':'💰';
+  const urgLabel=days>=30?'30+ days overdue — act now':days>=14?'Seriously overdue':days>=7?'Overdue':'Balance due';
+  const urgColor=days>=14?'#A32D2D':'var(--amber)';
+  let actionBtn='';
+  if(lienFiled){
+    actionBtn='<button onclick="this.closest(\'.zmodal-overlay\').remove();openClientDetail('+b.client_id+')" style="flex:2;padding:13px;border-radius:var(--r);border:none;background:#3D0000;color:#FFB3B3;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit">⚖️ View lien</button>';
+  } else if(isFileable){
+    actionBtn='<button onclick="this.closest(\'.zmodal-overlay\').remove();openClientDetail('+b.client_id+');setTimeout(()=>openLienPanelGuarded('+b.id+'),300)" style="flex:2;padding:13px;border-radius:var(--r);border:none;background:#3D0000;color:#FFB3B3;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit">⚖️ File Lien</button>';
+  } else if(next.smsKey&&c.phone){
+    actionBtn='<button onclick="collSendSMS(bids.find(x=>x.id=='+b.id+'),\''+next.smsKey+'\');this.closest(\'.zmodal-overlay\').remove()" style="flex:2;padding:13px;border-radius:var(--r);border:none;background:var(--amber);color:#1a1a1a;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit">'+next.label+'</button>';
+  } else if(c.phone){
+    actionBtn='<a href="tel:'+c.phone.replace(/\D/g,'')+'" onclick="autoLogContact('+c.id+',\'call\')" style="flex:2;padding:13px;border-radius:var(--r);border:none;background:var(--blue);color:#fff;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;text-decoration:none;display:block;text-align:center">📞 Call now</a>';
+  }
+  const ov=document.createElement('div');ov.className='zmodal-overlay';
+  const box=document.createElement('div');box.className='zmodal';
+  box.innerHTML=
+    '<div style="text-align:center;font-size:30px;margin-bottom:6px">'+urgIcon+'</div>'+
+    '<div style="font-size:16px;font-weight:800;text-align:center;margin-bottom:4px">Unpaid balance</div>'+
+    '<div style="text-align:center;font-size:30px;font-weight:800;color:#A32D2D;margin-bottom:4px">'+fmt(bal)+'</div>'+
+    '<div style="text-align:center;font-size:13px;color:var(--text2);margin-bottom:3px">'+escHtml(c.name)+'</div>'+
+    '<div style="text-align:center;font-size:11px;color:'+urgColor+';font-weight:700;margin-bottom:16px">'+urgLabel+' · '+days+'d since completion</div>'+
+    (otherCount>0?'<div style="font-size:11px;color:var(--text3);text-align:center;margin-bottom:14px;padding:6px;background:var(--bg2);border-radius:var(--r)">+'+otherCount+' other unpaid job'+(otherCount!==1?'s':'')+'</div>':'')+
+    '<div style="display:flex;gap:8px;margin-bottom:10px">'+
+      '<button onclick="this.closest(\'.zmodal-overlay\').remove()" style="flex:1;padding:13px;border-radius:var(--r);border:1px solid var(--border2);background:var(--bg2);font-size:14px;font-weight:600;cursor:pointer;font-family:inherit">Later</button>'+
+      actionBtn+
+    '</div>'+
+    '<button onclick="this.closest(\'.zmodal-overlay\').remove();openPayPanel('+b.id+')" style="width:100%;padding:11px;border-radius:var(--r);border:none;background:var(--green);color:#fff;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit">💳 Log payment received</button>';
+  ov.appendChild(box);document.body.appendChild(ov);
+  ov.addEventListener('click',e=>{if(e.target===ov)ov.remove();});
+}
+
+// ── Kansas Mechanic's Lien document generator ────────────────────────────────
+function printKansasLien(bidId){
+  const bid=bids.find(b=>b.id===bidId);if(!bid)return;
+  const lien=getBidLien(bidId);if(!lien)return;
+  const c=getClientById(bid.client_id);if(!c)return;
+  const bname=S.bname||"ZJ's Painting & Special Coatings";
+  const bphone=S.bphone||'';
+  const blic=S.blic||'';
+  const owner=getOwnerName()||'';
+  const claimAmt=(lien.amount||getBidBalance(bid)||0).toFixed(2);
+  const addr=bid.addr||c.addr||'';
+  const county=lien.county||'Sedgwick County, Kansas';
+  const filedDate=lien.date||todayKey();
+  const lastWorkDate=bid.completion_date||filedDate;
+  // Derive first-work date from job start or bid date
+  const job=jobs.find(j=>j.bid_id===bidId);
+  const firstWorkDate=job?job.start:bid.bid_date||lastWorkDate;
+  const fmtD=d=>{if(!d)return'_______________';const[y,m,dy]=d.split('-');const mn=['January','February','March','April','May','June','July','August','September','October','November','December'];return mn[parseInt(m)-1]+' '+parseInt(dy)+', '+y;};
+  const surfTypes=[...new Set((bid.surfaces||[]).map(s=>s.type).filter(Boolean))];
+  const workDesc=surfTypes.length?surfTypes.join(', ')+' — painting and coating services':(bid.type||'Painting and coating services');
+  const html=`<!DOCTYPE html><html><head><meta charset="utf-8">
+<title>Mechanic's Lien — ${escHtml(c.name)}</title>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:'Times New Roman',Times,serif;font-size:13pt;color:#000;background:#fff;padding:40px}
+  h1{font-size:18pt;text-align:center;text-transform:uppercase;letter-spacing:2px;margin-bottom:6px}
+  h2{font-size:13pt;text-align:center;margin-bottom:24px;font-weight:normal}
+  .subtitle{text-align:center;font-size:11pt;margin-bottom:30px;font-style:italic}
+  .section{margin-bottom:18px}
+  .label{font-size:10pt;font-weight:bold;text-transform:uppercase;letter-spacing:.5px;margin-bottom:2px}
+  .value{border-bottom:1px solid #000;min-height:24px;padding:2px 4px;font-size:13pt}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+  .notice{border:2px solid #000;padding:14px;margin:20px 0;font-size:11pt;line-height:1.6}
+  .oath{margin:24px 0;font-size:11pt;line-height:1.8;text-align:justify}
+  .sig-block{margin-top:36px}
+  .sig-line{border-bottom:1px solid #000;min-height:36px;margin-bottom:4px}
+  .sig-label{font-size:10pt;text-align:center;color:#333}
+  .notary{border:1px solid #000;padding:16px;margin-top:28px;font-size:11pt;line-height:1.8}
+  .notary-title{font-size:12pt;font-weight:bold;text-transform:uppercase;margin-bottom:10px;text-align:center}
+  .page-break{page-break-after:always;margin-bottom:40px}
+  .proposal-section{margin-top:40px}
+  @media print{body{padding:20px}.no-print{display:none}}
+</style></head><body>
+<div class="no-print" style="background:#185FA5;color:#fff;padding:12px 16px;margin:-40px -40px 30px;display:flex;justify-content:space-between;align-items:center">
+  <span style="font-size:15px;font-weight:700">Kansas Mechanic's Lien — Ready to print</span>
+  <button onclick="window.print()" style="padding:8px 20px;border-radius:6px;border:none;background:#fff;color:#185FA5;font-size:13px;font-weight:700;cursor:pointer">🖨️ Print</button>
+</div>
+
+<h1>Mechanic's Lien Statement</h1>
+<h2>State of Kansas</h2>
+<div class="subtitle">Pursuant to K.S.A. 60-1101 et seq.</div>
+
+<div class="notice">
+  <strong>NOTICE:</strong> This Mechanic's Lien Statement is filed with the Register of Deeds of ${escHtml(county)} pursuant to the Kansas Mechanic's Lien Act (K.S.A. 60-1101 et seq.). This lien attaches to the real property described herein for labor, services, and materials furnished but unpaid.
+</div>
+
+<div class="section">
+  <div class="label">1. Claimant (Contractor)</div>
+  <div class="value">${escHtml(bname)}</div>
+  ${bphone?'<div class="value" style="margin-top:6px">Phone: '+escHtml(bphone)+(blic?' &nbsp;|&nbsp; License: '+escHtml(blic):'')+'</div>':''}
+  ${owner?'<div class="value" style="margin-top:6px">Contractor/Owner: '+escHtml(owner)+'</div>':''}
+</div>
+
+<div class="section">
+  <div class="label">2. Property Owner (Debtor)</div>
+  <div class="value">${escHtml(c.name)}</div>
+  ${c.phone?'<div class="value" style="margin-top:6px">Phone: '+escHtml(c.phone)+'</div>':''}
+</div>
+
+<div class="section">
+  <div class="label">3. Property Address (Location of Work)</div>
+  <div class="value">${escHtml(addr)}</div>
+</div>
+
+<div class="section">
+  <div class="label">4. Legal Description of Property</div>
+  <div class="value" style="min-height:48px">The real property located at ${escHtml(addr)}, ${escHtml(county.replace(/, Kansas$/,''))}, Kansas (legal description to be obtained from county records if required for filing)</div>
+</div>
+
+<div class="section">
+  <div class="label">5. Description of Work Performed</div>
+  <div class="value" style="min-height:48px">${escHtml(workDesc)}</div>
+</div>
+
+<div class="section grid2">
+  <div>
+    <div class="label">6. Date Work First Furnished</div>
+    <div class="value">${fmtD(firstWorkDate)}</div>
+  </div>
+  <div>
+    <div class="label">7. Date Work Last Furnished</div>
+    <div class="value">${fmtD(lastWorkDate)}</div>
+  </div>
+</div>
+
+<div class="section grid2">
+  <div>
+    <div class="label">8. Amount of Lien Claimed</div>
+    <div class="value" style="font-size:16pt;font-weight:bold">$${escHtml(claimAmt)}</div>
+  </div>
+  <div>
+    <div class="label">9. Date of This Lien Statement</div>
+    <div class="value">${fmtD(filedDate)}</div>
+  </div>
+</div>
+
+<div class="section">
+  <div class="label">10. County of Filing</div>
+  <div class="value">${escHtml(county)}</div>
+</div>
+
+${lien.notes?'<div class="section"><div class="label">Notes / Case Reference</div><div class="value">'+escHtml(lien.notes)+'</div></div>':''}
+
+<div class="oath">
+  <strong>VERIFICATION:</strong> The undersigned, being duly sworn, states that the foregoing Mechanic's Lien Statement is true and correct to the best of their knowledge and belief; that the amount claimed is justly due and owing after deducting all just credits and offsets; and that the services described above were actually performed at the location identified herein.
+</div>
+
+<div class="sig-block">
+  <div class="grid2">
+    <div>
+      <div class="label" style="margin-bottom:8px">Claimant Signature</div>
+      <div class="sig-line"></div>
+      <div class="sig-label">${escHtml(owner||'Contractor')}</div>
+    </div>
+    <div>
+      <div class="label" style="margin-bottom:8px">Date Signed</div>
+      <div class="sig-line"></div>
+      <div class="sig-label">Date</div>
+    </div>
+  </div>
+  <div style="margin-top:16px">
+    <div class="label" style="margin-bottom:8px">Printed Name & Title</div>
+    <div class="sig-line"></div>
+    <div class="sig-label">${escHtml(owner||'Contractor')}, Owner — ${escHtml(bname)}</div>
+  </div>
+</div>
+
+<div class="notary">
+  <div class="notary-title">Notary Acknowledgment</div>
+  State of Kansas<br>
+  County of ____________________________<br><br>
+  Subscribed and sworn to before me this _______ day of __________________, 20___,<br>
+  by ____________________________________________.<br><br>
+  <div style="margin-top:24px;display:flex;gap:40px">
+    <div style="flex:1">
+      <div style="border-bottom:1px solid #000;min-height:36px"></div>
+      <div style="font-size:10pt;text-align:center;margin-top:4px">Notary Public Signature</div>
+    </div>
+    <div style="flex:1">
+      <div style="border-bottom:1px solid #000;min-height:36px"></div>
+      <div style="font-size:10pt;text-align:center;margin-top:4px">My Commission Expires</div>
+    </div>
+  </div>
+  <div style="margin-top:12px;font-size:10pt;font-style:italic">File with: Register of Deeds, ${escHtml(county.replace(/, Kansas$/,'').replace(' County',''))} County Courthouse. Filing fee varies by county. Retain a filed/stamped copy for your records.</div>
+</div>
+
+${bid.proposalHtml?`<div class="page-break"></div><div class="proposal-section"><h1 style="margin-bottom:20px">Exhibit A — Original Proposal</h1><div style="border:1px solid #000;padding:16px">${bid.proposalHtml}</div></div>`:''}
+
+</body></html>`;
+
+  const win=window.open('','_blank');
+  if(win){win.document.write(html);win.document.close();}
+  else{zAlert('Allow pop-ups to open the lien document. In Safari: tap AA in address bar → Allow pop-ups.');}
+}
+
 function renderDashFollowups(){
   const el=document.getElementById('dash-followups');if(!el)return;
   const tk=todayKey();
@@ -3269,19 +3488,28 @@ function renderTodayFeed(){
     const daysAgo=Math.floor((new Date(tk+'T12:00')-new Date(b.completion_date+'T12:00'))/86400000);
     const urgTag=daysAgo>=30?'<span style="display:inline-block;font-size:9px;font-weight:800;text-transform:uppercase;padding:2px 5px;border-radius:3px;background:#A32D2D;color:#fff;margin-left:4px">30+ days</span>':
                  daysAgo>=7?'<span style="display:inline-block;font-size:9px;font-weight:800;text-transform:uppercase;padding:2px 5px;border-radius:3px;background:#C0720A;color:#fff;margin-left:4px">Overdue</span>':'';
-    const smsBody=encodeURIComponent('Hi '+c.name.split(' ')[0]+', just checking in — your balance of '+fmt(bal)+' for the painting work is still outstanding. Let us know when you can take care of it. Thanks!');
+    const stage=getBidCollStage(b);
+    const next=getNextCollAction(stage);
+    const lienStage=stage==='lien_filed';
+    const isFileable=stage==='intent'||stage==='lien_ready';
+    let actBtns='';
+    if(c.phone)(actBtns+='<a href="tel:'+c.phone.replace(/\D/g,'')+'" onclick="autoLogContact('+c.id+',\'call\')" class="btn btn-sm" style="font-size:11px">Call</a>');
+    if(next.smsKey&&c.phone){
+      actBtns+='<button onclick="collSendSMS(bids.find(x=>x.id=='+b.id+'),\''+next.smsKey+'\')" class="btn btn-sm" style="font-size:11px;border-color:var(--amber);color:#856404;background:var(--amber-lt)">'+next.label+'</button>';
+    } else if(isFileable){
+      actBtns+='<button onclick="openClientDetail('+b.client_id+');setTimeout(()=>openLienPanelGuarded('+b.id+'),300)" class="btn btn-sm" style="font-size:11px;background:#3D0000;color:#FFB3B3;border-color:#3D0000">⚖️ File Lien</button>';
+    } else if(lienStage){
+      actBtns+='<button onclick="openClientDetail('+b.client_id+')" class="btn btn-sm" style="font-size:11px;background:#3D0000;color:#FFB3B3;border-color:#3D0000">⚖️ Lien filed</button>';
+    }
+    actBtns+='<button onclick="openPayPanel('+b.id+')" class="btn btn-sm btn-g" style="font-size:11px">Collect →</button>';
     items.push({priority:daysAgo>=7?1:2,html:
       '<div class="tf-card">'+
         '<div class="tf-icon">💰</div>'+
         '<div class="tf-body">'+
           '<div class="tf-name">'+escHtml(c.name)+urgTag+'</div>'+
-          '<div class="tf-sub" style="color:#A32D2D">'+fmt(bal)+' owed · job done '+daysAgo+'d ago</div>'+
+          '<div class="tf-sub" style="color:#A32D2D">'+fmt(bal)+' owed · '+daysAgo+'d since completion</div>'+
         '</div>'+
-        '<div class="tf-acts">'+
-          (c.phone?'<a href="tel:'+c.phone.replace(/\D/g,'')+'" onclick="autoLogContact('+c.id+',\'call\')" class="btn btn-sm" style="font-size:11px">Call</a>':'')+
-          (c.phone?'<a href="sms:'+c.phone.replace(/\D/g,'')+'&body='+smsBody+'" onclick="autoLogContact('+c.id+',\'payment_reminder_sms\')" class="btn btn-sm" style="font-size:11px">Text</a>':'')+
-          '<button onclick="openPayPanel('+b.id+')" class="btn btn-sm btn-g" style="font-size:11px">Collect →</button>'+
-        '</div>'+
+        '<div class="tf-acts">'+actBtns+'</div>'+
       '</div>'});
   });
 
@@ -15732,6 +15960,7 @@ function supaSetStatus(s){
 }
 
 loadAll();applySettings();registerDevice();
+setTimeout(checkUnpaidOnLoad,1200);
 
 // Pull-to-refresh: pull down from top → re-sync from cloud
 (function(){

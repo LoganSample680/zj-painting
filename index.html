@@ -3099,12 +3099,19 @@ function showFileLienDirect(bidId){
   const bal=getBidBalance(bid);
   const {rules,daysUnpaid,daysUntilDeadline}=getLienTimeline(bid);
   const addr=bid.addr||c.addr||'';
+  const {stateCode,county}=getCountyForBid(bid);
+  const filingInfo=getCountyFilingInfo(stateCode,county);
+
   const warningHtml=daysUntilDeadline<=0?
     '<div style="background:#3D0000;color:#FFB3B3;border-radius:var(--r);padding:10px 12px;margin-bottom:14px;font-size:12px">⚠️ Lien window may be expired — consult an attorney before filing.</div>':
     daysUntilDeadline<=30?
-    '<div style="background:var(--amber-lt);color:#856404;border-radius:var(--r);padding:10px 12px;margin-bottom:14px;font-size:12px">⏰ '+daysUntilDeadline+' days left to file lien — act now.</div>':'';
+    '<div style="background:var(--amber-lt);color:#856404;border-radius:var(--r);padding:10px 12px;margin-bottom:14px;font-size:12px">⏰ '+daysUntilDeadline+' days left to file — act now.</div>':'';
+
+  const notesHtml=filingInfo.notes.map(n=>'<div style="display:flex;gap:6px;margin-bottom:4px"><span style="color:var(--blue);flex-shrink:0">→</span><span>'+escHtml(n)+'</span></div>').join('');
+
   const ov=document.createElement('div');ov.className='zmodal-overlay';
   const box=document.createElement('div');box.className='zmodal';
+  box.style.maxHeight='90vh';box.style.overflowY='auto';
   box.innerHTML=
     '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">'+
       '<div style="font-size:16px;font-weight:800">⚖️ File Mechanic\'s Lien</div>'+
@@ -3121,28 +3128,39 @@ function showFileLienDirect(bidId){
         '<div style="font-size:10px;color:var(--text3);margin-top:2px">Days unpaid</div>'+
       '</div>'+
     '</div>'+
-    '<div style="font-size:12px;color:var(--text2);margin-bottom:6px"><strong>Client:</strong> '+escHtml(c.name)+'</div>'+
-    '<div style="font-size:12px;color:var(--text2);margin-bottom:6px"><strong>Property:</strong> '+escHtml(addr||'—')+'</div>'+
-    '<div style="font-size:12px;color:var(--text2);margin-bottom:14px"><strong>Completion date:</strong> '+escHtml(bid.completion_date||'—')+'</div>'+
-    '<div style="font-size:11px;color:var(--text3);margin-bottom:14px">The lien document will be generated with your business info, client details, and the attached proposal pre-filled and ready to print.</div>'+
+    '<div style="font-size:12px;color:var(--text2);margin-bottom:4px"><strong>Client:</strong> '+escHtml(c.name)+'</div>'+
+    '<div style="font-size:12px;color:var(--text2);margin-bottom:4px"><strong>Property:</strong> '+escHtml(addr||'—')+'</div>'+
+    '<div style="font-size:12px;color:var(--text2);margin-bottom:14px"><strong>Completion:</strong> '+escHtml(bid.completion_date||'—')+'</div>'+
+    // Filing instructions section
+    '<div style="background:var(--blue-lt);border-radius:var(--r);padding:12px 14px;margin-bottom:14px">'+
+      '<div style="font-size:12px;font-weight:800;color:var(--blue);margin-bottom:8px">📍 Filing Instructions — '+escHtml(county)+'</div>'+
+      '<div style="font-size:12px;font-weight:700;color:var(--text);margin-bottom:2px">'+escHtml(filingInfo.filing_office)+'</div>'+
+      '<div style="font-size:11px;color:var(--text2);margin-bottom:'+(filingInfo.phone?'2':'8')+'px">'+escHtml(filingInfo.address)+'</div>'+
+      (filingInfo.phone?'<div style="font-size:11px;color:var(--text2);margin-bottom:8px">'+escHtml(filingInfo.phone)+'</div>':'')+
+      '<div style="font-size:11px;color:var(--text2);line-height:1.7">'+notesHtml+'</div>'+
+    '</div>'+
+    '<div style="font-size:11px;color:var(--text3);margin-bottom:14px">Document will be pre-filled with your business info, client details, and proposal. Print, sign, notarize, then file.</div>'+
     '<div style="display:flex;gap:8px">'+
       '<button onclick="this.closest(\'.zmodal-overlay\').remove()" style="flex:1;padding:13px;border-radius:var(--r);border:1px solid var(--border2);background:var(--bg2);font-size:14px;font-weight:600;cursor:pointer;font-family:inherit">Cancel</button>'+
-      '<button onclick="_confirmFileLien('+bidId+');this.closest(\'.zmodal-overlay\').remove()" style="flex:2;padding:13px;border-radius:var(--r);border:none;background:#3D0000;color:#FFB3B3;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit">Generate & Print Lien →</button>'+
+      '<button onclick="_confirmFileLien('+bidId+',\''+escHtml(county)+'\');this.closest(\'.zmodal-overlay\').remove()" style="flex:2;padding:13px;border-radius:var(--r);border:none;background:#3D0000;color:#FFB3B3;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit">Generate & Print Lien →</button>'+
     '</div>';
   ov.appendChild(box);document.body.appendChild(ov);
   ov.addEventListener('click',e=>{if(e.target===ov)ov.remove();});
 }
-function _confirmFileLien(bidId){
+function _confirmFileLien(bidId,detectedCounty){
   const bid=bids.find(b=>b.id===bidId);if(!bid)return;
+  const {stateCode,county:autoCounty}=getCountyForBid(bid);
+  const usedCounty=(detectedCounty||autoCounty||'Sedgwick County')+', Kansas';
   // Record lien as filed
   let lien=liens.find(l=>l.bid_id===bidId);
   if(!lien){
     const c=getClientById(bid.client_id);
     lien={id:Date.now(),bid_id:bidId,client_id:bid.client_id,client_name:bid.client_name||c?.name||'',
-      amount:getBidBalance(bid),date:todayKey(),status:'filed',county:'Sedgwick County, Kansas',notes:''};
+      amount:getBidBalance(bid),date:todayKey(),status:'filed',county:usedCounty,notes:''};
     liens.push(lien);
   } else {
     lien.status='filed';lien.date=todayKey();
+    if(!lien.county)lien.county=usedCounty;
   }
   setBidCollStage(bid,'lien_filed','Lien filed via direct action');
   setClientRisk(bid.client_id,'high_risk');
@@ -3233,13 +3251,84 @@ const LIEN_RULES={
   default:{notice_days:10,filing_deadline_days:90}
 };
 
-function getLienRulesForBid(bid){
+// ── County filing info ─────────────────────────────────────────────────────
+const COUNTY_INFO={
+  KS:{
+    'Sedgwick County':{
+      filing_office:'Sedgwick County Register of Deeds',
+      address:'525 N Main St, Room 227, Wichita, KS 67203',
+      phone:'(316) 660-9400',
+      notes:['Bring 2 printed, signed, and notarized copies','Filing fee: ~$21 for first page + $4 per additional page','Retain the stamped copy for your records','Deadline: 120 days from last day of work (K.S.A. 60-1105)']
+    },
+    'Shawnee County':{
+      filing_office:'Shawnee County Register of Deeds',
+      address:'200 SE 7th St, Room 108, Topeka, KS 66603',
+      phone:'(785) 251-4020',
+      notes:['Bring 2 printed, signed, and notarized copies','Filing fee: ~$21 for first page + $4 per additional page','Retain the stamped copy for your records','Deadline: 120 days from last day of work (K.S.A. 60-1105)']
+    },
+    'Douglas County':{
+      filing_office:'Douglas County Register of Deeds',
+      address:'1100 Massachusetts St, Lawrence, KS 66044',
+      phone:'(785) 832-5145',
+      notes:['Bring 2 printed, signed, and notarized copies','Filing fee varies — call ahead to confirm','Deadline: 120 days from last day of work (K.S.A. 60-1105)']
+    },
+    'Johnson County':{
+      filing_office:'Johnson County Register of Deeds',
+      address:'111 S Cherry St, Suite 1200, Olathe, KS 66061',
+      phone:'(913) 715-0775',
+      notes:['Bring 2 printed, signed, and notarized copies','Filing fee varies — call ahead','Deadline: 120 days from last day of work (K.S.A. 60-1105)']
+    },
+    'Wyandotte County':{
+      filing_office:'Wyandotte County Register of Deeds',
+      address:'710 N 7th St, Kansas City, KS 66101',
+      phone:'(913) 573-2841',
+      notes:['Bring 2 printed, signed, and notarized copies','Filing fee varies — call ahead','Deadline: 120 days from last day of work']
+    },
+    default:{
+      filing_office:'County Register of Deeds',
+      address:'Contact your county courthouse',
+      phone:'',
+      notes:['Bring 2 printed, signed, and notarized copies','Confirm filing fee with clerk','Deadline: 120 days from last day of work (K.S.A. 60-1105)','Retain the stamped copy for your records']
+    }
+  }
+};
+
+// City → county map for KS cities
+const KS_CITY_COUNTY={
+  'WICHITA':'Sedgwick County','DERBY':'Sedgwick County','ANDOVER':'Butler County',
+  'HAYSVILLE':'Sedgwick County','MAIZE':'Sedgwick County','BEL AIRE':'Sedgwick County',
+  'VALLEY CENTER':'Sedgwick County','CHENEY':'Sedgwick County','MULVANE':'Sedgwick County',
+  'TOPEKA':'Shawnee County','AUBURN':'Shawnee County','SILVER LAKE':'Shawnee County',
+  'LAWRENCE':'Douglas County','LEAWOOD':'Johnson County','OVERLAND PARK':'Johnson County',
+  'OLATHE':'Johnson County','SHAWNEE':'Johnson County','LENEXA':'Johnson County',
+  'PRAIRIE VILLAGE':'Johnson County','MERRIAM':'Johnson County','MISSION':'Johnson County',
+  'KANSAS CITY':'Wyandotte County','SALINA':'Saline County','MANHATTAN':'Riley County',
+  'HUTCHINSON':'Reno County','DODGE CITY':'Ford County','GARDEN CITY':'Finney County',
+  'EMPORIA':'Lyon County','PARSONS':'Labette County','PITTSBURG':'Crawford County',
+};
+
+function getCountyForBid(bid){
   const c=getClientById(bid.client_id);
   const addr=(bid.addr||c?.addr||'').toUpperCase();
-  // Match two-letter state abbreviation at end of address or before ZIP
-  const m=addr.match(/\b(KS|MO|OK|TX|CO|NE|AR)\b/);
-  const code=m?m[1]:'KS'; // default to KS since this is a KS-based business
-  return LIEN_RULES[code]||LIEN_RULES.default;
+  const stateM=addr.match(/\b(KS|MO|OK|TX|CO|NE|AR)\b/);
+  const stateCode=stateM?stateM[1]:'KS';
+  // Try to find county by city name from address
+  let county=null;
+  for(const city of Object.keys(KS_CITY_COUNTY)){
+    if(addr.includes(city)){county=KS_CITY_COUNTY[city];break;}
+  }
+  if(!county)county='Sedgwick County'; // default for this business
+  return{stateCode,county};
+}
+
+function getCountyFilingInfo(stateCode,county){
+  const stateInfo=COUNTY_INFO[stateCode]||COUNTY_INFO.KS;
+  return stateInfo[county]||stateInfo.default||COUNTY_INFO.KS.default;
+}
+
+function getLienRulesForBid(bid){
+  const {stateCode}=getCountyForBid(bid);
+  return LIEN_RULES[stateCode]||LIEN_RULES.default;
 }
 
 function getLienTimeline(bid){
@@ -3400,7 +3489,11 @@ function printKansasLien(bidId){
   const owner=getOwnerName()||'';
   const claimAmt=(lien.amount||getBidBalance(bid)||0).toFixed(2);
   const addr=bid.addr||c.addr||'';
-  const county=lien.county||'Sedgwick County, Kansas';
+  // Auto-detect county if not already set on the lien record
+  const {stateCode:detectedState,county:detectedCounty}=getCountyForBid(bid);
+  const county=lien.county||(detectedCounty+', Kansas');
+  const countyShort=county.replace(/, Kansas$/,'');
+  const filingInfo=getCountyFilingInfo(detectedState,detectedCounty);
   const filedDate=lien.date||todayKey();
   const lastWorkDate=bid.completion_date||filedDate;
   // Derive first-work date from job start or bid date
@@ -3465,7 +3558,7 @@ function printKansasLien(bidId){
 
 <div class="section">
   <div class="label">4. Legal Description of Property</div>
-  <div class="value" style="min-height:48px">The real property located at ${escHtml(addr)}, ${escHtml(county.replace(/, Kansas$/,''))}, Kansas (legal description to be obtained from county records if required for filing)</div>
+  <div class="value" style="min-height:48px">The real property located at ${escHtml(addr)}, ${escHtml(countyShort)}, Kansas (legal description to be obtained from county records if required for filing)</div>
 </div>
 
 <div class="section">
@@ -3542,7 +3635,12 @@ ${lien.notes?'<div class="section"><div class="label">Notes / Case Reference</di
       <div style="font-size:10pt;text-align:center;margin-top:4px">My Commission Expires</div>
     </div>
   </div>
-  <div style="margin-top:12px;font-size:10pt;font-style:italic">File with: Register of Deeds, ${escHtml(county.replace(/, Kansas$/,'').replace(' County',''))} County Courthouse. Filing fee varies by county. Retain a filed/stamped copy for your records.</div>
+  <div style="margin-top:12px;font-size:10pt">
+    <strong>File with:</strong> ${escHtml(filingInfo.filing_office)}<br>
+    ${escHtml(filingInfo.address)}<br>
+    ${filingInfo.phone?escHtml(filingInfo.phone)+'<br>':''}
+    ${filingInfo.notes.map(n=>'→ '+n).join('<br>')}
+  </div>
 </div>
 
 ${bid.proposalHtml?`<div class="page-break"></div><div class="proposal-section"><h1 style="margin-bottom:20px">Exhibit A — Original Proposal</h1><div style="border:1px solid #000;padding:16px">${bid.proposalHtml}</div></div>`:''}
@@ -10741,27 +10839,45 @@ async function refreshLocationAndWeather(){
 async function renderCalGrid(){
   const{booked,buf}=getBookedDays();const DNAMES=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
   let html=DNAMES.map(d=>`<div class="cal-dh">${d}</div>`).join('');
+  // Guard: calYear must be valid; reset if corrupted
   const curYear=new Date().getFullYear();
-  // Guard: calYear must be plausible (2020–2099); reset if corrupted
-  if(!calYear||calYear<2020||calYear>2099){calYear=curYear;}
-  const first=new Date(calYear,calMonth,1),last=new Date(calYear,calMonth+1,0),dow=first.getDay(),tk=todayKey();
+  if(!calYear||calYear<2020||calYear>2099)calYear=curYear;
+  if(calMonth<0||calMonth>11)calMonth=new Date().getMonth();
+
+  const tk=todayKey();
+  const daysInMonth=new Date(calYear,calMonth+1,0).getDate();
+  const firstDow=new Date(calYear,calMonth,1).getDay(); // 0=Sun
+
+  // Build prev-month leading cells (never mutate — create fresh Date each time)
   const cells=[];
-  for(let i=0;i<dow;i++){
-    const d=new Date(calYear,calMonth,1-dow+i);
-    // Validate year didn't overflow unexpectedly
-    if(d.getFullYear()<2000)continue;
-    cells.push({d,other:true});
+  if(firstDow>0){
+    const prevMonth=calMonth===0?11:calMonth-1;
+    const prevYear=calMonth===0?calYear-1:calYear;
+    const daysInPrev=new Date(prevYear,prevMonth+1,0).getDate();
+    for(let i=firstDow-1;i>=0;i--){
+      const day=daysInPrev-i;
+      cells.push({d:new Date(prevYear,prevMonth,day),other:true});
+    }
   }
-  for(let i=1;i<=last.getDate();i++)cells.push({d:new Date(calYear,calMonth,i),other:false});
-  while(cells.length%7!==0){
-    const l=cells[cells.length-1].d;
-    const nd=new Date(l.getFullYear(),l.getMonth(),l.getDate()+1);
-    if(nd.getFullYear()<2000)break; // safety guard
-    cells.push({d:nd,other:true});
+  // Current month cells
+  for(let day=1;day<=daysInMonth;day++){
+    cells.push({d:new Date(calYear,calMonth,day),other:false});
   }
+  // Next-month trailing cells — fill to complete the last row
+  {
+    const nextMonth=calMonth===11?0:calMonth+1;
+    const nextYear=calMonth===11?calYear+1:calYear;
+    let trailDay=1;
+    while(cells.length%7!==0){
+      cells.push({d:new Date(nextYear,nextMonth,trailDay),other:true});
+      trailDay++;
+    }
+  }
+  // Validation: drop any cell whose year is outside plausible range
+  const validCells=cells.filter(({d})=>d.getFullYear()>=2020&&d.getFullYear()<=2099);
   // Fetch weather (cached — won't block render on repeat calls)
   const weather=await fetchWeather();
-  cells.forEach(({d,other})=>{
+  validCells.forEach(({d,other})=>{
     const key=dateKey(d),isToday=key===tk,dj=getJobsOnDay(key);
     const wx=!other?weather[key]:null;
     let cls='cal-cell';
@@ -10770,7 +10886,7 @@ async function renderCalGrid(){
     if(isToday&&!other)cls+=' today';
     if(wx&&wx.rain&&!other)cls+=' cal-rain';
     const clickable=!other;
-    html+='<div class="'+cls+'"'+(clickable?' onclick="expandCalDay('+key+')" style="cursor:pointer"':'')+'>'+
+    html+='<div class="'+cls+'"'+(clickable?' onclick="expandCalDay(\''+key+'\')" style="cursor:pointer"':'')+'>'+
       '<div style="display:flex;justify-content:space-between;align-items:center">'+
         '<div class="cdn">'+d.getDate()+'</div>'+
         (wx?'<div style="font-size:13px;line-height:1" title="'+wx.label+' · '+wx.hi+'°/'+wx.lo+'°F'+'">'+wx.icon+'</div>':'') +

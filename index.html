@@ -692,7 +692,6 @@ input:checked+.dm-slider:before{transform:translateX(22px)}
             No vehicles added — go to Settings to add one first.
             <button class="btn btn-sm btn-p" onclick="goToVehicleSettings()" style="margin-top:6px;display:block;width:100%">Go to Settings → Add vehicle</button>
           </div>
-          <div id="cd-last-odom-hint" style="font-size:11px;color:var(--text3);margin-top:6px"></div>
           <div id="cd-vehicle-chips" style="display:none"></div>
         </div>
 
@@ -711,14 +710,6 @@ input:checked+.dm-slider:before{transform:translateX(22px)}
         <div id="cd-supply-job-picker" style="display:none;margin-bottom:16px"></div>
 
         
-        <div style="margin-bottom:12px">
-          <label style="font-size:10px;font-weight:700;text-transform:uppercase;color:var(--text3);display:block;margin-bottom:4px">Odometer reading (miles) <span style="color:#A32D2D">*</span></label>
-          <input type="number" id="cd-odom-start" placeholder="Enter current reading" min="0"
-            style="font-size:28px;font-weight:700;padding:14px;border-radius:var(--r);border:2px solid var(--blue);background:var(--bg2);color:var(--text);width:100%;box-sizing:border-box;text-align:center"
-            oninput="validateOdomStart(this);checkTripReady()">
-          <div id="cd-odom-warn" style="display:none;font-size:11px;color:#A32D2D;margin-top:4px;padding:6px 10px;background:#FFF0F0;border-radius:var(--r)"></div>
-        </div>
-
         <div class="brow">
           <button class="btn btn-full" id="cd-start-trip-btn" onclick="confirmStartDrive()" style="font-size:15px;padding:14px;background:var(--border2);color:var(--text3);border-color:var(--border2);cursor:not-allowed" disabled>Start trip</button>
           <button class="btn" onclick="cancelStartDrive()">Cancel</button>
@@ -730,7 +721,7 @@ input:checked+.dm-slider:before{transform:translateX(22px)}
       <div class="gps-status">
         <div style="font-size:11px;font-weight:700;text-transform:uppercase;color:var(--green)">Trip in progress</div>
         <div class="gps-timer" id="cd-timer">0:00</div>
-        <div style="font-size:12px;color:var(--text2);margin-top:2px"><span id="cd-active-purpose"></span> · Started at <span id="cd-odom-start-display"></span> mi</div>
+        <div style="font-size:12px;color:var(--text2);margin-top:2px"><span id="cd-active-purpose"></span></div>
         <div style="font-size:11px;color:var(--text3);margin-top:1px" id="cd-active-vehicle"></div>
       </div>
       <button class="drive-btn driving" onclick="showEndDrive()" style="margin-top:8px">
@@ -739,25 +730,7 @@ input:checked+.dm-slider:before{transform:translateX(22px)}
       </button>
     </div>
     
-    <div id="cd-drive-end" style="display:none">
-      <div class="card">
-        <div class="card-hd">End odometer</div>
-        <div style="background:var(--bg2);border-radius:var(--r);padding:8px 12px;margin-bottom:10px;font-size:12px;color:var(--text2)">
-          Started: <strong id="cd-odom-start-recap"></strong> mi &nbsp;·&nbsp; Time: <strong id="cd-elapsed-recap"></strong>
-        </div>
-        <div style="margin-bottom:12px">
-          <label style="font-size:10px;font-weight:700;text-transform:uppercase;color:var(--text3);display:block;margin-bottom:6px">Current odometer reading (miles)</label>
-          <input type="number" id="cd-odom-end" placeholder="e.g. 48268" min="0"
-            style="font-size:28px;font-weight:700;padding:14px;border-radius:var(--r);border:2px solid var(--blue);background:var(--bg2);color:var(--text);width:100%;box-sizing:border-box;text-align:center"
-            oninput="updateOdomCalc()">
-        </div>
-        <div id="cd-odom-calc" style="display:none;background:var(--green-lt);border-radius:var(--r);padding:10px 14px;margin-bottom:10px;text-align:center;font-size:14px;font-weight:700;color:var(--green-mid)"></div>
-        <div class="brow">
-          <button class="btn btn-g btn-full" onclick="confirmEndDrive()" style="font-size:15px;padding:14px">Save trip</button>
-          <button class="btn" onclick="cancelEndDrive()">Keep driving</button>
-        </div>
-      </div>
-    </div>
+    <div id="cd-drive-end" style="display:none"></div>
   </div>
   
   <div class="fbar">
@@ -2425,7 +2398,7 @@ function clearAllData(){
       clients=[];bids=[];jobs=[];income=[];expenses=[];mileage=[];payments=[];liens=[];
       S.employees=[];S.vehicles=[];
       estSurfaces=[];estSurfId=0;estLinkedClientId=null;editingBidId=null;
-      gps={active:false,startTime:null,clientId:null,clientName:'',odomStart:null,timerInt:null,vehicle:'',purpose:''};
+      gps={active:false,startCoords:null,startTime:null,clientId:null,clientName:'',timerInt:null,vehicle:'',purpose:''};
       hideDriveBanner();clearSurfDraft();saveAll();renderDash();
       zAlert('All data cleared. Starting fresh!',{title:'Done'});
       goPg('pg-dash');
@@ -2990,7 +2963,10 @@ function getBidCollStage(bid){
   if(lien&&(lien.status==='filed'||lien.status==='attorney'))return 'lien_filed';
   if(lien&&lien.status==='intent')return 'intent';
   if(lien&&lien.status==='resolved')return 'resolved';
-  return bid.collStage||'none';
+  // Auto-advance based on state-specific lien rules
+  const rules=getLienRulesForBid(bid);
+  const daysUnpaid=bid.completion_date?daysSince(bid.completion_date):0;
+  return getAutoCollStage(daysUnpaid,bid.collStage,rules);
 }
 
 function setBidCollStage(bid,stage,note){
@@ -3005,19 +2981,56 @@ function collSendSMS(bid,stageKey){
   if(!c||!c.phone)return zAlert('No phone number on file for this client. Add one in their profile first.',{title:'No phone'});
   const fn=COLL_SMS[stageKey];if(!fn)return;
   const biz=S.bname||"ZJ's Painting";
-  const msg=fn(c.name,getBidBalance(bid),bid.addr||c.addr||'the property',biz);
+  const bal=getBidBalance(bid);
+  const msg=fn(c.name,bal,bid.addr||c.addr||'the property',biz);
   const phone=c.phone.replace(/\D/g,'');
-  // Open Messages with pre-filled text — use anchor click so it works on iOS Safari
+  const newStage=stageKey==='reminder'?'reminder':stageKey==='second'?'second':'intent';
+  const stageLabel={reminder:'Reminder',second:'2nd Notice',intent:'Intent to Lien'}[stageKey]||stageKey;
+
+  // Show preview modal with the message and confirm before sending
+  const ov=document.createElement('div');ov.className='zmodal-overlay';
+  const box=document.createElement('div');box.className='zmodal';
+  box.innerHTML=
+    '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">'+
+      '<div style="font-size:15px;font-weight:800">💬 '+stageLabel+' — '+escHtml(c.name)+'</div>'+
+      '<button onclick="this.closest(\'.zmodal-overlay\').remove()" style="border:none;background:none;font-size:22px;cursor:pointer;color:var(--text3)">✕</button>'+
+    '</div>'+
+    '<div style="background:var(--bg2);border-radius:var(--r);padding:12px;font-size:12px;color:var(--text);line-height:1.6;margin-bottom:14px;max-height:160px;overflow-y:auto">'+escHtml(msg)+'</div>'+
+    '<div style="font-size:11px;color:var(--text3);margin-bottom:14px">Amount: <strong>'+fmt(bal)+'</strong> · Sending to: '+escHtml(c.phone)+'</div>'+
+    '<div style="display:flex;gap:8px">'+
+      '<button onclick="this.closest(\'.zmodal-overlay\').remove()" style="flex:1;padding:12px;border-radius:var(--r);border:1px solid var(--border2);background:var(--bg2);font-size:13px;font-weight:600;cursor:pointer;font-family:inherit">Cancel</button>'+
+      '<button onclick="_doCollSMS(\''+phone+'\',\''+encodeURIComponent(msg)+'\',bids.find(x=>x.id=='+bid.id+'),\''+newStage+'\',\''+stageLabel+'\');this.closest(\'.zmodal-overlay\').remove()" style="flex:2;padding:12px;border-radius:var(--r);border:none;background:var(--amber);color:#1a1a1a;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit">Send via Messages →</button>'+
+    '</div>'+
+    '<div style="margin-top:10px">'+
+      '<button onclick="_markCollSMSSent(bids.find(x=>x.id=='+bid.id+'),\''+newStage+'\',\''+stageLabel+'\');this.closest(\'.zmodal-overlay\').remove()" style="width:100%;padding:10px;border-radius:var(--r);border:1px solid var(--border2);background:var(--bg);font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;color:var(--text2)">✓ Already sent — mark as sent</button>'+
+    '</div>';
+  ov.appendChild(box);document.body.appendChild(ov);
+  ov.addEventListener('click',e=>{if(e.target===ov)ov.remove();});
+}
+function _doCollSMS(phone,encodedMsg,bid,newStage,label){
+  if(!bid)return;
   const a=document.createElement('a');
-  a.href='sms:+1'+phone+'&body='+encodeURIComponent(msg);
+  a.href='sms:+1'+phone+'&body='+encodedMsg;
   a.style.display='none';
   document.body.appendChild(a);
   a.click();
   setTimeout(()=>document.body.removeChild(a),500);
-  // Advance stage and re-render after short delay so SMS link fires first
-  const newStage=stageKey==='reminder'?'reminder':stageKey==='second'?'second':'intent';
-  setBidCollStage(bid,newStage,'SMS sent via device');
-  setTimeout(()=>{renderMoneyPage();try{renderCDBids();}catch(e){}try{renderDash();}catch(e){}},600);
+  // After 2s ask "did it send?"
+  setTimeout(()=>{
+    zConfirm('Did the message send successfully?',()=>{
+      _markCollSMSSent(bid,newStage,label);
+    },{title:'Confirm sent',yes:'Yes, sent',no:'No',danger:false});
+  },2000);
+}
+function _markCollSMSSent(bid,newStage,label){
+  if(!bid)return;
+  setBidCollStage(bid,newStage,label+' SMS sent — '+new Date().toLocaleDateString());
+  if(!bid.collHistory)bid.collHistory=[];
+  bid.collHistory.push({stage:newStage,note:label+' sent',ts:new Date().toISOString(),method:'sms'});
+  autoLogContact(bid.client_id,'collection_sms');
+  saveAll();
+  showToast(label+' sent to '+( getClientById(bid.client_id)?.name||'client'),'💬');
+  setTimeout(()=>{renderMoneyPage();try{renderCDBids();}catch(e){}try{renderDash();}catch(e){}},400);
 }
 
 // ── Risk system ───────────────────────────────────────────────────────────
@@ -3077,6 +3090,68 @@ function openLienPanelGuarded(bidId){
     return;
   }
   openLienPanel(bidId);
+}
+
+// ── Direct lien filing — no redirect, generates document immediately ──────
+function showFileLienDirect(bidId){
+  const bid=bids.find(b=>b.id===bidId);if(!bid)return;
+  const c=getClientById(bid.client_id);if(!c)return;
+  const bal=getBidBalance(bid);
+  const {rules,daysUnpaid,daysUntilDeadline}=getLienTimeline(bid);
+  const addr=bid.addr||c.addr||'';
+  const warningHtml=daysUntilDeadline<=0?
+    '<div style="background:#3D0000;color:#FFB3B3;border-radius:var(--r);padding:10px 12px;margin-bottom:14px;font-size:12px">⚠️ Lien window may be expired — consult an attorney before filing.</div>':
+    daysUntilDeadline<=30?
+    '<div style="background:var(--amber-lt);color:#856404;border-radius:var(--r);padding:10px 12px;margin-bottom:14px;font-size:12px">⏰ '+daysUntilDeadline+' days left to file lien — act now.</div>':'';
+  const ov=document.createElement('div');ov.className='zmodal-overlay';
+  const box=document.createElement('div');box.className='zmodal';
+  box.innerHTML=
+    '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">'+
+      '<div style="font-size:16px;font-weight:800">⚖️ File Mechanic\'s Lien</div>'+
+      '<button onclick="this.closest(\'.zmodal-overlay\').remove()" style="border:none;background:none;font-size:22px;cursor:pointer;color:var(--text3)">✕</button>'+
+    '</div>'+
+    warningHtml+
+    '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px">'+
+      '<div style="background:var(--bg2);border-radius:var(--r);padding:10px;text-align:center">'+
+        '<div style="font-size:18px;font-weight:800;color:#A32D2D">'+fmt(bal)+'</div>'+
+        '<div style="font-size:10px;color:var(--text3);margin-top:2px">Amount claimed</div>'+
+      '</div>'+
+      '<div style="background:var(--bg2);border-radius:var(--r);padding:10px;text-align:center">'+
+        '<div style="font-size:18px;font-weight:800">'+daysUnpaid+'d</div>'+
+        '<div style="font-size:10px;color:var(--text3);margin-top:2px">Days unpaid</div>'+
+      '</div>'+
+    '</div>'+
+    '<div style="font-size:12px;color:var(--text2);margin-bottom:6px"><strong>Client:</strong> '+escHtml(c.name)+'</div>'+
+    '<div style="font-size:12px;color:var(--text2);margin-bottom:6px"><strong>Property:</strong> '+escHtml(addr||'—')+'</div>'+
+    '<div style="font-size:12px;color:var(--text2);margin-bottom:14px"><strong>Completion date:</strong> '+escHtml(bid.completion_date||'—')+'</div>'+
+    '<div style="font-size:11px;color:var(--text3);margin-bottom:14px">The lien document will be generated with your business info, client details, and the attached proposal pre-filled and ready to print.</div>'+
+    '<div style="display:flex;gap:8px">'+
+      '<button onclick="this.closest(\'.zmodal-overlay\').remove()" style="flex:1;padding:13px;border-radius:var(--r);border:1px solid var(--border2);background:var(--bg2);font-size:14px;font-weight:600;cursor:pointer;font-family:inherit">Cancel</button>'+
+      '<button onclick="_confirmFileLien('+bidId+');this.closest(\'.zmodal-overlay\').remove()" style="flex:2;padding:13px;border-radius:var(--r);border:none;background:#3D0000;color:#FFB3B3;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit">Generate & Print Lien →</button>'+
+    '</div>';
+  ov.appendChild(box);document.body.appendChild(ov);
+  ov.addEventListener('click',e=>{if(e.target===ov)ov.remove();});
+}
+function _confirmFileLien(bidId){
+  const bid=bids.find(b=>b.id===bidId);if(!bid)return;
+  // Record lien as filed
+  let lien=liens.find(l=>l.bid_id===bidId);
+  if(!lien){
+    const c=getClientById(bid.client_id);
+    lien={id:Date.now(),bid_id:bidId,client_id:bid.client_id,client_name:bid.client_name||c?.name||'',
+      amount:getBidBalance(bid),date:todayKey(),status:'filed',county:'Sedgwick County, Kansas',notes:''};
+    liens.push(lien);
+  } else {
+    lien.status='filed';lien.date=todayKey();
+  }
+  setBidCollStage(bid,'lien_filed','Lien filed via direct action');
+  setClientRisk(bid.client_id,'high_risk');
+  saveAll();
+  renderDashActiveLiens();
+  try{renderMoneyPage();}catch(e){}
+  try{renderDash();}catch(e){}
+  // Generate and open the lien document
+  setTimeout(()=>printKansasLien(bidId),200);
 }
 
 // ── Extend saveLien to set risk level ─────────────────────────────────────
@@ -3144,14 +3219,51 @@ function renderDashActiveLiens(){
   }).join('');
 }
 
-function getAutoCollStage(daysUnpaid, existingStage){
-  // Don't downgrade if already escalated
+// ── State-based lien timing rules ─────────────────────────────────────────
+// notice_days: days after completion before pre-lien notice is appropriate
+// filing_deadline_days: days after last work when lien MUST be filed
+const LIEN_RULES={
+  KS:{notice_days:10,filing_deadline_days:120},  // K.S.A. 60-1105
+  MO:{notice_days:10,filing_deadline_days:180},
+  OK:{notice_days:10,filing_deadline_days:90},
+  TX:{notice_days:15,filing_deadline_days:100},
+  CO:{notice_days:10,filing_deadline_days:120},
+  NE:{notice_days:10,filing_deadline_days:120},
+  AR:{notice_days:10,filing_deadline_days:120},
+  default:{notice_days:10,filing_deadline_days:90}
+};
+
+function getLienRulesForBid(bid){
+  const c=getClientById(bid.client_id);
+  const addr=(bid.addr||c?.addr||'').toUpperCase();
+  // Match two-letter state abbreviation at end of address or before ZIP
+  const m=addr.match(/\b(KS|MO|OK|TX|CO|NE|AR)\b/);
+  const code=m?m[1]:'KS'; // default to KS since this is a KS-based business
+  return LIEN_RULES[code]||LIEN_RULES.default;
+}
+
+function getLienTimeline(bid){
+  const rules=getLienRulesForBid(bid);
+  const daysUnpaid=bid.completion_date?daysSince(bid.completion_date):0;
+  const daysUntilDeadline=rules.filing_deadline_days-daysUnpaid;
+  const daysUntilNotice=rules.notice_days-daysUnpaid;
+  return{rules,daysUnpaid,daysUntilDeadline,daysUntilNotice};
+}
+
+function getAutoCollStage(daysUnpaid, existingStage, lienRules){
+  const rules=lienRules||LIEN_RULES.default;
+  const deadline=rules.filing_deadline_days;
   const rank={none:0,reminder:1,second:2,intent:3,lien_ready:4,lien_filed:5,resolved:6};
   let auto='none';
-  if(daysUnpaid>=30)auto='lien_ready';
-  else if(daysUnpaid>=21)auto='intent';
-  else if(daysUnpaid>=14)auto='second';
-  else if(daysUnpaid>=7)auto='reminder';
+  // Scale collection steps proportionally to the state deadline
+  const d2=Math.round(deadline*0.25); // ~25% of window → send reminder
+  const d3=Math.round(deadline*0.40); // ~40% → second notice
+  const d4=Math.round(deadline*0.60); // ~60% → intent to lien
+  const d5=Math.round(deadline*0.85); // ~85% → lien eligible
+  if(daysUnpaid>=d5)auto='lien_ready';
+  else if(daysUnpaid>=d4)auto='intent';
+  else if(daysUnpaid>=d3)auto='second';
+  else if(daysUnpaid>=d2)auto='reminder';
   const cur=existingStage||'none';
   return (rank[auto]||0)>(rank[cur]||0)?auto:cur;
 }
@@ -3253,7 +3365,7 @@ function checkUnpaidOnLoad(){
   if(lienFiled){
     actionBtn='<button onclick="this.closest(\'.zmodal-overlay\').remove();openClientDetail('+b.client_id+')" style="flex:2;padding:13px;border-radius:var(--r);border:none;background:#3D0000;color:#FFB3B3;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit">⚖️ View lien</button>';
   } else if(isFileable){
-    actionBtn='<button onclick="this.closest(\'.zmodal-overlay\').remove();openClientDetail('+b.client_id+');setTimeout(()=>openLienPanelGuarded('+b.id+'),300)" style="flex:2;padding:13px;border-radius:var(--r);border:none;background:#3D0000;color:#FFB3B3;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit">⚖️ File Lien</button>';
+    actionBtn='<button onclick="this.closest(\'.zmodal-overlay\').remove();showFileLienDirect('+b.id+')" style="flex:2;padding:13px;border-radius:var(--r);border:none;background:#3D0000;color:#FFB3B3;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit">⚖️ File Lien</button>';
   } else if(next.smsKey&&c.phone){
     actionBtn='<button onclick="collSendSMS(bids.find(x=>x.id=='+b.id+'),\''+next.smsKey+'\');this.closest(\'.zmodal-overlay\').remove()" style="flex:2;padding:13px;border-radius:var(--r);border:none;background:var(--amber);color:#1a1a1a;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit">'+next.label+'</button>';
   } else if(c.phone){
@@ -3486,6 +3598,13 @@ function renderTodayFeed(){
     const c=getClientById(b.client_id);if(!c)return;
     const bal=getBidBalance(b);
     const daysAgo=Math.floor((new Date(tk+'T12:00')-new Date(b.completion_date+'T12:00'))/86400000);
+    const {rules,daysUntilDeadline}=getLienTimeline(b);
+    const deadlineUrgent=daysUntilDeadline<=30&&daysUntilDeadline>0;
+    const deadlineExpired=daysUntilDeadline<=0;
+    const countdownTag=deadlineExpired?
+      '<span style="display:inline-block;font-size:9px;font-weight:800;text-transform:uppercase;padding:2px 5px;border-radius:3px;background:#000;color:#FFB3B3;margin-left:4px">Lien window expired</span>':
+      deadlineUrgent?
+      '<span style="display:inline-block;font-size:9px;font-weight:800;text-transform:uppercase;padding:2px 5px;border-radius:3px;background:#A32D2D;color:#fff;margin-left:4px">'+daysUntilDeadline+'d to file</span>':'';
     const urgTag=daysAgo>=30?'<span style="display:inline-block;font-size:9px;font-weight:800;text-transform:uppercase;padding:2px 5px;border-radius:3px;background:#A32D2D;color:#fff;margin-left:4px">30+ days</span>':
                  daysAgo>=7?'<span style="display:inline-block;font-size:9px;font-weight:800;text-transform:uppercase;padding:2px 5px;border-radius:3px;background:#C0720A;color:#fff;margin-left:4px">Overdue</span>':'';
     const stage=getBidCollStage(b);
@@ -3497,16 +3616,16 @@ function renderTodayFeed(){
     if(next.smsKey&&c.phone){
       actBtns+='<button onclick="collSendSMS(bids.find(x=>x.id=='+b.id+'),\''+next.smsKey+'\')" class="btn btn-sm" style="font-size:11px;border-color:var(--amber);color:#856404;background:var(--amber-lt)">'+next.label+'</button>';
     } else if(isFileable){
-      actBtns+='<button onclick="openClientDetail('+b.client_id+');setTimeout(()=>openLienPanelGuarded('+b.id+'),300)" class="btn btn-sm" style="font-size:11px;background:#3D0000;color:#FFB3B3;border-color:#3D0000">⚖️ File Lien</button>';
+      actBtns+='<button onclick="showFileLienDirect('+b.id+')" class="btn btn-sm" style="font-size:11px;background:#3D0000;color:#FFB3B3;border-color:#3D0000">⚖️ File Lien</button>';
     } else if(lienStage){
-      actBtns+='<button onclick="openClientDetail('+b.client_id+')" class="btn btn-sm" style="font-size:11px;background:#3D0000;color:#FFB3B3;border-color:#3D0000">⚖️ Lien filed</button>';
+      actBtns+='<button onclick="printKansasLien('+b.id+')" class="btn btn-sm" style="font-size:11px;background:#3D0000;color:#FFB3B3;border-color:#3D0000">⚖️ View lien doc</button>';
     }
     actBtns+='<button onclick="openPayPanel('+b.id+')" class="btn btn-sm btn-g" style="font-size:11px">Collect →</button>';
     items.push({priority:daysAgo>=7?1:2,html:
       '<div class="tf-card">'+
         '<div class="tf-icon">💰</div>'+
         '<div class="tf-body">'+
-          '<div class="tf-name">'+escHtml(c.name)+urgTag+'</div>'+
+          '<div class="tf-name">'+escHtml(c.name)+urgTag+countdownTag+'</div>'+
           '<div class="tf-sub" style="color:#A32D2D">'+fmt(bal)+' owed · '+daysAgo+'d since completion</div>'+
         '</div>'+
         '<div class="tf-acts">'+actBtns+'</div>'+
@@ -4489,8 +4608,6 @@ function renderClientDetail(){
     document.getElementById('cd-drive-start').style.display='none';
     document.getElementById('cd-drive-end').style.display='none';
     document.getElementById('cd-drive-active').style.display='block';
-    const sd=document.getElementById('cd-odom-start-display');
-    if(sd)sd.textContent=(gps.odomStart||0).toLocaleString();
     const ap=document.getElementById('cd-active-purpose');
     if(ap)ap.textContent=gps.purpose||'Work drive';
     const av=document.getElementById('cd-active-vehicle');
@@ -4771,7 +4888,7 @@ function renderCDBids(){
       actBtns.push('<button class="btn btn-sm" onclick="toggleBidSummary('+b.id+')" style="background:var(--bg2);border-color:var(--border2)">&#128196; View bid</button>');
       actBtns.push('<button class="btn btn-sm" onclick="printInvoice('+b.id+')" style="background:var(--bg2);border-color:var(--border2)">&#128438; Print invoice</button>');
       if(!scheduledIds.has(b.id))actBtns.push('<button class="btn btn-sm btn-p" onclick="schedFromBid('+b.id+')">Schedule →</button>');
-      if(!lien&&balance>0.01&&days>=14)actBtns.push('<button class="btn btn-sm btn-r" onclick="openLienPanelGuarded('+b.id+')">⚖️ File lien</button>');
+      if(!lien&&balance>0.01&&days>=14)actBtns.push('<button class="btn btn-sm btn-r" onclick="showFileLienDirect('+b.id+')">⚖️ File lien</button>');
       else if(lien&&lien.status!=='resolved')actBtns.push('<button class="btn btn-sm btn-r" onclick="openLienPanel('+b.id+')">Lien status</button>');
       // SMS escalation buttons based on days overdue
       if(balance>0.01&&days>=7&&days<14)actBtns.push('<button class="btn btn-sm" onclick="collSendSMS(bids.find(b=>b.id=='+b.id+'),\'reminder\')" style="background:var(--amber-lt);color:#856404;border-color:var(--amber)">💬 Remind</button>');
@@ -6295,25 +6412,6 @@ function setTripPurpose(purpose, btn){
   checkTripReady();
 }
 
-function getLastOdomForVehicle(vehicleName){
-  const trips=mileage.filter(m=>m.vehicle===vehicleName&&m.end>0);
-  if(!trips.length)return null;
-  return Math.max(...trips.map(m=>m.end));
-}
-
-function validateOdomStart(input){
-  const val=parseFloat(input.value)||0;
-  const warn=document.getElementById('cd-odom-warn');
-  if(!warn)return;
-  if(!gps.vehicle){warn.style.display='none';return;}
-  const last=getLastOdomForVehicle(gps.vehicle);
-  if(last&&val>0&&val<last){
-    warn.style.display='block';
-    warn.textContent='⚠ Last recorded reading for this vehicle was '+last.toLocaleString()+' mi. Your entry ('+val.toLocaleString()+') is lower — check your odometer.';
-  } else {
-    warn.style.display='none';
-  }
-}
 
 function renderDriveVehicleChips(){
   // Now uses dropdown — this just populates the select
@@ -6340,22 +6438,12 @@ function renderDriveVehicleChips(){
     if(vehs.length===1&&!gps.vehicle){
       gps.vehicle=vehs[0].name;
       sel.value=vehs[0].name;
-      updateOdomHint();
       checkTripReady();
     }
   }
 }
-function updateOdomHint(){
-  const hint=document.getElementById('cd-last-odom-hint');
-  if(hint&&gps.vehicle){
-    const last=getLastOdomForVehicle(gps.vehicle);
-    hint.textContent=last?'Last recorded: '+last.toLocaleString()+' mi — enter current odometer':'First trip — enter your starting odometer reading';
-  } else if(hint){hint.textContent='';}
-}
 function selectDriveVehicleByName(name){
   gps.vehicle=name;
-  updateOdomHint();
-  const odom=document.getElementById('cd-odom-start');if(odom&&odom.value)validateOdomStart(odom);
   checkTripReady();
 }
 function selectDriveVehicle(idx){
@@ -6367,10 +6455,8 @@ function selectDriveVehicle(idx){
 function checkTripReady(){
   const hasVeh=!!gps.vehicle;
   const hasPurpose=!!gps.purpose;
-  const odom=parseFloat(document.getElementById('cd-odom-start')&&document.getElementById('cd-odom-start').value)||0;
-  const hasOdom=odom>0;
   const btn=document.getElementById('cd-start-trip-btn');if(!btn)return;
-  const ready=hasVeh&&hasPurpose&&hasOdom;
+  const ready=hasVeh&&hasPurpose;
   btn.disabled=!ready;
   btn.style.background=ready?'var(--green)':'var(--border2)';
   btn.style.color=ready?'#fff':'var(--text3)';
@@ -6389,16 +6475,13 @@ function showStartDrive(){
   document.getElementById('cd-drive-idle').style.display='none';
   document.getElementById('cd-drive-start').style.display='block';
   renderDriveVehicleChips();
-  setTimeout(()=>{const el=document.getElementById('cd-odom-start');if(el)el.focus();},100);
 }
 function cancelStartDrive(){
   document.getElementById('cd-drive-start').style.display='none';
   document.getElementById('cd-drive-idle').style.display='block';
-  const el=document.getElementById('cd-odom-start');if(el)el.value='';
   gps.vehicle='';gps.purpose='';
   document.querySelectorAll('#cd-purpose-chips .surf-type-btn').forEach(b=>b.classList.remove('active-surf-btn'));
   checkTripReady();
-  const warn=document.getElementById('cd-odom-warn');if(warn)warn.style.display='none';
 }
 function confirmStartDrive(){
   if(gps.active){
@@ -6416,23 +6499,15 @@ function confirmStartDrive(){
     return zAlert('Select a vehicle to continue.');
   }
   if(!gps.purpose){const ps=document.getElementById('cd-purpose-sel');if(ps&&ps.value)gps.purpose=ps.value;}
-  const val=parseFloat(document.getElementById('cd-odom-start').value)||parseFloat(document.getElementById('cd-odo-start')?.value)||0;
-  if(!val||val<=0)return zAlert('Enter your current odometer reading.');
-  const last=getLastOdomForVehicle(gps.vehicle);
-  if(last&&val<last){
-    return zAlert('Odometer reading ('+val.toLocaleString()+') is lower than the last recorded reading for '+gps.vehicle+' ('+last.toLocaleString()+' mi).\n\nCheck your odometer and try again.');
-  }
   gps.active=true;
   gps.clientId=currentClientId;
-  // Get live GPS coords for start of trip
-  if(!S.locationDenied&&navigator.geolocation){navigator.geolocation.getCurrentPosition(p=>{gps.startCoords={lat:p.coords.latitude,lon:p.coords.longitude};},()=>{},{enableHighAccuracy:true,timeout:8000});}  
+  // Capture GPS coords at trip start
+  if(!S.locationDenied&&navigator.geolocation){navigator.geolocation.getCurrentPosition(p=>{gps.startCoords={lat:p.coords.latitude,lon:p.coords.longitude};},()=>{},{enableHighAccuracy:true,timeout:8000});}
   const c=getClientById(currentClientId);
   gps.clientName=c?c.name:'Client';
-  gps.odomStart=val;
   gps.startTime=Date.now();
   document.getElementById('cd-drive-start').style.display='none';
   document.getElementById('cd-drive-active').style.display='block';
-  const sd=document.getElementById('cd-odom-start-display');if(sd)sd.textContent=val.toLocaleString();
   const ap=document.getElementById('cd-active-purpose');if(ap)ap.textContent=gps.purpose||'Work drive';
   const av=document.getElementById('cd-active-vehicle');if(av)av.textContent=gps.vehicle||'';
   clearInterval(gps.timerInt);
@@ -6455,6 +6530,8 @@ function showEndDrive(){
   overlay.className='zmodal-overlay';
   const box=document.createElement('div');
   box.className='zmodal';
+  // Estimate miles from elapsed time at ~25mph average urban driving
+  const estMiles=elapsed>0?Math.round(elapsed/3600*25*10)/10:0;
   box.innerHTML=
     '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">'+
       '<div style="font-size:17px;font-weight:800">End Drive</div>'+
@@ -6463,114 +6540,63 @@ function showEndDrive(){
     '<div style="background:var(--blue-lt);border-radius:var(--r);padding:8px 12px;margin-bottom:14px;font-size:12px;color:var(--blue-dk)">'+
       '<strong>'+(c?c.name:'Client')+'</strong> · '+gps.purpose+' · '+m+'m '+s+'s'+
     '</div>'+
-    '<div class="f" style="margin-bottom:14px">'+
-      '<label style="font-size:11px;font-weight:700;color:var(--text3)">Ending odometer <span style="color:#A32D2D">*</span></label>'+
-      '<input type="number" id="end-odo-modal" placeholder="Current reading" inputmode="numeric"'+
-        ' style="font-size:26px;font-weight:800;padding:12px;border:2px solid #A32D2D;background:var(--red-lt);border-radius:var(--r);width:100%;box-sizing:border-box;color:var(--text);font-family:inherit;text-align:center"'+
-        ' oninput="updateEndOdoPreview()">'+
-      '<div id="end-odo-preview" style="font-size:12px;color:var(--green-mid);font-weight:700;margin-top:6px;min-height:16px"></div>'+
+    '<div class="f" style="margin-bottom:6px">'+
+      '<label style="font-size:11px;font-weight:700;color:var(--text3)">Miles driven <span style="color:#A32D2D">*</span></label>'+
+      '<input type="number" id="end-miles-modal" placeholder="e.g. 12.4" inputmode="decimal" step="0.1" min="0"'+
+        ' style="font-size:26px;font-weight:800;padding:12px;border:2px solid var(--blue);background:var(--bg2);border-radius:var(--r);width:100%;box-sizing:border-box;color:var(--text);font-family:inherit;text-align:center"'+
+        ' value="'+(estMiles>0?estMiles:'')+'" oninput="updateMilesPreview()">'+
+      '<div id="end-miles-preview" style="font-size:12px;color:var(--green-mid);font-weight:700;margin-top:6px;min-height:16px">'+(estMiles>0?estMiles.toFixed(1)+' mi · '+fmt(estMiles*IRS())+' deduction (estimated)':'')+'</div>'+
     '</div>'+
+    '<div style="font-size:10px;color:var(--text3);margin-bottom:14px">GPS start captured · adjust if needed</div>'+
     '<button onclick="saveEndDriveModal()" style="width:100%;padding:14px;border-radius:var(--r);border:none;background:var(--green);color:#fff;font-size:15px;font-weight:700;cursor:pointer;font-family:inherit">Save trip</button>';
   overlay.appendChild(box);
   document.body.appendChild(overlay);
   overlay.addEventListener('click',e=>{if(e.target===overlay)overlay.remove();});
-  setTimeout(()=>{const i=document.getElementById('end-odo-modal');if(i)i.focus();},100);
+  setTimeout(()=>{const i=document.getElementById('end-miles-modal');if(i){i.focus();i.select();}},100);
 }
-function updateEndOdoPreview(){
-  const end=parseFloat(document.getElementById('end-odo-modal')?.value)||0;
-  const start=gps.odomStart||0;
-  const prev=document.getElementById('end-odo-preview');
-  const inp=document.getElementById('end-odo-modal');
-  if(!prev||!inp)return;
-  if(end>start){
-    const miles=end-start;
-    prev.textContent=miles.toFixed(1)+' miles · '+fmt(miles*IRS())+' deduction';
+function updateMilesPreview(){
+  const miles=parseFloat(document.getElementById('end-miles-modal')?.value)||0;
+  const prev=document.getElementById('end-miles-preview');
+  if(!prev)return;
+  if(miles>0){
+    prev.textContent=miles.toFixed(1)+' mi · '+fmt(miles*IRS())+' deduction';
     prev.style.color='var(--green-mid)';
-    inp.style.borderColor='var(--border2)';
-    inp.style.background='var(--bg2)';
-  } else if(end>0){
-    prev.textContent='Must be higher than start ('+start.toLocaleString()+')';
-    prev.style.color='#A32D2D';
-    inp.style.borderColor='#A32D2D';
-    inp.style.background='var(--red-lt)';
   } else {
     prev.textContent='';
-    inp.style.borderColor='#A32D2D';
-    inp.style.background='var(--red-lt)';
   }
 }
 function saveEndDriveModal(){
-  const end=parseFloat(document.getElementById('end-odo-modal')?.value)||0;
-  const start=gps.odomStart||0;
-  if(!end){zAlert('Enter your ending odometer reading.',{title:'Required'});return;}
-  if(end<=start){zAlert('Ending odometer must be higher than starting ('+start.toLocaleString()+').',{title:'Check reading'});return;}
-  const miles=parseFloat((end-start).toFixed(1));
+  const miles=parseFloat(document.getElementById('end-miles-modal')?.value)||0;
+  if(!miles||miles<=0){zAlert('Enter the miles driven.',{title:'Required'});return;}
   if(miles>500){if(!confirm('That\'s '+miles+' miles — does that look right?'))return;}
+  const c=getClientById(gps.clientId);
   mileage.unshift({
     id:Date.now(),date:todayKey(),vehicle:gps.vehicle,purpose:gps.purpose,
-    miles,client_id:gps.clientId,client_name:getClientById(gps.clientId)?.name||'',
-    start_odo:start,end_odo:end
+    miles:Math.round(miles*10)/10,
+    client_id:gps.clientId,client_name:c?c.name:'',
+    start_coords:gps.startCoords||null,
+    calc_method:'gps_time'
   });
-  gps.active=false;gps.odomStart=0;gps.startTime=null;
+  gps.active=false;gps.startTime=null;gps.startCoords=null;
   clearInterval(gps.timerInt);
   saveAll();
   closeTopModal();
   hideDriveBanner();
   renderDash();
-  zAlert(miles.toFixed(1)+' miles logged.',{title:'Trip saved ✓'});
+  showToast(miles.toFixed(1)+' mi logged · '+fmt(miles*IRS())+' deduction','🚗');
 }
 
 function cancelEndDrive(){
   document.getElementById('cd-drive-end').style.display='none';
   document.getElementById('cd-drive-active').style.display='block';
 }
-function updateOdomCalc(){
-  const end=parseFloat(document.getElementById('cd-odom-end').value)||0;
-  const start=gps.odomStart||0;
-  const calc=document.getElementById('cd-odom-calc');
-  if(!calc)return;
-  if(end>start){
-    const miles=end-start;
-    calc.style.display='block';
-    calc.textContent=miles.toFixed(1)+' miles · '+fmt(miles*IRS())+' deduction';
-  } else {
-    calc.style.display='none';
-  }
-}
+// Legacy end-drive path (now uses modal showEndDrive instead)
 function confirmEndDrive(){
-  const end=parseFloat(document.getElementById('cd-odom-end').value);
-  if(!end||end<=0)return zAlert('Enter your ending odometer reading.');
-  const start=gps.odomStart||0;
-  if(end<=start)return zAlert('Ending odometer ('+end+') must be higher than starting ('+start+'). Check your reading.');
-  const miles=end-start;
-  const c=getClientById(currentClientId);
-  mileage.unshift({
-    id:Date.now(),
-    date:document.getElementById('qe-date')?.value||todayKey(),
-    vehicle:gps.vehicle||S.veh||'Truck',
-    from:'Odometer: '+start.toLocaleString()+' mi',
-    to:'Odometer: '+end.toLocaleString()+' mi',
-    addr:c?c.addr:'',
-    start:start,end:end,
-    miles:Math.round(miles*10)/10,
-    purpose:gps.purpose||'Work drive',
-    client_id:currentClientId,
-    client_name:c?c.name:'',
-    gps:false
-  });
-  saveAll();
-  clearInterval(gps.timerInt);
-  gps={active:false,startTime:null,clientId:null,clientName:'',odomStart:null,timerInt:null};
-  hideDriveBanner();
-  resetDriveUI();
-  document.getElementById('cd-odom-start').value='';
-  document.getElementById('cd-odom-end').value='';
-  renderTodayLegs();
-  renderCDMileage();
+  showEndDrive();
   const tk=todayKey();
   const todayEst=getClientJobs(currentClientId).find(j=>j.eventType==='estimate'&&j.start===tk&&j.status!=='canceled');
-  if(todayEst&&miles>0.1){
-    zConfirm('You have arrived at '+(c?c.name:'the client')+'! Ready to build the estimate?',
+  if(todayEst){
+    zConfirm('You have arrived at '+(getClientById(currentClientId)||{name:'the client'}).name+'! Ready to build the estimate?',
       ()=>openEstimateForClient(),
       {title:'Build estimate',yes:'Start estimate',danger:false,no:'Not yet'});
   }
@@ -6637,7 +6663,7 @@ function stopDriving(){showEndDrive();}
 function saveDriveTrip(){confirmEndDrive();}
 function discardDriveTrip(){
   clearInterval(gps.timerInt);
-  gps={active:false,startTime:null,clientId:null,clientName:'',odomStart:null,timerInt:null};
+  gps={active:false,startCoords:null,startTime:null,clientId:null,clientName:'',timerInt:null,vehicle:'',purpose:''};
   hideDriveBanner();resetDriveUI();
 }
 
@@ -10715,11 +10741,24 @@ async function refreshLocationAndWeather(){
 async function renderCalGrid(){
   const{booked,buf}=getBookedDays();const DNAMES=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
   let html=DNAMES.map(d=>`<div class="cal-dh">${d}</div>`).join('');
+  const curYear=new Date().getFullYear();
+  // Guard: calYear must be plausible (2020–2099); reset if corrupted
+  if(!calYear||calYear<2020||calYear>2099){calYear=curYear;}
   const first=new Date(calYear,calMonth,1),last=new Date(calYear,calMonth+1,0),dow=first.getDay(),tk=todayKey();
   const cells=[];
-  for(let i=0;i<dow;i++){const d=new Date(calYear,calMonth,1-dow+i);cells.push({d,other:true});}
+  for(let i=0;i<dow;i++){
+    const d=new Date(calYear,calMonth,1-dow+i);
+    // Validate year didn't overflow unexpectedly
+    if(d.getFullYear()<2000)continue;
+    cells.push({d,other:true});
+  }
   for(let i=1;i<=last.getDate();i++)cells.push({d:new Date(calYear,calMonth,i),other:false});
-  while(cells.length%7!==0){const l=cells[cells.length-1].d,nd=new Date(l);nd.setDate(l.getDate()+1);cells.push({d:nd,other:true});}
+  while(cells.length%7!==0){
+    const l=cells[cells.length-1].d;
+    const nd=new Date(l.getFullYear(),l.getMonth(),l.getDate()+1);
+    if(nd.getFullYear()<2000)break; // safety guard
+    cells.push({d:nd,other:true});
+  }
   // Fetch weather (cached — won't block render on repeat calls)
   const weather=await fetchWeather();
   cells.forEach(({d,other})=>{
@@ -11466,16 +11505,11 @@ function startQuickDrive(clientId){
   const vehicle=document.getElementById('qd-vehicle')?.value||'';
   const purpose=document.getElementById('qd-purpose')?.value||'';
   if(!purpose){zAlert('Select a trip purpose.',{title:'Required'});return;}
-  const odo=parseFloat(document.getElementById('qd-odo')?.value)||0;
   if(!vehicle){zAlert('Add a vehicle in Settings first.',{title:'No vehicle'});return;}
-  if(!odo){zAlert('Enter your odometer reading.',{title:'Required'});document.getElementById('qd-odo').focus();return;}
-  const last=getLastOdomForVehicle(vehicle);
-  if(last&&odo<last){zAlert('Odometer ('+odo.toLocaleString()+') is lower than last recorded ('+last.toLocaleString()+').',{title:'Check odometer'});return;}
   gps.active=true;
   gps.vehicle=vehicle;
   gps.purpose=purpose;
   gps.clientId=clientId;
-  gps.odomStart=odo;
   gps.startTime=Date.now();
   clearInterval(gps.timerInt);
   gps.timerInt=setInterval(updateDriveTimer,1000);
@@ -14030,7 +14064,7 @@ function renderMoneyPage(){
           if(nxt.smsKey){
             nextBtn='<button class="btn btn-sm btn-r" onclick="collSendSMS(bids.find(x=>x.id=='+b.id+'),\''+nxt.smsKey+'\')" style="flex:1;font-size:11px">'+nxt.label+'</button>';
           } else if(stage==='intent'||stage==='lien_ready'){
-            nextBtn='<button class="btn btn-sm btn-r" onclick="openLienPanelGuarded('+b.id+')" style="flex:1;font-size:11px">'+nxt.label+'</button>';
+            nextBtn='<button class="btn btn-sm btn-r" onclick="showFileLienDirect('+b.id+')" style="flex:1;font-size:11px">'+nxt.label+'</button>';
           } else if(stage==='lien_filed'){
             nextBtn='<button class="btn btn-sm" onclick="releaseLien('+b.id+')" style="flex:1;font-size:11px;background:var(--green-lt);color:var(--green);border-color:var(--green)">'+nxt.label+'</button>';
           }
@@ -16161,7 +16195,7 @@ function showDailyBriefing(){
           (tc&&tc.phone&&next.smsKey?
             '<button onclick="collSendSMS(bids.find(x=>x.id=='+top.b.id+'),\''+next.smsKey+'\');this.closest(\'.zmodal-overlay\').remove()" style="flex:1;padding:9px;border-radius:var(--r);border:none;background:var(--amber);color:#1a1a1a;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit">'+next.label+'</button>':
             (isFileable?
-              '<button onclick="openClientDetail('+top.b.client_id+');setTimeout(()=>openLienPanelGuarded('+top.b.id+'),300);this.closest(\'.zmodal-overlay\').remove()" style="flex:1;padding:9px;border-radius:var(--r);border:none;background:#3D0000;color:#FFB3B3;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit">⚖️ File Lien</button>':
+              '<button onclick="this.closest(\'.zmodal-overlay\').remove();showFileLienDirect('+top.b.id+')" style="flex:1;padding:9px;border-radius:var(--r);border:none;background:#3D0000;color:#FFB3B3;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit">⚖️ File Lien</button>':
               (tc&&tc.phone?'<a href="tel:'+tc.phone.replace(/\D/g,'')+'" onclick="autoLogContact('+tc.id+',\'call\');this.closest(\'.zmodal-overlay\').remove()" style="flex:1;padding:9px;border-radius:var(--r);border:none;background:var(--blue);color:#fff;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;text-decoration:none;display:block;text-align:center">📞 Call '+escHtml(tc.name.split(' ')[0])+'</a>':'')))+
           '<button onclick="openPayPanel('+top.b.id+');this.closest(\'.zmodal-overlay\').remove()" style="flex:1;padding:9px;border-radius:var(--r);border:none;background:var(--green);color:#fff;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit">Log payment</button>'+
         '</div>'+

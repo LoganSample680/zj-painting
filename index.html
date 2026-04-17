@@ -246,6 +246,10 @@ select{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/
 .tl-dot.mile{border-color:var(--text3);background:var(--bg2)}
 .tl-dot.estimate{border-color:#7F77DD;background:#F0EEFF}
 .tl-dot.canceled{border-color:#A32D2D;background:var(--red-lt)}
+.tl-dot.coll{border-color:var(--amber);background:var(--amber-lt)}
+.tl-dot.payment{border-color:var(--green);background:var(--green-lt)}
+.tl-dot.complete{border-color:var(--green);background:var(--green-lt)}
+.tl-dot.lost{border-color:#A32D2D;background:var(--red-lt)}
 .tl-label{font-size:11px;font-weight:700}
 .tl-meta{font-size:10px;color:var(--text3);margin-top:1px}
 .steps{display:flex;flex-wrap:wrap;background:var(--bg2);border-radius:var(--rl);padding:7px;margin-bottom:14px;gap:0}
@@ -742,6 +746,14 @@ input:checked+.dm-slider:before{transform:translateX(22px)}
     <div id="cd-estimates-upcoming"></div>
     <div class="card" id="cd-client-mets"></div>
     <div class="card" id="cd-addresses-card"><div class="card-hd" style="display:flex;justify-content:space-between;align-items:center">Properties<button class="btn btn-sm btn-p" onclick="openAddAddressModal()" style="font-size:11px">+ Add address</button></div><div id="cd-addresses-list"></div></div>
+    <div class="card" id="cd-notes-card">
+      <div class="card-hd" style="display:flex;justify-content:space-between;align-items:center">Notes<span style="font-size:10px;color:var(--text3);font-weight:400">Private · not sent to client</span></div>
+      <div id="cd-notes-list" style="margin-bottom:10px"></div>
+      <div style="display:flex;gap:8px">
+        <input id="cd-note-input" type="text" placeholder="Add a note about this client…" style="flex:1;font-size:13px;padding:9px 12px;border-radius:var(--r);border:1px solid var(--border2);background:var(--bg2);color:var(--text);font-family:inherit" onkeydown="if(event.key==='Enter')addClientNote()">
+        <button class="btn btn-p btn-sm" onclick="addClientNote()">Add</button>
+      </div>
+    </div>
     <div class="card"><div class="card-hd">Activity timeline</div><div id="cd-timeline"></div></div>
     <div class="card" id="cd-risk-card"><div class="card-hd">Client risk</div><div id="cd-risk-content"></div></div>
   </div>
@@ -2741,6 +2753,8 @@ function renderDash(){
   const closeColor=closeRatio===null?'var(--text3)':closeRatio>=40?'var(--green-mid)':closeRatio>=25?'var(--amber)':'#A32D2D';
   const closeLabel=closeRatio===null?'—':closeRatio+'%';
   const closeSub=closeRatio===null?'No decided bids yet':closeRatio>=40?'Above avg ✓':closeRatio>=25?'Near avg (~33%)':'Below avg — follow up more';
+  const wonBidAmts=bids.filter(b=>b.status==='Closed Won').map(b=>b.amount||0);
+  const avgJobVal=wonBidAmts.length?Math.round(wonBidAmts.reduce((s,a)=>s+a,0)/wonBidAmts.length):null;
 
   const kpiEl=document.getElementById('dash-kpi');
   if(kpiEl){
@@ -2770,6 +2784,11 @@ function renderDash(){
         '<div class="met-l">Profit</div>'+
         '<div class="met-v" style="color:'+(ytdTrueProfit<0?'#A32D2D':'var(--green-mid)')+'">'+fmtShort(ytdTrueProfit)+'</div>'+
         '<div class="met-s">Rev − exp − miles − tax</div>'+
+      '</div>'+
+      '<div class="met">'+
+        '<div class="met-l">Avg job</div>'+
+        '<div class="met-v" style="color:var(--text)">'+(avgJobVal!==null?fmtShort(avgJobVal):'—')+'</div>'+
+        '<div class="met-s">'+(avgJobVal!==null?wonBidAmts.length+' won bid'+(wonBidAmts.length!==1?'s':''):'No won bids')+'</div>'+
       '</div>'+
     '</div>';
   }
@@ -4711,6 +4730,7 @@ function renderClientDetail(){
     <div class="met"><div class="met-l">Job profit</div><div class="met-v" style="color:${jobProfit<0?'#A32D2D':'var(--green-mid)'}">${fmt(jobProfit)}</div><div class="met-s">After exp+miles</div></div>
   </div>`;
   renderCDTimeline();
+  renderClientNotes();
   renderCDRisk();
   renderCDEstimatesUpcoming();
   renderCDAddresses();
@@ -4745,10 +4765,57 @@ function renderCDRisk(){
     (r==='blacklisted'?'<div style="font-size:11px;color:#A32D2D;margin-top:8px;font-weight:700">Estimates and scheduling are blocked for this client.</div>':'')+
     (r==='high_risk'?'<div style="font-size:11px;color:var(--amber);margin-top:8px">⚠️ Previous lien filed. Require full payment before scheduling.</div>':'');
 }
+function renderClientNotes(){
+  const c=getClientById(currentClientId);if(!c)return;
+  const el=document.getElementById('cd-notes-list');if(!el)return;
+  const notes=(c.notes||[]).slice().sort((a,b)=>a.ts.localeCompare(b.ts));
+  if(!notes.length){el.innerHTML='<div style="font-size:12px;color:var(--text3);padding:4px 0">No notes yet.</div>';return;}
+  el.innerHTML=notes.map(n=>{
+    const dt=new Date(n.ts).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});
+    return '<div style="display:flex;align-items:flex-start;gap:8px;padding:7px 0;border-bottom:1px solid var(--border)">'+
+      '<div style="flex:1;min-width:0">'+
+        '<div style="font-size:13px;color:var(--text);line-height:1.4">'+escHtml(n.text)+'</div>'+
+        '<div style="font-size:10px;color:var(--text3);margin-top:2px">'+dt+'</div>'+
+      '</div>'+
+      '<button class="btn-del" onclick="deleteClientNote(\''+n.id+'\')" style="flex-shrink:0;font-size:11px;padding:3px 6px">✕</button>'+
+    '</div>';
+  }).join('');
+}
+function addClientNote(){
+  const inp=document.getElementById('cd-note-input');if(!inp)return;
+  const text=(inp.value||'').trim();if(!text)return;
+  const c=getClientById(currentClientId);if(!c)return;
+  if(!c.notes)c.notes=[];
+  c.notes.push({id:Date.now()+'_'+Math.random().toString(36).slice(2,6),text,ts:new Date().toISOString()});
+  inp.value='';
+  saveAll();renderClientNotes();
+}
+function deleteClientNote(noteId){
+  const c=getClientById(currentClientId);if(!c)return;
+  c.notes=(c.notes||[]).filter(n=>n.id!==noteId);
+  saveAll();renderClientNotes();
+}
 function renderCDTimeline(){
   const cbids=getClientBids(currentClientId),cjobs=getClientJobs(currentClientId),cmiles=getClientMileage(currentClientId);
   const events=[];
-  cbids.forEach(b=>events.push({date:b.bid_date||'',type:'bid',id:b.id,label:`Bid — ${fmt(b.amount)}`,meta:b.status,color:'bid'}));
+  cbids.forEach(b=>{
+    events.push({date:b.bid_date||'',type:'bid',id:b.id,label:`Bid — ${fmt(b.amount)}`,meta:b.status,color:'bid'});
+    (b.collHistory||[]).forEach(h=>{
+      if(!h.ts)return;
+      const dateStr=h.ts.slice(0,10);
+      const stageInfo=COLL_STAGES[h.stage]||{};
+      const stageLabel=stageInfo.label||h.stage;
+      const noteText=h.note&&h.note!==stageLabel?h.note:'';
+      events.push({date:dateStr,type:'coll',label:'Collection: '+stageLabel,meta:noteText+(noteText?' · ':'')+fmt(b.amount)+' job',color:'coll'});
+    });
+    if(b.completion_date)events.push({date:b.completion_date,type:'complete',label:'Job completed — '+fmt(b.amount),meta:b.type||'Painting job',color:'active'});
+  });
+  const allPays=payments.filter(p=>cbids.some(b=>b.id===p.bid_id));
+  allPays.forEach(p=>{
+    if(!p.date)return;
+    const isRefund=p.type==='refund';
+    events.push({date:p.date,type:'payment',label:(isRefund?'Refund — ':'Payment — ')+fmt(Math.abs(p.amount)),meta:(p.method||'')+(p.ref?' #'+p.ref:''),color:isRefund?'lost':'payment'});
+  });
   cjobs.forEach(j=>{
     if(j.eventType==='estimate'){
       const isCanceled=j.status==='canceled';
@@ -4939,6 +5006,7 @@ function renderCDBids(){
       // Close job button — when won but not yet marked complete
       if(!b.completion_date){const linkedJob=jobs.find(j=>j.bid_id===b.id||j.client_id===b.client_id);const jid=linkedJob?.id;if(jid)actBtns.push('<button class="btn btn-sm" onclick="markJobDone('+jid+')" style="background:var(--green-lt);color:var(--green-mid);border-color:var(--green-mid)">✓ Close job</button>');}
       if(balance>0.01)actBtns.push('<button class="btn btn-sm btn-g" onclick="openPayPanel('+b.id+')">+ Log payment</button>');
+      if(balance>0.01&&b.completion_date){const _c=getClientById(b.client_id);if(_c&&_c.phone){const _msg=encodeURIComponent('Hi '+_c.name.split(' ')[0]+', this is '+(S.bname||'your contractor')+'. Just a friendly reminder that a balance of '+fmt(balance)+' is outstanding for your job at '+(b.addr||_c.addr||'your property')+'. Please let us know when you can take care of this. Thank you!');actBtns.push('<a href="sms:'+_c.phone.replace(/\D/g,'')+'&body='+_msg+'" onclick="autoLogContact('+b.client_id+',\'payment_request\')" class="btn btn-sm" style="background:var(--green-lt);color:var(--green-mid);border-color:var(--green-mid);text-decoration:none">📲 Request pay</a>');}}
       if(getBidPaid(b.id)>(b.amount||0)+0.01)actBtns.push('<button class="btn btn-sm" onclick="openPayPanel('+b.id+')" style="background:#FFF0F0;color:#A32D2D;border-color:#A32D2D">↩ Issue refund</button>');
       actBtns.push('<button class="btn btn-sm" onclick="toggleBidSummary('+b.id+')" style="background:var(--bg2);border-color:var(--border2)">&#128196; View bid</button>');
       actBtns.push('<button class="btn btn-sm" onclick="printInvoice('+b.id+')" style="background:var(--bg2);border-color:var(--border2)">&#128438; Print invoice</button>');

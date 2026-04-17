@@ -508,8 +508,6 @@ input:checked+.dm-slider:before{transform:translateX(22px)}
   <div id="dash-followups" style="display:none"></div>
   <div id="dash-fu" style="display:none"></div>
   <div id="dash-collect" style="display:none"></div>
-  <div id="dash-summary-leads" style="display:none"></div>
-  <div id="dash-summary-collect" style="display:none"></div>
   <div class="card" id="dash-coldleads-card" style="display:none">
     <div class="card-hd">Cold leads <span id="dash-coldleads-count"></span></div>
     <div id="dash-coldleads"></div>
@@ -2816,7 +2814,6 @@ function renderDash(){
   renderDashToday();
   renderDashCollect();
   renderDashFollowups();
-  renderDashActionQueue();
   renderTodayFeed();
   // Update new nav badges
   const _owing=bids.filter(b=>b.status==='Closed Won'&&getBidBalance(b)>0.01);
@@ -2902,43 +2899,6 @@ function renderDashToday(){
   }).join('');
 }
 
-function getPaymentStage(daysOverdue,balance,bidId){
-  const lien=typeof getBidLien==='function'?getBidLien(bidId):null;
-  const hasLien=lien&&lien.status&&lien.status!=='resolved';
-  if(hasLien&&lien.status==='filed')return{stage:'lien_filed',label:'Lien filed',color:'#A32D2D',action:'View lien',urgent:true,msg:'Lien on file. Contact attorney if unpaid.',days:daysOverdue};
-  if(hasLien&&lien.status==='intent')return{stage:'lien_intent',label:'Intent sent',color:'var(--amber)',action:'Follow up',urgent:true,msg:'Intent to file was sent. Follow up now.',days:daysOverdue};
-  if(daysOverdue>=120)return{stage:'deadline',label:'Lien window closing',color:'#A32D2D',action:'File now',urgent:true,msg:'KS 4-month lien window is closing. File or pursue small claims immediately.',days:daysOverdue};
-  if(daysOverdue>=30)return{stage:'final_notice',label:'30+ days overdue',color:'#A32D2D',action:'Send final notice',urgent:true,msg:'Send written final demand. Warn: lien filing within 7 days.',days:daysOverdue};
-  if(daysOverdue>=14)return{stage:'lien_warning',label:'14 days overdue',color:'#A32D2D',action:'Send lien warning',urgent:true,msg:'Send Notice of Intent to File Mechanic Lien in writing.',days:daysOverdue};
-  if(daysOverdue>=7)return{stage:'formal_demand',label:'7 days overdue',color:'var(--amber)',action:'Send demand',urgent:true,msg:'Send formal written demand via text + email. Document everything.',days:daysOverdue};
-  if(daysOverdue>=3)return{stage:'follow_up',label:'3 days — follow up',color:'var(--amber)',action:'Follow up',urgent:false,msg:'Friendly check-in: call or text.',days:daysOverdue};
-  if(daysOverdue>=1)return{stage:'reminder',label:'Payment due',color:'var(--text3)',action:'Remind',urgent:false,msg:'Job complete — payment due.',days:daysOverdue};
-  return{stage:'due',label:'Due today',color:'var(--blue)',action:'Collect',urgent:false,msg:'',days:daysOverdue};
-}
-function sendPaymentFollowUp(bidId,stage){
-  const b=bids.find(x=>x.id===bidId);if(!b)return;
-  const c=getClientById(b.client_id);if(!c||!c.phone)return zAlert('No phone number on file for this client.',{title:'No phone'});
-  const balance=getBidBalance(b);
-  const phone=c.phone.replace(/\D/g,'');
-  const first=c.name.split(' ')[0];
-  const biz=S.bname||"ZJ's Painting";
-  const completedDate=b.completion_date||todayKey();
-  let msg='';
-  if(stage==='reminder'||stage==='due')
-    msg='Hi '+first+', this is '+biz+'. A reminder that your painting job balance of '+fmt(balance)+', for work completed '+completedDate+', is now due. Thank you!';
-  else if(stage==='follow_up')
-    msg='Hi '+first+', '+biz+' here. Following up on your '+fmt(balance)+' balance for the paint job completed '+completedDate+'. Please let us know when we can expect payment. Thank you.';
-  else if(stage==='formal_demand')
-    msg='Hi '+first+', this is a formal payment demand from '+biz+'. The balance of '+fmt(balance)+' for work completed on '+completedDate+' is now past due. Please remit payment immediately to avoid further action.';
-  else if(stage==='lien_warning')
-    msg='NOTICE from '+biz+': We are formally notifying you of intent to file a Mechanic Lien on the property at '+(b.addr||c.addr||'your address')+' for unpaid work of '+fmt(balance)+' completed '+completedDate+'. Payment is required within 7 days to avoid filing.';
-  else if(stage==='final_notice')
-    msg='FINAL NOTICE from '+biz+': The balance of '+fmt(balance)+' for work completed '+completedDate+' remains unpaid. A Mechanic Lien WILL be filed on your property within 7 days. Contact us immediately to resolve this.';
-  if(!b.contactLog)b.contactLog=[];
-  b.contactLog.push({date:todayKey(),stage,msg:msg.slice(0,80)+'...'});
-  saveAll();
-  window.location.href='sms:'+phone+'&body='+encodeURIComponent(msg);
-}
 
 // ── Collection escalation & risk system ─────────────────────────────────
 
@@ -3684,8 +3644,6 @@ function renderDashFollowups(){
     (dueBids.length>3?'<div style="font-size:11px;color:var(--text3);padding-top:6px">+'+( dueBids.length-3)+' more — tap View all</div>':'');
 }
 
-// ── Prioritized action queue for Home screen ─────────────────────────────────
-function renderDashActionQueue(){}
 function renderTodayFeed(){
   const el=document.getElementById('dash-money-feed');if(!el)return;
   const tk=todayKey();
@@ -6683,11 +6641,6 @@ function saveEndDriveModal(){
   showToast(miles.toFixed(1)+' mi logged · '+fmt(miles*IRS())+' deduction','🚗');
 }
 
-function cancelEndDrive(){
-  document.getElementById('cd-drive-end').style.display='none';
-  document.getElementById('cd-drive-active').style.display='block';
-}
-// Legacy end-drive path (now uses modal showEndDrive instead)
 function confirmEndDrive(){
   showEndDrive();
   const tk=todayKey();

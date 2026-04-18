@@ -1641,13 +1641,6 @@ input:checked+.dm-slider:before{transform:translateX(22px)}
     <div id="stripe-connect-status-ui">
       <div style="font-size:12px;color:var(--text3);padding:10px 0">Checking Stripe status…</div>
     </div>
-    <div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--border)">
-      <div style="font-size:11px;color:var(--text3);margin-bottom:6px;font-weight:700;text-transform:uppercase;letter-spacing:.04em">Stripe Publishable Key</div>
-      <div style="font-size:12px;color:var(--text2);margin-bottom:8px;line-height:1.5">Required for client signing pages — enter the key from your Stripe dashboard.</div>
-      <div class="f" style="margin-bottom:8px"><input type="text" id="set-stripe-pk" placeholder="pk_live_…" style="font-size:13px;padding:9px 10px;border-radius:var(--r);border:1px solid var(--border2);background:var(--bg2);color:var(--text);width:100%;box-sizing:border-box;font-family:monospace"></div>
-      <div style="font-size:11px;color:var(--text3);margin-bottom:8px">dashboard.stripe.com → Developers → API keys → Publishable key</div>
-      <button class="btn btn-sm" onclick="saveStripeKey()">Save key</button>
-    </div>
   </div>
   <div class="card"><div class="card-hd">Estimator defaults</div>
     <div class="fg" style="grid-template-columns:1fr 1fr;gap:9px">
@@ -2376,13 +2369,13 @@ function loadSettingsForm(){
   sf('set-goal-monthly',S.goalMonthly||'');
   sf('set-labor-rate',S.laborRate||45);sf('set-owner-name',getOwnerName()||'');sf('set-bname',S.bname);sf('set-state',S.state||'KS');
   _renderLogoPreview();
-  if(S.state){const lbl=document.getElementById('set-state-label');const info=STATE_TAX[S.state];if(lbl&&info)lbl.textContent=info.name+' tax rates';}sf('set-stripe-pk',S.stripePk||'');sf('set-bitly-key',S.bitlyKey||'');sf('set-bphone',S.bphone);sf('set-blic',S.blic);sf('set-bemail',S.bemail||'');sf('set-veh',S.veh);
+  if(S.state){const lbl=document.getElementById('set-state-label');const info=STATE_TAX[S.state];if(lbl&&info)lbl.textContent=info.name+' tax rates';}sf('set-bitly-key',S.bitlyKey||'');sf('set-bphone',S.bphone);sf('set-blic',S.blic);sf('set-bemail',S.bemail||'');sf('set-veh',S.veh);
   sf('set-margin',S.margin);sf('set-cov',S.cov);sf('set-p1',S.p1);sf('set-p2',S.p2);sf('set-p3',S.p3);sf('set-mm',S.mm);sf('set-r-walls',S.rWalls||1.30);sf('set-r-ceil',S.rCeil||1.00);sf('set-r-trim',S.rTrim||4.00);sf('set-r-door',S.rDoor||95);sf('set-r-win',S.rWin||50);sf('set-r-ext',S.rExt||1.10);sf('set-r-deck',S.rDeck||1.00);
   sf('set-review-url',S.reviewUrl||'');
 }
 function saveSettings(){
   const gf=id=>parseFloat(v(id))||0,gs=id=>v(id);
-  setOwnerName(gs('set-owner-name')||getOwnerName()||'');S={...S,goalMonthly:gf('set-goal-monthly')||0,irsRate:gf('set-irs')||.670,taxYear:parseInt(v('set-year'))||2024,fedSingle:gf('set-fs')||14600,fedMFJ:gf('set-fm')||29200,fedMFS:gf('set-fms')||14600,fedHOH:gf('set-fh')||21900,b10:gf('set-b10')||11600,b12:gf('set-b12')||47150,b22:gf('set-b22')||100525,b24:gf('set-b24')||191950,b32:gf('set-b32')||243725,b35:gf('set-b35')||609350,ksLow:gf('set-ksl')||3.1,ksTop:gf('set-kst')||33000,ksHigh:gf('set-ksh')||5.7,ksStdS:gf('set-kss')||3500,ksStdM:gf('set-ksm')||8000,laborRate:gf('set-labor-rate')||45,bname:gs('set-bname'),bphone:gs('set-bphone'),blic:gs('set-blic'),state:gs('set-state')||S.state||'',bemail:gs('set-bemail'),veh:gs('set-veh'),stripePk:gs('set-stripe-pk')||'',bitlyKey:gs('set-bitly-key')||'',vehicles:S.vehicles||[],margin:gf('set-margin')||25,cov:gf('set-cov')||350,p1:gf('set-p1')||83,p2:gf('set-p2')||65,p3:gf('set-p3')||95,mm:gf('set-mm')||20,rWalls:gf('set-r-walls')||1.30,rCeil:gf('set-r-ceil')||1.00,rTrim:gf('set-r-trim')||3.25,rDoor:gf('set-r-door')||95,rWin:gf('set-r-win')||50,rExt:gf('set-r-ext')||1.10,rDeck:gf('set-r-deck')||1.00,reviewUrl:gs('set-review-url')||''};
+  setOwnerName(gs('set-owner-name')||getOwnerName()||'');S={...S,goalMonthly:gf('set-goal-monthly')||0,irsRate:gf('set-irs')||.670,taxYear:parseInt(v('set-year'))||2024,fedSingle:gf('set-fs')||14600,fedMFJ:gf('set-fm')||29200,fedMFS:gf('set-fms')||14600,fedHOH:gf('set-fh')||21900,b10:gf('set-b10')||11600,b12:gf('set-b12')||47150,b22:gf('set-b22')||100525,b24:gf('set-b24')||191950,b32:gf('set-b32')||243725,b35:gf('set-b35')||609350,ksLow:gf('set-ksl')||3.1,ksTop:gf('set-kst')||33000,ksHigh:gf('set-ksh')||5.7,ksStdS:gf('set-kss')||3500,ksStdM:gf('set-ksm')||8000,laborRate:gf('set-labor-rate')||45,bname:gs('set-bname'),bphone:gs('set-bphone'),blic:gs('set-blic'),state:gs('set-state')||S.state||'',bemail:gs('set-bemail'),veh:gs('set-veh'),bitlyKey:gs('set-bitly-key')||'',vehicles:S.vehicles||[],margin:gf('set-margin')||25,cov:gf('set-cov')||350,p1:gf('set-p1')||83,p2:gf('set-p2')||65,p3:gf('set-p3')||95,mm:gf('set-mm')||20,rWalls:gf('set-r-walls')||1.30,rCeil:gf('set-r-ceil')||1.00,rTrim:gf('set-r-trim')||3.25,rDoor:gf('set-r-door')||95,rWin:gf('set-r-win')||50,rExt:gf('set-r-ext')||1.10,rDeck:gf('set-r-deck')||1.00,reviewUrl:gs('set-review-url')||''};
   applySettings();saveAll();
   const el=document.getElementById('set-saved');if(el){el.style.display='block';setTimeout(()=>el.style.display='none',3000);}
 }
@@ -9719,15 +9712,6 @@ ${proposal.innerHTML}
   document.body.removeChild(a);
   setTimeout(()=>URL.revokeObjectURL(url),10000);
 }
-function saveStripeKey(){
-  const key=(document.getElementById('set-stripe-pk')?.value||'').trim();
-  if(key&&!key.startsWith('pk_')){zAlert('Should start with pk_live_ or pk_test_',{title:'Invalid key'});return;}
-  S.stripePk=key;saveAll();
-  if(_supa&&_supaUser&&_config?.account_id){
-    _supa.from('account_config').update({stripe_pk:key||null}).eq('account_id',_config.account_id).then(()=>{});
-  }
-  zAlert(key?'Stripe key saved — card payments enabled on signing links':'Stripe removed — clients will see cash only');
-}
 
 // ── Stripe Connect ─────────────────────────────────────────────────────────
 let _stripeConnectStatus=null; // cached: {connected, charges_enabled, details_submitted, stripe_account_id}
@@ -9948,7 +9932,7 @@ async function sendProposalLink(){
       amount:_propFinal,
       deposit:Math.round(_propFinal*0.25*100)/100,
       createdAt:new Date().toISOString(),status:'pending',
-      notifyEmail:_supaUser.email,stripePk:S.stripePk||'',
+      notifyEmail:_supaUser.email,stripeConnectEnabled:!!(_stripeConnectStatus?.charges_enabled),
     };
     // Upload with 8s timeout — never let storage hang in the field
     const uploadPromise=_supa.storage.from('proposals').upload(proposalKey,JSON.stringify(proposalData),{contentType:'application/json',upsert:true});
@@ -15349,20 +15333,12 @@ function obStep8(el){
     '<div style="background:#f0fdf4;border:1px solid #86efac;border-radius:var(--r);padding:14px;margin-bottom:16px;font-size:13px;color:#166534;line-height:1.7">'+
     '<strong>How it works:</strong> Clients pay their deposit directly to your bank via Stripe. Card payments include a 2.9% + $0.30 fee — auto-logged as a tax deductible expense.'+
     '</div>'+
-    obInput('ob-stripe-key','Stripe Publishable Key (optional)','pk_live_...','text',_ob.stripeKey)+
-    '<div style="font-size:11px;color:var(--text3);margin-bottom:16px;line-height:1.6">Find at <strong>dashboard.stripe.com → Developers → API keys</strong>. Starts with pk_live_</div>'+
+    '<div style="background:var(--bg2);border:1px solid var(--border);border-radius:var(--r);padding:14px;margin-bottom:16px;font-size:13px;color:var(--text2);line-height:1.6">'+
+    'After signing up, go to <strong>Settings → Stripe Connect</strong> and tap <strong>"Connect Stripe Account"</strong> to link your bank. No keys to copy — takes about 2 minutes.'+
+    '</div>'+
     '<div id="ob-err" style="color:#A32D2D;font-size:12px;min-height:16px;margin-bottom:8px"></div>'+
-    obBtn('Continue','obNext8()')+
-    obBtn('Skip — cash only for now','_ob.stripeKey=\'\';_ob.step=9;renderObStep()',true)+
+    obBtn('Got it — continue','_ob.step=9;renderObStep()')+
     obBtn('Back','_ob.step=7;renderObStep()',true);
-}
-function obNext8(){
-  const key=(document.getElementById('ob-stripe-key')?.value||'').trim();
-  if(key&&!key.startsWith('pk_')){
-    const err=document.getElementById('ob-err');
-    if(err)err.textContent='Should start with pk_live_ or pk_test_';return;
-  }
-  _ob.stripeKey=key;_ob.step=9;renderObStep();
 }
 function obStep9(el){
   el.innerHTML=
@@ -15424,7 +15400,7 @@ async function obSubmit(){
     }
 
     setProgress('Configuring your workflow...');
-    const cfg={...BUSINESS_CONFIGS[_ob.businessType]||BUSINESS_CONFIGS.other,account_id:acct.id,business_type:_ob.businessType,state:_ob.state,stripe_pk:_ob.stripeKey||null};
+    const cfg={...BUSINESS_CONFIGS[_ob.businessType]||BUSINESS_CONFIGS.other,account_id:acct.id,business_type:_ob.businessType,state:_ob.state};
     const{data:cfgData}=await _supa.from('account_config').insert(cfg).select().maybeSingle();
     _config=cfgData;
 
@@ -15604,7 +15580,7 @@ async function supaInit(){
         _supaUser=null;_user=null;_account=null;_config=null;
         // Clear all data so next user starts fresh — never bleed data between accounts
         clients=[];bids=[];jobs=[];payments=[];income=[];expenses=[];mileage=[];liens=[];
-        S={...S,bname:'',bphone:'',blic:'',bemail:'',stripePk:'',vehicles:[],weatherLat:null,weatherLon:null,locationDenied:false};
+        S={...S,bname:'',bphone:'',blic:'',bemail:'',vehicles:[],weatherLat:null,weatherLon:null,locationDenied:false};
         saveAll();
         supaSetStatus('local');
         supaShowLogin();

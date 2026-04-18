@@ -157,7 +157,6 @@ input[type=text]:focus{border-color:var(--blue)}
 <script>
 const SUPA_URL='https://mwtsmctajhrrybblgorf.supabase.co';
 const SUPA_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im13dHNtY3RhamhycnliYmxnb3JmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzUxNjIwNjMsImV4cCI6MjA5MDczODA2M30.-FMn1pEs9PpCvv8eGwSbtucWAWvcfEcQ1SYx4nD207M';
-let STRIPE_PK=''; // Loaded from proposal data after fetch
 const _supa=supabase.createClient(SUPA_URL,SUPA_KEY);
 let _prop=null,_sigData=null,_payOpt='card';
 let sigCanvas,sigCtx,signing=false,hasInk=false;
@@ -178,9 +177,8 @@ async function init(){
     const{data,error}=await _supa.storage.from('proposals').download(key);
     if(error||!data)throw error;
     _prop=JSON.parse(await data.text());
-    STRIPE_PK=_prop.stripePk||'';
-    // Hide card and ACH options if contractor hasn't set up Stripe
-    if(!STRIPE_PK){
+    // Hide card and ACH options if contractor hasn't connected Stripe
+    if(!_prop.stripeConnectEnabled){
       const optCard=document.getElementById('opt-card');
       const optAch=document.getElementById('opt-ach');
       if(optCard)optCard.style.display='none';
@@ -277,7 +275,7 @@ function selPay(opt){
 }
 
 async function payCard(){
-  if(!STRIPE_PK){selPay('cash');return;}
+  if(!_prop.stripeConnectEnabled){selPay('cash');return;}
   const btn=document.getElementById('card-btn');
   btn.disabled=true;btn.textContent='Connecting to Stripe...';
   try{
@@ -303,7 +301,7 @@ async function payCard(){
 }
 
 async function payACH(){
-  if(!STRIPE_PK){selPay('cash');return;}
+  if(!_prop.stripeConnectEnabled){selPay('cash');return;}
   const btn=document.getElementById('ach-btn');
   btn.disabled=true;btn.textContent='Connecting...';
   try{

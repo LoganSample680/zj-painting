@@ -2605,6 +2605,14 @@ function saveDebriefAndComplete(jobId,btn){
     if(hrs>0&&_user?.id)_benchRows.push({user_id:_user.id,scope_id:scopeId,trade:_debTrade,actual_hrs:hrs});
   });
   if(typeof _submitScopeBenchmarks==='function')_submitScopeBenchmarks(_benchRows);
+  // Teach the price book how long this job's own line items take (§ profit
+  // gauge): scope chips learn through S.scopeHistory above, priced lines learn
+  // here, so an estimate built the fast way out of the price book stops
+  // pricing its labor at zero.
+  const _pbHours=totalActualHrs>0?totalActualHrs:(getJobClockTotal(jobId)/60);
+  if(typeof _pbLearnFromJob==='function'&&_debBid&&_pbHours>0){
+    if(_pbLearnFromJob(_debBid,_pbHours))saveAll();
+  }
   btn.closest('.zmodal-overlay').remove();
   confirmMarkComplete(jobId);
 }

@@ -2620,21 +2620,24 @@ test.describe('generic-estimate.js: exhaustive coverage', () => {
       expect(r.matsRestored).toBe(1);
     });
 
-    test('regression: leaving the "Name your proposal" field autosaves the name, no explicit Save needed to survive a back-out', async () => {
+    test('regression: renaming from the title bar autosaves the name, no explicit Save needed to survive a back-out', async () => {
       const r = await page.evaluate(() => {
         const c = { id: 90108, name: 'Name Autosave Client', addr: '8 Name Rd' };
         clients = clients.filter(x => x.id !== 90108).concat([c]);
         bids = bids.filter(x => x.client_id !== 90108);
         openGenericEstimate(c, null, null, { mode: 'byo' });
+        goGeiStep(2);                                       // mount the BYO page
         const bidId = _geiEditBidId;
-        const descEl = document.getElementById('gei-desc');
-        descEl.value = 'Kitchen Remodel Quote';
-        descEl.dispatchEvent(new Event('blur')); // simulate the user clicking out, no Save click
+        _editByoTitle();                                    // tap the pencil
+        const inp = document.querySelector('#byo-tbar-title input');
+        inp.value = 'Kitchen Remodel Quote';
+        inp.dispatchEvent(new Event('blur'));               // click out, no Save click
         const saved = bids.find(x => x.id === bidId);
-        return { type: saved?.type, geiDesc: saved?.geiDesc };
+        return { type: saved?.type, geiDesc: saved?.geiDesc, userSet: saved?.descUserSet };
       });
       expect(r.type).toBe('Kitchen Remodel Quote');
       expect(r.geiDesc).toBe('Kitchen Remodel Quote');
+      expect(r.userSet).toBe(true);
     });
 
     test('regression: a legacy dual-flag record (isTM + isFreeForm, from the old autosave) resumes as T&M, not empty BYO', async () => {
@@ -4625,6 +4628,323 @@ test.describe('generic-estimate.js: exhaustive coverage', () => {
       });
       expect(r).toEqual(['null', 'null', 'null', 'null', 'null']);
     });
+  });
+
+
+  // ── The estimate stops asking twice (owner pass 2026-09-06) ──────────────
+  // Name/address/date moved behind one "Change" reveal, the proposal names
+  // itself from the work, and the price book learns hours from the clock so a
+  // fast-path estimate stops pricing its labor at zero.
+  test.describe('no duplicate questions on step 1', () => {
+    // Earlier suites in this file deliberately remove #gei-addr and friends to
+    // prove the missing-DOM paths, so start this block on a pristine document.
+    test.beforeAll(async () => {
+      await page.reload();
+      await waitForAppBoot(page);
+      await seedFixtures();
+    });
+
+    test('the "Name your proposal" field is gone and #gei-desc is a hidden carrier', async () => {
+      const r = await page.evaluate(() => {
+        const desc = document.getElementById('gei-desc');
+        const labels = [...document.querySelectorAll('label')].map(l => l.textContent.trim());
+        return {
+          descType: desc ? desc.type : null,
+          hasLabel: labels.includes('Name your proposal'),
+          hasLine: !!document.getElementById('gei-job-line'),
+          fieldsHidden: document.getElementById('gei-job-fields')?.style.display
+        };
+      });
+      expect(r.descType).toBe('hidden');
+      expect(r.hasLabel).toBe(false);
+      expect(r.hasLine).toBe(true);
+      expect(r.fieldsHidden).toBe('none');
+    });
+
+    test('the job line states name and address, and Change reveals the fields', async () => {
+      const r = await page.evaluate(() => {
+        const c = { id: 90201, name: 'Reveal Client', addr: '11 Reveal Rd' };
+        clients = clients.filter(x => x.id !== 90201).concat([c]);
+        openGenericEstimate(c, null, null, { mode: 'byo' });
+        _geiJobOpen = false; _geiRenderJobLine();
+        const closed = {
+          text: document.getElementById('gei-job-text').textContent,
+          disp: document.getElementById('gei-job-fields').style.display,
+          chev: document.getElementById('gei-job-chev').textContent
+        };
+        _geiToggleJob();
+        const open = {
+          disp: document.getElementById('gei-job-fields').style.display,
+          chev: document.getElementById('gei-job-chev').textContent
+        };
+        _geiToggleJob();
+        return { closed, open, reclosed: document.getElementById('gei-job-fields').style.display };
+      });
+      expect(r.closed.text).toContain('Reveal Client');
+      expect(r.closed.text).toContain('11 Reveal Rd');
+      expect(r.closed.disp).toBe('none');
+      expect(r.closed.chev).toBe('Change');
+      expect(r.open.disp).toBe('');
+      expect(r.open.chev).toBe('Done');
+      expect(r.reclosed).toBe('none');
+    });
+
+    test('an empty job line asks for the one thing it needs, and junk fields never throw', async () => {
+      const r = await page.evaluate(() => {
+        const out = {};
+        document.getElementById('gei-client').value = '';
+        document.getElementById('gei-addr').value = '';
+        out.empty = _geiJobLineText();
+        document.getElementById('gei-client').value = '   ';
+        out.blank = _geiJobLineText();
+        const line = document.getElementById('gei-job-line');
+        const fields = document.getElementById('gei-job-fields');
+        line.remove(); fields.remove();
+        try { _geiRenderJobLine(); out.missingDom = 'ok'; } catch (e) { out.missingDom = 'threw'; }
+        return out;
+      });
+      expect(r.empty).toBe('Add who this is for');
+      expect(r.blank).toBe('Add who this is for');
+      expect(r.missingDom).toBe('ok');
+      await page.reload();
+      await waitForAppBoot(page);
+      await seedFixtures();
+    });
+  });
+
+  test.describe('the proposal names itself', () => {
+    test('one item names it, several add "+N more", nothing falls back to the trade label', async () => {
+      const r = await page.evaluate(() => {
+        const c = { id: 90202, name: 'Auto Name Client', addr: '12 Name Rd' };
+        clients = clients.filter(x => x.id !== 90202).concat([c]);
+        bids = bids.filter(x => x.client_id !== 90202);
+        openGenericEstimate(c, null, null, { mode: 'byo' });
+        _geiTrade = 'plumbing';
+        _byoItems = []; _geiScopeChips = [];
+        const none = _geiAutoName();
+        _byoItems = [{ id: 1, section: 'Work', label: 'Water heater replacement', price: 1400, on: true }];
+        const one = _geiAutoName();
+        _byoItems.push({ id: 2, section: 'Work', label: 'Shutoff valves', price: 180, on: true });
+        _byoItems.push({ id: 3, section: 'Materials', label: 'Expansion tank', price: 90, on: true });
+        const three = _geiAutoName();
+        _byoItems[1].on = false;
+        const twoOn = _geiAutoName();
+        return { none, one, three, twoOn, label: _tradeProposalLabel('plumbing') };
+      });
+      expect(r.none).toBe(r.label);
+      expect(r.one).toBe('Water heater replacement');
+      expect(r.three).toBe('Water heater replacement +2 more');
+      expect(r.twoOn).toBe('Water heater replacement +1 more');
+    });
+
+    test('the auto name lands on the bid, and a name he typed is never overwritten', async () => {
+      const r = await page.evaluate(() => {
+        const c = { id: 90203, name: 'Sticky Name Client', addr: '13 Name Rd' };
+        clients = clients.filter(x => x.id !== 90203).concat([c]);
+        bids = bids.filter(x => x.client_id !== 90203);
+        openGenericEstimate(c, null, null, { mode: 'byo' });
+        goGeiStep(2);                                       // mount the BYO page
+        _byoItems = [{ id: 1, section: 'Work', label: 'Panel upgrade', price: 2200, on: true }];
+        _geiSyncAutoName();
+        const auto = document.getElementById('gei-desc').value;
+        _editByoTitle();
+        const inp = document.querySelector('#byo-tbar-title input');
+        inp.value = 'Smith job, phase 1';
+        inp.dispatchEvent(new Event('blur'));
+        _byoItems.push({ id: 2, section: 'Work', label: 'Add EV charger', price: 900, on: true });
+        _geiSyncAutoName();
+        return { auto, after: document.getElementById('gei-desc').value, userSet: _geiDescUserSet };
+      });
+      expect(r.auto).toBe('Panel upgrade');
+      expect(r.userSet).toBe(true);
+      expect(r.after).toBe('Smith job, phase 1');
+    });
+
+    test('_geiAutoName survives junk state', async () => {
+      const r = await page.evaluate(() => {
+        const out = [];
+        [[null], [undefined], [{}], [{ on: true }], [{ on: true, label: '' }]].forEach(items => {
+          _byoItems = items; _geiScopeChips = [];
+          try { out.push(typeof _geiAutoName()); } catch (e) { out.push('threw'); }
+        });
+        _byoItems = []; _geiScopeChips = [null, undefined, ''];
+        try { out.push(typeof _geiAutoName()); } catch (e) { out.push('threw'); }
+        return out;
+      });
+      expect(r).toEqual(['string', 'string', 'string', 'string', 'string', 'string']);
+    });
+  });
+
+  test.describe('the price book learns hours from the clock', () => {
+    test('learned hours are the median of what it actually took', async () => {
+      const r = await page.evaluate(() => {
+        _geiTrade = 'general';
+        S.priceBook = { general: [{ desc: 'Water heater replacement', unit: 'ea', rate: 1400, n: 3 }] };
+        const e = () => _pbFind('Water heater replacement', 'general');
+        const before = _pbHrs(e());
+        _pbLearnHours('Water heater replacement', 4, 'general');
+        const one = _pbHrs(e());
+        _pbLearnHours('Water heater replacement', 6, 'general');
+        _pbLearnHours('Water heater replacement', 5, 'general');
+        const three = _pbHrs(e());
+        for (let i = 0; i < 30; i++) _pbLearnHours('Water heater replacement', 5, 'general');
+        return { before, one, three, capped: e().h.length };
+      });
+      expect(r.before).toBe(null);
+      expect(r.one).toBe(4);
+      expect(r.three).toBe(5);
+      expect(r.capped).toBe(20);
+    });
+
+    test('junk hours and unknown lines are ignored, never thrown', async () => {
+      const r = await page.evaluate(() => {
+        _geiTrade = 'general';
+        S.priceBook = { general: [{ desc: 'Known service', unit: 'ea', rate: 200, n: 2 }] };
+        const out = [];
+        [null, undefined, 0, -3, 'x', NaN].forEach(v => {
+          try { _pbLearnHours('Known service', v, 'general'); out.push('ok'); } catch (e) { out.push('threw'); }
+        });
+        try { _pbLearnHours('Nothing like this in the book', 4, 'general'); out.push('ok'); } catch (e) { out.push('threw'); }
+        return { out, learned: _pbHrs(_pbFind('Known service', 'general')), book: S.priceBook.general.length };
+      });
+      expect(r.out).toEqual(['ok', 'ok', 'ok', 'ok', 'ok', 'ok', 'ok']);
+      expect(r.learned).toBe(null);
+      expect(r.book).toBe(1);
+    });
+
+    test('a finished job splits its measured hours across its own lines by price', async () => {
+      const r = await page.evaluate(() => {
+        S.priceBook = { plumbing: [
+          { desc: 'Water heater replacement', unit: 'ea', rate: 1200, n: 2 },
+          { desc: 'Shutoff valves', unit: 'ea', rate: 400, n: 2 }
+        ] };
+        const bid = {
+          id: 90301, trade_type: 'plumbing', scopeChips: [],
+          byoItems: [
+            { id: 1, section: 'Work', label: 'Water heater replacement', price: 1200, on: true },
+            { id: 2, section: 'Work', label: 'Shutoff valves', price: 400, on: true },
+            { id: 3, section: 'Work', label: 'Off the bid', price: 999, on: false }
+          ]
+        };
+        const ok = _pbLearnFromJob(bid, 8);   // 8 measured hours, 1200/400 split
+        return {
+          ok,
+          heater: _pbHrs(_pbFind('Water heater replacement', 'plumbing')),
+          valves: _pbHrs(_pbFind('Shutoff valves', 'plumbing'))
+        };
+      });
+      expect(r.ok).toBe(true);
+      expect(r.heater).toBe(6);
+      expect(r.valves).toBe(2);
+    });
+
+    test('a line that repeats a scope chip is not learned twice, and junk bids are safe', async () => {
+      const r = await page.evaluate(() => {
+        S.priceBook = { plumbing: [{ desc: 'Water heater replacement', unit: 'ea', rate: 1200, n: 2 }] };
+        const realChip = TRADE_SCOPE_ITEMS.plumbing[0];   // has an id, so it owns its own hours
+        S.priceBook.plumbing.push({ desc: realChip.label, unit: 'ea', rate: 900, n: 2 });
+        const chipBid = {
+          id: 90302, trade_type: 'plumbing', scopeChips: [realChip.label],
+          byoItems: [{ id: 1, section: 'Work', label: realChip.label, price: 1200, on: true }]
+        };
+        const skipped = _pbLearnFromJob(chipBid, 8);
+        const out = [];
+        [null, undefined, {}, { byoItems: [] }, { byoItems: [{ on: true, label: 'x', price: 0 }] }].forEach(b => {
+          try { out.push(_pbLearnFromJob(b, 5)); } catch (e) { out.push('threw'); }
+        });
+        [0, -1, null, 'x'].forEach(h => {
+          try { out.push(_pbLearnFromJob(chipBid, h)); } catch (e) { out.push('threw'); }
+        });
+        return { skipped, learned: _pbHrs(_pbFind(realChip.label, 'plumbing')), out };
+      });
+      expect(r.skipped).toBe(false);
+      expect(r.learned).toBe(null);
+      expect(r.out).toEqual([false, false, false, false, false, false, false, false, false]);
+    });
+  });
+
+  test.describe('the profit gauge counts labor on price-book lines', () => {
+    test('learned line hours land in _estLaborHours, and a chip-duplicating line is counted once', async () => {
+      const r = await page.evaluate(() => {
+        const c = { id: 90204, name: 'Hours Client', addr: '14 Hours Rd' };
+        clients = clients.filter(x => x.id !== 90204).concat([c]);
+        bids = bids.filter(x => x.client_id !== 90204);
+        openGenericEstimate(c, null, null, { mode: 'byo' });
+        _geiTrade = 'plumbing';
+        S.priceBook = { plumbing: [
+          { desc: 'Water heater replacement', unit: 'ea', rate: 1200, n: 2, h: [6, 6, 6] },
+          { desc: 'Shutoff valves', unit: 'ea', rate: 400, n: 2, h: [2, 2] },
+          { desc: 'Not measured yet', unit: 'ea', rate: 300, n: 2 }
+        ] };
+        _geiScopeChips = [];
+        _byoItems = [{ id: 1, section: 'Work', label: 'Water heater replacement', price: 1200, on: true }];
+        const one = _estLaborHours();
+        _byoItems.push({ id: 2, section: 'Work', label: 'Shutoff valves', price: 400, on: true });
+        const two = _estLaborHours();
+        _byoItems.push({ id: 3, section: 'Work', label: 'Not measured yet', price: 300, on: true });
+        const withUnknown = _estLaborHours();
+        const cov = _estHoursCoverage();
+        // A real scope item that has measured history: the chip owns those
+        // hours, so the identical line must not add them a second time.
+        const realChip = TRADE_SCOPE_ITEMS.plumbing[0];
+        S.scopeHistory = S.scopeHistory || {};
+        S.scopeHistory[realChip.id] = [{ hrs: 3, ts: Date.now() }];
+        _geiScopeChips = [realChip.label];
+        _byoItems.push({ id: 4, section: 'Work', label: realChip.label, price: 500, on: true });
+        const withChip = _estLaborHours();
+        return { one, two, withUnknown, cov, withChip };
+      });
+      expect(r.one).toBe(6);
+      expect(r.two).toBe(8);
+      expect(r.withUnknown).toBe(8);          // the unmeasured line adds nothing
+      expect(r.cov).toEqual({ known: 2, total: 3 });
+      expect(r.withChip).toBe(11);            // 8 + the chip's own 3, counted once
+    });
+
+    test('the gauge says so when a line has no measured hours yet', async () => {
+      const r = await page.evaluate(() => {
+        const c = { id: 90205, name: 'Gauge Client', addr: '15 Gauge Rd' };
+        clients = clients.filter(x => x.id !== 90205).concat([c]);
+        bids = bids.filter(x => x.client_id !== 90205);
+        openGenericEstimate(c, null, null, { mode: 'byo' });
+        goGeiStep(2);                                       // mount the BYO gauge
+        _geiTrade = 'plumbing';
+        S.priceBook = { plumbing: [{ desc: 'Water heater replacement', unit: 'ea', rate: 1200, n: 2 }] };
+        _geiScopeChips = [];
+        _byoItems = [{ id: 1, section: 'Work', label: 'Water heater replacement', price: 1200, on: true }];
+        const costEl = document.getElementById('byo-expected-cost');
+        costEl.value = '600'; delete costEl.dataset.userSet;
+        _updateMarginGauge('byo', 1200);
+        const auto = document.getElementById('byo-gauge-msg').textContent;
+        costEl.dataset.userSet = '1';
+        _updateMarginGauge('byo', 1200);
+        const his = document.getElementById('byo-gauge-msg').textContent;
+        return { auto, his };
+      });
+      expect(r.auto).toContain('Labor not counted on 1 line');
+      expect(r.his).not.toContain('Labor not counted');
+    });
+
+    test('_estHoursCoverage and _estPricedLines never throw on junk', async () => {
+      const r = await page.evaluate(() => {
+        const out = [];
+        [[null], [undefined], [{}], [{ on: true }], 'notanarray', null].forEach(items => {
+          _byoItems = Array.isArray(items) ? items : [];
+          try { _estPricedLines(); _estHoursCoverage(); out.push('ok'); } catch (e) { out.push('threw'); }
+        });
+        _geiIsTM = true;
+        const tm = _estHoursCoverage();
+        _geiIsTM = false;
+        return { out, tm };
+      });
+      expect(r.out).toEqual(['ok', 'ok', 'ok', 'ok', 'ok', 'ok']);
+      expect(r.tm).toEqual({ known: 1, total: 1 });
+    });
+  });
+
+
+  test('no console errors after the step-1 / auto-name / learned-hours pass', async () => {
+    assertNoErrors(page, 'generic-estimate.js step-1 pass');
   });
 
 });

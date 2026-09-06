@@ -2228,7 +2228,7 @@ body.dark .cal-cell.other{background:var(--cream)}
     </div>
     <!-- Property access notes (crew only, never on the proposal): near the property/address context -->
     <div id="gen-sitenote-wrap"></div>
-    <div class="card" style="margin-bottom:12px">
+    <div style="margin-bottom:12px">
       <!-- T&M chip (shown in T&M mode) -->
       <div id="gei-tm-chip" style="display:none;margin-bottom:12px">
         <span style="display:inline-flex;align-items:center;gap:6px;background:#dbeafe;color:#1d4ed8;font-size:12px;font-weight:700;padding:5px 12px;border-radius:20px">⏱️ Time &amp; Materials Proposal</span>
@@ -2237,11 +2237,22 @@ body.dark .cal-cell.other{background:var(--cream)}
       <div id="gei-ff-chip" style="display:none;margin-bottom:12px">
         <span style="display:inline-flex;align-items:center;gap:6px;background:#f0fdf4;color:#166534;font-size:12px;font-weight:700;padding:5px 12px;border-radius:20px"><span data-ico="✏" data-ico-size="14"></span> Build Your Own Proposal</span>
       </div>
-      <div class="f" style="margin-bottom:8px"><label>Client name</label><input type="text" id="gei-client" placeholder="Client name"></div>
-      <div class="f" style="margin-bottom:8px;position:relative"><label>Job address</label><input type="text" id="gei-addr" placeholder="123 Main St, Wichita KS 67201" autocomplete="off" oninput="_geiOnAddrInput();_lookupProperty(this.value,'geiaddr')"></div>
+      <!-- Who it is for and where, STATED not asked (owner 2026-09-06). The
+           name and address were already typed at the who-is-it-for gate; asking
+           for them again ten seconds later reads as "the app was not listening".
+           Same reveal pattern as the facts line above (§7.3), one line to read,
+           Change opens the real fields. The date lives in here too: it is always
+           today and the schedule step asks for the real one. -->
+      <button id="gei-job-line" onclick="_geiToggleJob()" style="width:100%;display:flex;align-items:center;justify-content:space-between;gap:10px;padding:12px 14px;border-radius:var(--r);border:1px solid var(--border2);background:var(--bg2);cursor:pointer;font-family:inherit;text-align:left;margin-bottom:8px">
+        <span id="gei-job-text" style="font-size:13px;color:var(--text2);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"></span>
+        <span id="gei-job-chev" style="font-size:12px;font-weight:700;color:var(--blue);flex-shrink:0">Change</span>
+      </button>
+      <div class="card" id="gei-job-fields" style="display:none">
+      <div class="f" style="margin-bottom:8px"><label>Client name</label><input type="text" id="gei-client" placeholder="Client name" onblur="_geiRenderJobLine()"></div>
+      <div class="f" style="margin-bottom:8px;position:relative"><label>Job address</label><input type="text" id="gei-addr" placeholder="123 Main St, Wichita KS 67201" autocomplete="off" oninput="_geiOnAddrInput();_lookupProperty(this.value,'geiaddr')" onblur="_geiRenderJobLine()"></div>
       <div id="prop-card-geiaddr" style="display:none;margin-top:6px;padding:10px 12px;background:var(--bg2);border:1.5px solid var(--border2);border-radius:var(--r);font-size:12px"></div>
-      <div class="f" style="margin-bottom:8px"><label>Name your proposal</label><input type="text" id="gei-desc" placeholder="e.g. Water heater replacement" onblur="typeof _byoAutosave==='function'&&_byoAutosave()"></div>
-      <div class="f" style="margin-bottom:8px"><label>Date</label><input type="date" id="gei-date"></div>
+      <input type="hidden" id="gei-desc">
+      <div class="f" style="margin-bottom:8px"><label>Proposal date</label><input type="date" id="gei-date" onblur="_geiRenderJobLine()"></div>
       <!-- T&M reason (shown in T&M mode) -->
       <div id="gei-tm-reason-wrap" style="display:none;margin-top:12px;padding-top:12px;border-top:1px solid var(--border)">
         <div class="f" style="margin-bottom:8px">
@@ -2261,6 +2272,7 @@ body.dark .cal-cell.other{background:var(--cream)}
           <label>Note <span style="font-weight:400;color:var(--text3)">(optional)</span></label>
           <input type="text" id="tm-reason-note" placeholder="e.g. Significant rust under old paint, extent unknown">
         </div>
+      </div>
       </div>
     </div>
     <button class="btn btn-p" onclick="goGeiStep(2)" style="margin-bottom:8px">Next: Build proposal →</button>

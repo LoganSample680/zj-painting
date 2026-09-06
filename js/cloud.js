@@ -634,7 +634,7 @@ const _supaMode=(()=>{try{return localStorage.getItem('zp3_supa_mode');}catch(_e
 // `let` so the supaInit auto-fallback can flip it to the proxy before the client is built.
 let SUPA_URL = (_supaMode==='proxy') ? _SUPA_PROXY_URL : _SUPA_DIRECT_URL;
 const SUPA_KEY = 'sb_publishable_kaahEa5tFydocUuYi8plHg_K78HPyvJ';
-const APP_VERSION='09.06.26.9';
+const APP_VERSION='09.06.26.10';
 let _supa=null,_supaUser=null,_syncTimer=null,_syncStatus='local',_supaCloudLoaded=false,_lastLocalSaveAt=0;
 let _syncBroadcastChannel=null,_realtimeSubscribed=false,_loadInProgress=false,_activeLoadPromise=null,_broadcastReloadTimer=null,_broadcastPending=false,_reconcileTimer=null,_writeCacheTimer=null,_rtRenderTimer=null;
 // True only for the window between an in-tab sign-in landing on the dashboard
@@ -7078,7 +7078,11 @@ async function supaSaveToCloud(){
     let _tableWrites=0;
     // Batch upsert helper: upserts all live records, soft-deletes any that vanished
     const _upsertTable=async(tbl,arr,txFn)=>{
-      const rows=(txFn?txFn(arr):arr);
+      // Drop holes before anything reads r.id: one null in an array (a bad
+      // splice, a half-applied realtime row) used to throw here and abort the
+      // ENTIRE save for every table, so one bad row silently stopped syncing
+      // everything. A row with no id cannot be upserted anyway.
+      const rows=(txFn?txFn(arr):arr).filter(r=>r&&r.id!=null);
       const currentIds=new Set(rows.map(r=>String(r.id)));
       _syncedHash[tbl]||=new Map();
       const hashes=_syncedHash[tbl];

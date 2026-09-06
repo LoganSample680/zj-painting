@@ -581,6 +581,8 @@ function openGenericEstimate(c,bidId,_tradePick,opts){
   _geiJobScope=_facts.workScope;
   _geiNewWork=(_facts.workScope==='improvement');
   if(typeof _geiFactsOpen!=='undefined')_geiFactsOpen=false;
+  if(typeof _geiJobOpen!=='undefined')_geiJobOpen=false;
+  if(typeof _geiDescUserSet!=='undefined')_geiDescUserSet=false;
   _geiScanId=null;
   // Seeded lines (scan / TrueMeasure) are computed here but NOT applied to
   // _geiLines yet: the resume-an-existing-draft lookup below this block can
@@ -659,6 +661,7 @@ function openGenericEstimate(c,bidId,_tradePick,opts){
     const b=bids.find(x=>x.id===bidId);
     if(b){
       sf('gei-desc',b.type||'');sf('gei-notes',b.notes||'');if(b.addr){sf('gei-addr',b.addr);_geiCurAddr=b.addr;}
+      _geiDescUserSet=!!b.descUserSet;
       if(b.geiLines&&b.geiLines.length)_geiLines=JSON.parse(JSON.stringify(b.geiLines));
       if(b.geiTaxPct)sf('gei-tax-pct',b.geiTaxPct);
       if(b.jobScope)_geiJobScope=b.jobScope;
@@ -719,6 +722,7 @@ function openGenericEstimate(c,bidId,_tradePick,opts){
       _geiEditBidId=_existingGei.id;
       const _b=_existingGei;
       sf('gei-desc',_b.geiDesc||'');sf('gei-notes',_b.notes||'');
+      _geiDescUserSet=!!_b.descUserSet;
       // The resumed draft's address applies, UNLESS the property gate just picked
       // one (forceAddr) — a deliberate pick always wins over a stub's default.
       if(_b.addr&&!opts?.forceAddr){sf('gei-addr',_b.addr);_geiCurAddr=_b.addr;}
@@ -793,9 +797,11 @@ function openGenericEstimate(c,bidId,_tradePick,opts){
   }
   // Restore scope title from saved description when reopening an existing bid
   if(!_geiIsTM&&!_geiIsFreeForm){
+    if(typeof _geiSyncAutoName==='function')_geiSyncAutoName();
     const _descVal=document.getElementById('gei-desc')?.value?.trim();
     if(_descVal){const _tEl=document.getElementById('gei-trade-title');if(_tEl)_tEl.textContent=_descVal;}
   }
+  if(typeof _geiRenderJobLine==='function')_geiRenderJobLine();
   goPg('pg-est-generic');
   // The builder is now up: retire the "pick estimate type" screen (kept as the
   // backdrop behind the address gate for multi-property clients) with a soft fade.
@@ -1180,6 +1186,9 @@ function _geiShowSharedChrome(prefix){
   // Trade branding in title
   const tmMeta=TRADE_META[_geiTrade||getActiveTrade()]||{icon:'🔧',label:'Trade'};
   const titleEl=document.getElementById(prefix+'-tbar-title');
+  // The proposal names itself from the work (see _geiAutoName): the trade label
+  // is only the empty-estimate state now, not a name he has to replace.
+  if(typeof _geiSyncAutoName==='function')_geiSyncAutoName();
   if(titleEl){const _customName=document.getElementById('gei-desc')?.value?.trim();titleEl.innerHTML=_customName?escHtml(_customName):(svgIcon(tmMeta.icon,{size:24})+' '+tmMeta.label+' · '+m.titleSuffix);}
   // Sub-header: client name · address (address is a picker chip when the client
   // has 2+ properties, so an estimate never silently lands on the wrong one).
@@ -1411,6 +1420,10 @@ function _editEstTitle(titleId,btnId){
     titleEl.textContent=val;
     if(btn)btn.style.opacity='';
     const descEl=document.getElementById('gei-desc');if(descEl)descEl.value=val;
+    // He named it himself, so the auto name stops writing over it, and the
+    // rename is saved the way the old "Name your proposal" field's blur was.
+    if(typeof _geiDescUserSet!=='undefined')_geiDescUserSet=true;
+    if(typeof _byoAutosave==='function')_byoAutosave();
   };
   const cancel=()=>{
     if(_done)return;_done=true;
@@ -1510,6 +1523,7 @@ function _byoAutosave(){
   const _descVal=document.getElementById('gei-desc')?.value||'';
   b.type=_descVal||_typeLabel;
   b.geiDesc=_descVal;
+  b.descUserSet=!!_geiDescUserSet;
   b.byoItems=JSON.parse(JSON.stringify(_byoItems));
   b.byoCustomSections=[..._byoCustomSections];
   // Stamp the bid's REAL type, this used to write isFreeForm=true on every
@@ -1603,13 +1617,24 @@ function _estLaborHours(){
   const trade=_geiTrade||(typeof getActiveTrade==='function'?getActiveTrade():'general');
   const allItems=[..._GEN_SCOPE,...((typeof TRADE_SCOPE_ITEMS!=='undefined'&&TRADE_SCOPE_ITEMS[trade])||[])];
   let hrs=0;
+  const _chipHrsKeys=new Set();
   (_geiScopeChips||[]).forEach(label=>{
     const item=allItems.find(x=>x.label===label);
     if(!item||!item.id)return;
     const own=_scopeHistoryHrs(item.id);
-    if(own!=null){hrs+=own;return;}
+    if(own!=null){hrs+=own;_chipHrsKeys.add(_pbKey(label));return;}
     const rate=(typeof window!=='undefined'&&window._scopeRates)?window._scopeRates[item.id+':'+trade]:null;
-    if(rate&&rate.sample_count>=5&&rate.median_min>0)hrs+=rate.median_min/60;
+    if(rate&&rate.sample_count>=5&&rate.median_min>0){hrs+=rate.median_min/60;_chipHrsKeys.add(_pbKey(label));}
+  });
+  // Priced lines carry hours too (see _pbLearnHours). A line whose description
+  // repeats a chip that ALREADY contributed hours is the same work said twice
+  // and is counted once. A chip that contributed nothing (no history, no
+  // benchmark) does not suppress the line, or the fast path would lose the
+  // hours the price book actually knows.
+  _estPricedLines().forEach(l=>{
+    if(_chipHrsKeys.has(_pbKey(l.desc)))return;
+    const h=_pbHrs(_pbFind(l.desc,trade));
+    if(h!=null)hrs+=h;
   });
   return Math.round(hrs*10)/10;
 }
@@ -1946,6 +1971,19 @@ function _updateMarginGauge(type,total){
   // margins that usually mean a cost got missed, green now tops out at 55%.
   else if(margin<75){color='#F59E0B';msg='High margin, double-check your cost numbers';}
   else{color='#F59E0B';msg='Very high margin, double-check your numbers';}
+  // The same honest caveat one level down. A line built straight from the price
+  // book carries no measured hours until a job containing it has been finished
+  // (see _pbLearnHours), so its labor is not in the cost at all and the margin
+  // shown is materials-only for those lines. Skipped when he typed the cost
+  // himself, that number is his and needs no apology.
+  const _cEl=document.getElementById(type+'-expected-cost');
+  if(!(_cEl&&_cEl.dataset&&_cEl.dataset.userSet)){
+    const _cov=_estHoursCoverage();
+    if(_cov.total>0&&_cov.known<_cov.total){
+      const _n=_cov.total-_cov.known;
+      msg='Labor not counted on '+_n+' line'+(_n>1?'s':'')+' yet, it learns from your clock the first time you finish one.';
+    }
+  }
   // The honest caveat. If this bid has hours on it and we have no idea what an
   // hour of HIS time costs, the number on screen is materials-only and it is
   // flattering him. Say so on the gauge rather than let him read it as profit.
@@ -1983,6 +2021,9 @@ function _byoDelItem(idx){
   if(_byoItems[idx]&&!_byoItems[idx].required){_byoItems.splice(idx,1);_byoRenderSections();_byoUpdateRail();_byoAutosave();}
 }
 function _byoUpdateRail(){
+  // The name follows the work: adding or turning off a line renames the
+  // proposal live, unless he has named it himself (_geiDescUserSet).
+  _geiRefreshAutoTitle('byo');
   const selected=_byoItems.filter(it=>it.on);
   const sub=selected.reduce((s,it)=>s+it.price,0);
   _geiLines=selected.map(it=>({desc:it.label,qty:1,unit:'ea',rate:it.price,total:it.price,notes:it.notes||'',_byoSection:it.section,_rrp:it._rrp||false}));
@@ -2892,8 +2933,77 @@ function _geiRenderFactsLine(){
   if(chev)chev.textContent=_geiFactsOpen?'Done':'Change';
 }
 
+// Who it is for, where, and when: one line he reads, not three fields he fills.
+// Name and address arrived from the who-is-it-for gate and the date is today,
+// so the normal case is zero taps. Same reveal shape as the facts line above.
+let _geiJobOpen=false;
+function _geiToggleJob(){
+  _geiJobOpen=!_geiJobOpen;
+  _geiRenderJobLine();
+}
+function _geiJobLineText(){
+  const v=id=>{const e=document.getElementById(id);return e?(e.value||'').trim():'';};
+  const name=v('gei-client');
+  const addr=v('gei-addr');
+  const parts=[];
+  if(name)parts.push(name);
+  if(addr)parts.push(addr);
+  if(!parts.length)return 'Add who this is for';
+  const d=v('gei-date');
+  if(d&&typeof todayKey==='function'&&d!==todayKey()&&typeof _shortDate==='function')parts.push(_shortDate(d));
+  return parts.join(' \u00b7 ');
+}
+function _geiRenderJobLine(){
+  const txt=document.getElementById('gei-job-text');
+  const card=document.getElementById('gei-job-fields');
+  const chev=document.getElementById('gei-job-chev');
+  if(txt)txt.textContent=_geiJobLineText();
+  if(card)card.style.display=_geiJobOpen?'':'none';
+  if(chev)chev.textContent=_geiJobOpen?'Done':'Change';
+}
+// What the proposal is called, derived from the work he already described.
+// Contractors do not name documents: every competitor identifies a quote by
+// number + customer, and a "Name your proposal" box just makes him type the
+// first line item a second time. So the name is written for him from the work
+// itself and stays editable through the title-bar pencil, which is the rename
+// control the screen already had.
+//   one thing   -> "Water heater replacement"
+//   several     -> "Water heater replacement +2 more"
+//   nothing yet -> the trade's own proposal label
+function _geiAutoName(){
+  const labels=[];
+  if(_geiIsFreeForm)(_byoItems||[]).forEach(it=>{if(it&&it.on&&!it._rrp&&it.label)labels.push(it.label);});
+  (_geiScopeChips||[]).forEach(l=>{if(l&&labels.indexOf(l)<0)labels.push(l);});
+  if(!_geiIsFreeForm)(_geiLines||[]).forEach(l=>{if(l&&!l._tmLabor&&l.desc&&labels.indexOf(l.desc)<0)labels.push(l.desc);});
+  if(!labels.length)return _tradeProposalLabel(_geiTrade||(typeof getActiveTrade==='function'?getActiveTrade():'general'));
+  const first=String(labels[0]).trim();
+  return labels.length>1?first+' +'+(labels.length-1)+' more':first;
+}
+// The stored name, auto when he has not renamed it. #gei-desc is the carrier
+// every save/send path already reads, so writing it here keeps all of them
+// untouched; _geiDescUserSet marks a name he typed himself so the auto name
+// never overwrites it.
+let _geiDescUserSet=false;
+function _geiSyncAutoName(){
+  const el=document.getElementById('gei-desc');
+  if(!el||_geiDescUserSet)return;
+  el.value=_geiAutoName();
+}
+// Write the auto name and repaint the title bar showing it. No-op the moment
+// he renames it by hand.
+function _geiRefreshAutoTitle(prefix){
+  if(_geiDescUserSet)return;
+  _geiSyncAutoName();
+  const el=document.getElementById(prefix+'-tbar-title');
+  if(el&&!el.querySelector('input')){
+    const n=document.getElementById('gei-desc')?.value||'';
+    if(n)el.textContent=n;
+  }
+}
+
 function _geiSyncJobTypeButtons(){
   _geiRenderFactsLine();
+  if(typeof _geiRenderJobLine==='function')_geiRenderJobLine();
   const _propActive=_geiIsCommercial?'comm':'res';
   ['res','comm'].forEach(k=>{
     const btn=document.getElementById('gei-prop-'+k);if(!btn)return;
@@ -3116,6 +3226,83 @@ function _pbLearnAll(){
     // Labor lines are the crew rate, not a thing he sells, so they stay out.
     (_geiLines||[]).forEach(l=>{if(!l._tmLabor)_pbLearn(l.desc,l.rate,l.unit);});
   }catch(_e){}
+}
+
+// How long a price-book line actually takes him, learned from the clock and
+// never asked for.
+//
+// The profit gauge used to read hours ONLY from scope chips (_estLaborHours),
+// so an estimate built the fast way, straight out of the price book, priced
+// its labor at zero and showed a margin that was materials-only. A calculator
+// that flatters him is worse than none (see _estLaborCost), and this is the
+// same class of bug one level down.
+//
+// So when a job is completed, its measured hours are split across the bid's
+// own lines in proportion to their price and recorded here. One job is a rough
+// split; the median across jobs converges on the truth, exactly the way
+// _scopeHistoryHrs already works for scope chips. Nothing is typed.
+function _pbLearnHours(desc,hrs,trade){
+  const h=Number(hrs)||0;
+  if(!(h>0))return;
+  const t=trade||_pbTrade();
+  const hit=_pbFind(desc,t);
+  if(!hit)return;
+  if(!Array.isArray(hit.h))hit.h=[];
+  hit.h.push(Math.round(h*100)/100);
+  if(hit.h.length>20)hit.h=hit.h.slice(-20);
+}
+// Teach the price book what a finished job actually took. Called once, when a
+// job is completed with real hours on it. The job knows its total measured
+// hours; the bid knows which lines it was made of; the split is pro-rata by
+// price because a line worth twice as much is, on average, twice the work.
+// Rough at n=1, right by n=5, and it costs him nothing.
+function _pbLearnFromJob(bid,hours){
+  try{
+    const h=Number(hours)||0;
+    if(!bid||!(h>0))return false;
+    const trade=bid.trade_type||'general';
+    const lines=[];
+    if(Array.isArray(bid.byoItems))bid.byoItems.forEach(it=>{if(it&&it.on&&!it._rrp&&it.label)lines.push({desc:it.label,price:Number(it.price)||0});});
+    if(!lines.length&&Array.isArray(bid.geiLines))bid.geiLines.forEach(l=>{if(l&&!l._tmLabor&&l.desc)lines.push({desc:l.desc,price:(Number(l.qty)||1)*(Number(l.rate)||0)});});
+    // Scope chips record their own measured hours through S.scopeHistory, so a
+    // line repeating a REAL scope chip is skipped here rather than counted
+    // twice by _estLaborHours. A chip that is not a known scope item has no
+    // such home, so its line still learns.
+    const _defs=[..._GEN_SCOPE,...((typeof TRADE_SCOPE_ITEMS!=='undefined'&&TRADE_SCOPE_ITEMS[trade])||[])];
+    const chips=new Set((bid.scopeChips||[]).filter(l=>_defs.some(x=>x&&x.id&&x.label===l)).map(l=>_pbKey(l)));
+    const priced=lines.filter(l=>l.price>0&&!chips.has(_pbKey(l.desc)));
+    const sum=priced.reduce((s,l)=>s+l.price,0);
+    if(!priced.length||sum<=0)return false;
+    priced.forEach(l=>_pbLearnHours(l.desc,h*(l.price/sum),trade));
+    return true;
+  }catch(_e){return false;}
+}
+// Median of what it took, null until it has been measured at least once.
+function _pbHrs(entry){
+  const vals=((entry&&entry.h)||[]).filter(v=>typeof v==='number'&&v>0).sort((a,b)=>a-b);
+  if(!vals.length)return null;
+  const m=Math.floor(vals.length/2);
+  return vals.length%2?vals[m]:(vals[m-1]+vals[m])/2;
+}
+// The bid's own priced lines, one shape for BYO items and generic lines, so
+// the hours math and the coverage note both read the same list.
+function _estPricedLines(){
+  const out=[];
+  if(_geiIsFreeForm)(_byoItems||[]).forEach(it=>{if(it&&it.on&&!it._rrp&&it.label)out.push({desc:it.label,price:Number(it.price)||0});});
+  else (_geiLines||[]).forEach(l=>{if(l&&!l._tmLabor&&l.desc)out.push({desc:l.desc,price:(Number(l.qty)||1)*(Number(l.rate)||0)});});
+  return out;
+}
+// How much of this bid's labor is actually known: {known, total} line counts.
+// Drives the honest note on the gauge, an unmeasured line is reported as not
+// counted rather than quietly costed at zero.
+function _estHoursCoverage(){
+  if(_geiIsTM)return{known:1,total:1};
+  const trade=_pbTrade();
+  const lines=_estPricedLines();
+  let known=0;
+  lines.forEach(l=>{if(_pbHrs(_pbFind(l.desc,trade))!=null)known++;});
+  (_geiScopeChips||[]).forEach(()=>{});
+  return{known,total:lines.length};
 }
 
 function renderGeiLines(){
@@ -3501,7 +3688,7 @@ function saveGenericEstimate(draft){
       // mutating: the transition from stub to real content is the "wrote a
       // proposal" moment the "new bid" branch's lcProposalSaved can never fire.
       const _wasEmpty=_geiDraftIsEmpty(b);
-      b.amount=total;b.type=v('gei-desc')||_typeLabel;b.geiDesc=v('gei-desc')||'';
+      b.amount=total;b.type=v('gei-desc')||_typeLabel;b.geiDesc=v('gei-desc')||'';b.descUserSet=!!_geiDescUserSet;
       b.notes=v('gei-notes');b.geiLines=JSON.parse(JSON.stringify(_geiLines));
       b.geiTaxPct=taxPct;b.jobScope=_geiJobScope||'repair';b.salesTaxRate=parseFloat(S.salesTaxRate)||0;b.status=draft?'Draft':'Pending';b.draft=!!draft;
       b.geiDuration=v('gei-duration')||'';b.geiNewWork=_geiNewWork||false;
@@ -3524,7 +3711,7 @@ function saveGenericEstimate(draft){
       phone:'',addr:v('gei-addr'),
       bid_date:v('gei-date')||todayKey(),
       amount:total,deposit:_deposit,
-      type:v('gei-desc')||_typeLabel,geiDesc:v('gei-desc')||'',
+      type:v('gei-desc')||_typeLabel,geiDesc:v('gei-desc')||'',descUserSet:!!_geiDescUserSet,
       notes:v('gei-notes'),status:draft?'Draft':'Pending',draft:!!draft,
       isFreeForm:_geiIsFreeForm||false,
       ...(_geiScanId?{scanId:_geiScanId}:{}),
@@ -3755,10 +3942,16 @@ async function sendGenericProposal(previewOnly){
   // own line-item section list is additional structured detail specific to BYO
   // and renders alongside it, not instead of it (previously an if/else silently
   // dropped the selected scope chips whenever BYO had any line items on).
+  // One exception, added 2026-09-06: a chip whose label is also a line item is
+  // the SAME work written twice, and the client reads it twice in one section.
+  // The line item wins (it is the priced, itemized one) and the chip is
+  // dropped. Chips that say something the items do not still print.
   const _scopeBlocks=[];
-  if(_geiScopeChips.length&&!_geiScopeNoScope){
+  const _itemLabelKeys=new Set((_geiIsFreeForm?_byoItems.filter(it=>it&&it.on&&!it._rrp):[]).map(it=>_pbKey(it.label)));
+  const _chipsToPrint=_geiScopeChips.filter(l=>!_itemLabelKeys.has(_pbKey(l)));
+  if(_chipsToPrint.length&&!_geiScopeNoScope){
     const _allChipDefs=[...(TRADE_SCOPE_CHIPS[_geiTrade]||[]),...(TRADE_SCOPE_CHIPS.general||[]),..._GEN_SCOPE];
-    const _listItems=_geiScopeChips.map(l=>{
+    const _listItems=_chipsToPrint.map(l=>{
       const chip=_allChipDefs.find(c=>c.label===l);
       const desc=chip&&chip.clientDesc?`<span style="font-size:10.5px;color:#718096">, ${escHtml(chip.clientDesc)}</span>`:'';
       return `<li style="font-size:11.5px;color:#4a5568;line-height:1.7;overflow-wrap:anywhere">${escHtml(l)}${desc}</li>`;

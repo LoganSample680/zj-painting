@@ -3802,13 +3802,21 @@ test.describe('generic-estimate.js: exhaustive coverage', () => {
   // from every deliberate add and is the first thing in the add sheet, which is
   // the entire reason a Build Your Own estimate cost 90 interactions and a
   // template one cost 19.
+  //
+  // The rules that keep it clean without anybody maintaining it are the point:
+  // a line is only offered once he has used it twice, near-duplicates collapse,
+  // and a price that moves a lot asks instead of guessing.
   test.describe('price book', () => {
     const reset = () => page.evaluate(() => {
       S.priceBook = {};
       _geiTrade = 'plumbing';
       _byoItems = [];
+      window.__confirms = [];
+      window.zConfirm = (m, yes, opts) => { window.__confirms.push({ m, opts }); window.__lastYes = yes; };
       document.getElementById('_byo-add-modal')?.remove();
     });
+    // Used twice = earned its place in the book.
+    const learnTwice = (d, r) => page.evaluate(([desc, rate]) => { _pbLearn(desc, rate); _pbLearn(desc, rate); }, [d, r]);
 
     test('learns a line the moment it is added, with what he charged', async () => {
       await reset();
@@ -3824,6 +3832,18 @@ test.describe('generic-estimate.js: exhaustive coverage', () => {
       expect(r.hasDate).toBe(true);
     });
 
+    test('a line used once is remembered but never offered', async () => {
+      await reset();
+      const r = await page.evaluate(() => {
+        _pbLearn('Bedroom 3, walls only', 400);      // a one-off, job-specific
+        _pbLearn('Snake main line', 350);
+        _pbLearn('Snake main line', 350);            // used again, so it counts
+        return { stored: S.priceBook.plumbing.length, offered: _pbList().map(x => x.desc) };
+      });
+      expect(r.stored).toBe(2);                       // both remembered
+      expect(r.offered).toEqual(['Snake main line']); // only the repeat is offered
+    });
+
     test('the same line used again counts up and takes the newest price', async () => {
       await reset();
       const r = await page.evaluate(() => {
@@ -3835,6 +3855,59 @@ test.describe('generic-estimate.js: exhaustive coverage', () => {
       expect(r.rows).toBe(1);       // one line, not two
       expect(r.rate).toBe(1950);    // what he charges today is what he charges
       expect(r.count).toBe(2);
+    });
+
+    test('word order and punctuation do not make a second entry', async () => {
+      await reset();
+      const r = await page.evaluate(() => {
+        _pbLearn('Replace water heater', 1800);
+        _pbLearn('Water heater, replace', 1800);
+        const book = S.priceBook.plumbing;
+        return { rows: book.length, desc: book[0].desc, count: book[0].n };
+      });
+      expect(r.rows).toBe(1);
+      expect(r.desc).toBe('Replace water heater');   // the wording he used first
+      expect(r.count).toBe(2);
+    });
+
+    test('a genuinely different service is not merged into a similar one', async () => {
+      await reset();
+      const r = await page.evaluate(() => {
+        _pbLearn('Replace water heater', 1800);
+        _pbLearn('Replace kitchen faucet', 285);
+        return S.priceBook.plumbing.length;
+      });
+      expect(r).toBe(2);
+    });
+
+    test('a price that moves a lot asks instead of guessing', async () => {
+      await reset();
+      await learnTwice('Rebuild tub valve', 400);
+      const r = await page.evaluate(async () => {
+        _pbLearn('Rebuild tub valve', 900);          // way off: a decision, not a typo
+        // The question is deferred by a tick so it never fights the add sheet
+        // for the same frame, so wait for it the way the app does.
+        await new Promise(res => setTimeout(res, 10));
+        const book = S.priceBook.plumbing;
+        return { asked: window.__confirms.length, kept: book[0].rate, title: window.__confirms[0] && window.__confirms[0].opts.title };
+      });
+      expect(r.asked).toBe(1);
+      expect(r.kept).toBe(400);                      // unchanged until he says so
+      expect(r.title).toContain('your price now');
+      const after = await page.evaluate(() => { window.__lastYes(); return S.priceBook.plumbing[0].rate; });
+      expect(after).toBe(900);                       // one tap and it updates
+    });
+
+    test('a small price change updates silently, no question', async () => {
+      await reset();
+      await learnTwice('Install kitchen faucet', 280);
+      const r = await page.evaluate(async () => {
+        _pbLearn('Install kitchen faucet', 300);      // under a quarter, ordinary drift
+        await new Promise(res => setTimeout(res, 10));
+        return { asked: window.__confirms.length, rate: S.priceBook.plumbing[0].rate };
+      });
+      expect(r.asked).toBe(0);
+      expect(r.rate).toBe(300);
     });
 
     test('refuses junk: no price, no description, a half-typed word', async () => {
@@ -3853,20 +3926,19 @@ test.describe('generic-estimate.js: exhaustive coverage', () => {
     test('the most used float to the top, not the most recent', async () => {
       await reset();
       const r = await page.evaluate(() => {
-        _pbLearn('Used once', 100);
-        _pbLearn('Used three times', 200);
-        _pbLearn('Used three times', 200);
-        _pbLearn('Used three times', 200);
+        _pbLearn('Used twice', 100); _pbLearn('Used twice', 100);
+        _pbLearn('Used four times', 200); _pbLearn('Used four times', 200);
+        _pbLearn('Used four times', 200); _pbLearn('Used four times', 200);
         return _pbList().map(x => x.desc);
       });
-      expect(r[0]).toBe('Used three times');
+      expect(r[0]).toBe('Used four times');
     });
 
     test('the add sheet offers them, and a tap adds the line without typing', async () => {
       await reset();
+      await learnTwice('Replace 40 gal water heater', 1800);
+      await learnTwice('Rebuild tub valve', 425);
       const r = await page.evaluate(() => {
-        _pbLearn('Replace 40 gal water heater', 1800);
-        _pbLearn('Rebuild tub valve', 425);
         _byoAddItem('Materials');
         const chips = document.querySelectorAll('#_bya-book button');
         const before = _byoItems.length;
@@ -3888,6 +3960,63 @@ test.describe('generic-estimate.js: exhaustive coverage', () => {
       expect(r.section).toBe('Materials');
       expect(r.stillOpen).toBe(true);
       expect(r.counter).toContain('1 added');
+    });
+
+    test('never more than six chips, however big the book gets', async () => {
+      await reset();
+      await page.evaluate(() => { for (let i = 0; i < 20; i++) { _pbLearn('Service ' + i, 100 + i); _pbLearn('Service ' + i, 100 + i); } });
+      const r = await page.evaluate(() => {
+        _byoAddItem('Materials');
+        return { chips: document.querySelectorAll('#_bya-book button').length, inBook: _pbList().length };
+      });
+      expect(r.inBook).toBe(20);
+      expect(r.chips).toBe(6);
+      await page.evaluate(() => document.getElementById('_byo-add-modal')?.remove());
+    });
+
+    test('typing in the field searches the book, and a tap adds it', async () => {
+      await reset();
+      await learnTwice('Replace 40 gal water heater', 1850);
+      await learnTwice('Install kitchen faucet', 285);
+      const r = await page.evaluate(() => {
+        _byoAddItem('Materials');
+        const el = document.getElementById('_bya-label');
+        el.value = 'wat';
+        el.dispatchEvent(new Event('input', { bubbles: true }));
+        const sugg = document.querySelectorAll('#_bya-sugg button');
+        const shown = sugg.length;
+        const text = document.getElementById('_bya-sugg').textContent;
+        sugg[0].click();
+        const item = _byoItems[_byoItems.length - 1];
+        return {
+          shown, text,
+          label: item.label, price: item.price,
+          fieldCleared: document.getElementById('_bya-label').value === '',
+          suggCleared: document.getElementById('_bya-sugg').innerHTML === '',
+        };
+      });
+      expect(r.shown).toBe(1);                       // only the matching one
+      expect(r.text).toContain('water heater');
+      expect(r.label).toBe('Replace 40 gal water heater');
+      expect(r.price).toBe(1850);
+      expect(r.fieldCleared).toBe(true);
+      expect(r.suggCleared).toBe(true);
+      await page.evaluate(() => document.getElementById('_byo-add-modal')?.remove());
+    });
+
+    test('one or two letters searches nothing, and no match offers nothing', async () => {
+      await reset();
+      await learnTwice('Replace 40 gal water heater', 1850);
+      const r = await page.evaluate(() => {
+        _byoAddItem('Materials');
+        const el = document.getElementById('_bya-label');
+        const at = (v) => { el.value = v; el.dispatchEvent(new Event('input', { bubbles: true })); return document.querySelectorAll('#_bya-sugg button').length; };
+        return { one: at('w'), none: at('zzzqq'), hit: at('heater') };
+      });
+      expect(r.one).toBe(0);
+      expect(r.none).toBe(0);
+      expect(r.hit).toBe(1);
+      await page.evaluate(() => document.getElementById('_byo-add-modal')?.remove());
     });
 
     test('an empty book shows no chips at all, never an empty heading', async () => {

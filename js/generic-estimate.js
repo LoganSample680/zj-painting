@@ -1734,7 +1734,8 @@ function _byoAddItem(sec){
       '<div id="_bya-count" style="font-size:12px;font-weight:700;color:var(--text3)"></div>'+
     '</div>'+
     '<div id="_bya-book"></div>'+
-    '<div class="f" style="margin-bottom:10px"><label>What is it?</label><input type="text" id="_bya-label" placeholder="e.g. Bedroom 3, walls only"></div>'+
+    '<div class="f" style="margin-bottom:4px"><label>What is it?</label><input type="text" id="_bya-label" placeholder="e.g. Bedroom 3, walls only" autocomplete="off"></div>'+
+    '<div id="_bya-sugg" style="margin-bottom:10px"></div>'+
     '<div class="f" style="margin-bottom:10px"><label>Price ($)</label><div class="input-prefix"><span>$</span><input type="text" inputmode="numeric" id="_bya-price" placeholder="0" oninput="_byaFormatPriceInput(this)"></div></div>'+
     '<div class="f" style="margin-bottom:6px"><label>Notes <span style="font-weight:400;color:var(--text-3)">(optional)</span></label><textarea id="_bya-notes" rows="3" placeholder="e.g. Two coats, ceilings included" style="width:100%;box-sizing:border-box;resize:vertical;font-family:inherit"></textarea></div>'+
     '<div style="display:flex;gap:10px;margin-top:14px">'+
@@ -1744,6 +1745,10 @@ function _byoAddItem(sec){
   document.body.appendChild(ov);
   ov.addEventListener('click',e=>{if(e.target===ov)ov.remove();});
   _byaRenderBook(sec);
+  // The search is wired synchronously: the field exists the moment the sheet is
+  // in the DOM, and a listener that only attaches 50ms later misses whatever he
+  // typed in the meantime. Only the focus call needs to wait for the paint.
+  document.getElementById('_bya-label')?.addEventListener('input',()=>_byaSuggest(sec));
   setTimeout(()=>{
     const labelEl=document.getElementById('_bya-label');
     const priceEl=document.getElementById('_bya-price');
@@ -1778,7 +1783,7 @@ function _byoAddItem(sec){
 // is four taps and a Done, not four rounds of typing.
 function _byaRenderBook(sec){
   const el=document.getElementById('_bya-book');if(!el)return;
-  const book=_pbList().slice(0,8);
+  const book=_pbList().slice(0,6);
   if(!book.length){el.innerHTML='';return;}
   el.innerHTML=
     '<div style="font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.06em;color:var(--text3);margin-bottom:8px">What you usually charge</div>'+
@@ -1789,10 +1794,34 @@ function _byaRenderBook(sec){
         '<span style="font-size:10px;color:var(--text3)">'+(typeof fmt==='function'?fmt(b.rate):'$'+b.rate)+'</span>'+
       '</button>').join('')+
     '</div>'+
-    '<div style="font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.06em;color:var(--text3);margin-bottom:8px">Or type a new one</div>';
+    '<div style="font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.06em;color:var(--text3);margin-bottom:8px">Or type it</div>';
+}
+// Six chips, never sixty. Past that, the field he is already typing in does the
+// searching: three letters beats scrolling forty pills every time, and it is
+// the same shape as the who-is-it-for picker, so "find what I have, or make a
+// new one" is one pattern in this app and not two (7.3).
+function _byaSuggest(sec){
+  const wrap=document.getElementById('_bya-sugg');if(!wrap)return;
+  const q=(document.getElementById('_bya-label')?.value||'').trim();
+  if(q.length<2){wrap.innerHTML='';return;}
+  const ql=_pbKey(q);
+  const hits=_pbList().filter(b=>_pbKey(b.desc).includes(ql)||_pbSimilar(b.desc,q)>=0.5).slice(0,5);
+  if(!hits.length){wrap.innerHTML='';return;}
+  wrap.innerHTML=hits.map(b=>{
+    const i=_pbList().indexOf(b);
+    return '<button data-sec="'+escHtml(sec)+'" data-i="'+i+'" onclick="_byaAddFromBook(this.dataset.sec,+this.dataset.i)" '+
+      'style="width:100%;display:flex;align-items:center;justify-content:space-between;gap:10px;padding:9px 11px;border-radius:var(--r);border:1px solid var(--border2);background:var(--bg2);cursor:pointer;font-family:inherit;text-align:left;margin-bottom:5px">'+
+      '<span style="font-size:13px;font-weight:600;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+escHtml(b.desc)+'</span>'+
+      '<span style="font-size:12px;font-weight:700;color:var(--text3);flex-shrink:0">'+(typeof fmt==='function'?fmt(b.rate):'$'+b.rate)+'</span>'+
+    '</button>';
+  }).join('');
 }
 function _byaAddFromBook(sec,i){
   const b=_pbList()[i];if(!b)return;
+  // Whatever he had half-typed was him looking for THIS, so the field clears
+  // and the search closes rather than leaving a stale fragment behind.
+  const _l=document.getElementById('_bya-label');if(_l)_l.value='';
+  const _sg=document.getElementById('_bya-sugg');if(_sg)_sg.innerHTML='';
   const nextId=(_byoItems.reduce((m,x)=>Math.max(m,x.id),0))+1;
   _byoItems.push({id:nextId,section:sec,label:b.desc,price:b.rate,notes:'',on:true});
   _pbLearn(b.desc,b.rate,b.unit);   // used again, so it climbs
@@ -2720,23 +2749,40 @@ function _geiConfirmFreeForm(job){
 // Learned on a deliberate add, never on a keystroke: _byoAutosave fires on
 // field handlers, so learning there would fill the book with "Repl" and "Repla".
 const _PB_MAX=200;
+const _PB_DRIFT=0.25;          // a quarter off is a decision, not a typo
+const _PB_STOP=['the','a','an','and','or','of','to','for','with','on','in','at','new'];
 function _pbTrade(){return _geiTrade||(typeof getActiveTrade==='function'?getActiveTrade():'general')||'general';}
-function _pbList(trade){
-  // A stored book that is not an array (a bad sync, a hand-edited settings
-  // blob) must not take the add sheet down with it: the sheet is how he adds a
-  // line at all, and losing it costs him the estimate.
-  const raw=S.priceBook&&S.priceBook[trade||_pbTrade()];
-  const book=Array.isArray(raw)?raw:[];
-  // Most used, then most recent. A line he reaches for every week beats one he
-  // typed once in March, which is the whole reason for counting.
-  return book.slice().sort((a,b)=>((b.n||1)-(a.n||1))||String(b.last||'').localeCompare(String(a.last||'')));
+function _pbKey(d){return String(d||'').trim().toLowerCase().replace(/\s+/g,' ');}
+function _pbWords(d){return _pbKey(d).replace(/[^a-z0-9 ]/g,' ').split(/\s+/).filter(w=>w&&!_PB_STOP.includes(w));}
+// "Water heater replace" and "Replace water heater" are one service. Compared on
+// the words that carry meaning, so word order and punctuation stop mattering.
+function _pbSimilar(a,b){
+  const A=new Set(_pbWords(a)),B=new Set(_pbWords(b));
+  if(!A.size||!B.size)return 0;
+  let hit=0;A.forEach(w=>{if(B.has(w))hit++;});
+  return hit/(A.size+B.size-hit);
 }
-function _pbLearnAll(){
-  try{
-    (_byoItems||[]).forEach(i=>_pbLearn(i.label,i.price));
-    // Labor lines are the crew rate, not a thing he sells, so they stay out.
-    (_geiLines||[]).forEach(l=>{if(!l._tmLabor)_pbLearn(l.desc,l.rate,l.unit);});
-  }catch(_e){}
+function _pbBook(trade){
+  // A stored book that is not an array (a bad sync, a hand-edited settings blob)
+  // must not take the add sheet down with it: the sheet is how he adds a line at
+  // all, and losing it costs him the estimate, not just the suggestions.
+  const raw=S.priceBook&&S.priceBook[trade||_pbTrade()];
+  return Array.isArray(raw)?raw:[];
+}
+function _pbList(trade){
+  // n===1 means seen once and NOT yet offered. This is the rule that keeps the
+  // book clean without anybody maintaining it: "Bedroom 3, walls only" is typed
+  // once and never comes back, so it never becomes a suggestion, while
+  // "Replace 40 gal water heater" earns its place the second time he uses it.
+  // ServiceTitan makes the book a project you finish before you can work. This
+  // one is a byproduct of working.
+  return _pbBook(trade).filter(x=>(x.n||1)>=2)
+    .sort((a,b)=>((b.n||1)-(a.n||1))||String(b.last||'').localeCompare(String(a.last||'')));
+}
+function _pbFind(desc,trade){
+  const book=_pbBook(trade);
+  const key=_pbKey(desc);
+  return book.find(x=>_pbKey(x.desc)===key)||book.find(x=>_pbSimilar(x.desc,desc)>=0.8)||null;
 }
 function _pbLearn(desc,rate,unit){
   const d=String(desc||'').trim();
@@ -2746,22 +2792,44 @@ function _pbLearn(desc,rate,unit){
   if(!S.priceBook||typeof S.priceBook!=='object')S.priceBook={};
   if(!Array.isArray(S.priceBook[trade]))S.priceBook[trade]=[];
   const book=S.priceBook[trade];
-  const key=d.toLowerCase();
-  const hit=book.find(x=>String(x.desc||'').trim().toLowerCase()===key);
+  const hit=_pbFind(d,trade);
   if(hit){
-    // The newest price wins: what he charges today is what he charges.
-    hit.rate=r;hit.unit=unit||hit.unit||'ea';hit.n=(hit.n||1)+1;hit.last=todayKey();
+    const was=Number(hit.rate)||0;
+    hit.n=(hit.n||1)+1;
+    hit.last=todayKey();
+    hit.unit=unit||hit.unit||'ea';
+    // A quarter off the stored price is either a real change or a one-off he
+    // does not want remembered, and guessing wrong either freezes an old price
+    // or poisons a good one. So ask, once, and only for a line he already uses.
+    if(was>0&&Math.abs(r-was)/was>_PB_DRIFT&&(hit.n||0)>2){
+      const _keep=was;
+      if(typeof zConfirm==='function'){
+        setTimeout(()=>zConfirm(
+          'You charged '+(typeof fmt==='function'?fmt(r):'$'+r)+' for "'+escHtml(hit.desc)+'" this time. It was '+(typeof fmt==='function'?fmt(_keep):'$'+_keep)+'.',
+          ()=>{hit.rate=r;if(typeof _settingsChanged==='function')_settingsChanged();},
+          {title:'Is that your price now?',yes:'Yes, update it',no:'Just this job'}),0);
+      }else{hit.rate=r;}
+    }else{
+      hit.rate=r;
+    }
   }else{
+    // n:1, remembered but not offered until he uses it again.
     book.push({desc:d,unit:unit||'ea',rate:r,n:1,last:todayKey()});
     if(book.length>_PB_MAX){
-      // Drop the least used, oldest first, so the book never becomes a haystack.
+      // The one-offs go first: never used twice, oldest of those first.
       book.sort((a,b)=>((b.n||1)-(a.n||1))||String(b.last||'').localeCompare(String(a.last||'')));
       book.length=_PB_MAX;
     }
   }
   if(typeof _settingsChanged==='function')_settingsChanged();
 }
-
+function _pbLearnAll(){
+  try{
+    (_byoItems||[]).forEach(i=>_pbLearn(i.label,i.price));
+    // Labor lines are the crew rate, not a thing he sells, so they stay out.
+    (_geiLines||[]).forEach(l=>{if(!l._tmLabor)_pbLearn(l.desc,l.rate,l.unit);});
+  }catch(_e){}
+}
 
 function renderGeiLines(){
   const el=document.getElementById('gei-lines');if(!el)return;

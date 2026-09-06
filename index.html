@@ -2901,6 +2901,15 @@ body.dark .cal-cell.other{background:var(--cream)}
           <div class="set-idx-meta" id="set-meta-rates"></div>
           <div class="set-idx-chev">›</div>
         </div>
+        <div class="set-idx-row" data-search="price book prices services line items estimate library what i charge" onclick="_openSetDetail('pricebook')">
+          <div class="set-idx-icon"><span data-ico="🔖" data-ico-size="18"></span></div>
+          <div class="set-idx-body">
+            <div class="set-idx-title">Price book</div>
+            <div class="set-idx-sub">What you charge, learned from your estimates</div>
+          </div>
+          <div class="set-idx-meta" id="set-meta-pricebook"></div>
+          <div class="set-idx-chev">›</div>
+        </div>
         <div class="set-idx-row" data-search="legal terms conditions UETA change order clause proposal" onclick="_openSetDetail('legal')">
           <div class="set-idx-icon"><span data-ico="📋" data-ico-size="18"></span></div>
           <div class="set-idx-body">
@@ -3200,6 +3209,20 @@ body.dark .cal-cell.other{background:var(--cream)}
   </div>
 
   <!-- Rates & pricing detail -->
+  <!-- Price book: a plain list, never a wizard. If he cannot fix a wrong price
+       in ten seconds he stops trusting the book, and a book he does not trust
+       is worse than no book at all. -->
+  <div class="set-detail" id="setd-pricebook">
+    <div class="set-detail-hd">
+      <button class="set-detail-back" onclick="_closeSetDetail()">‹</button>
+      <div class="set-idx-icon" style="flex-shrink:0"><span data-ico="🔖" data-ico-size="18"></span></div>
+      <div style="flex:1"><div style="font-size:16px;font-weight:800;letter-spacing:-.2px">Price book</div><div style="font-size:11px;color:var(--text3)">What you charge, learned as you work</div></div>
+    </div>
+    <div style="padding:16px">
+      <div id="pb-trade-tabs" style="display:flex;gap:6px;overflow-x:auto;-webkit-overflow-scrolling:touch;margin-bottom:12px;scrollbar-width:none"></div>
+      <div id="pb-list"></div>
+    </div>
+  </div>
   <div class="set-detail" id="setd-rates">
     <div class="set-detail-hd">
       <button class="set-detail-back" onclick="_closeSetDetail()">‹</button>

@@ -13,6 +13,92 @@ function _openSetDetail(key) {
   if (key === 'integrations') _renderIntegrations();
   if (key === 'branding') _renderBrandSwatches(S.brandColor||'#2D5DA8');
   if (key === 'truerates') loadTrueRatesForm();
+  if (key === 'pricebook') renderPriceBookSettings();
+}
+
+// ── Price book editor ───────────────────────────────────────────────────────
+//
+// The book builds itself out of the estimates he writes (js/generic-estimate.js
+// _pbLearn), which is the whole point: nobody sets up a price book before they
+// are allowed to work. But a book he cannot correct is a book he stops
+// trusting, and one wrong price quietly repeated across ten proposals is worse
+// than no book. So this is a list: tap a price to change it, tap the name to
+// rename it, one X to remove it. Not a wizard, not a spreadsheet.
+let _pbTradeTab=null;
+function _pbSettingsTrades(){
+  const book=(S&&S.priceBook&&typeof S.priceBook==='object')?S.priceBook:{};
+  return Object.keys(book).filter(t=>Array.isArray(book[t])&&book[t].length);
+}
+function renderPriceBookSettings(){
+  const tabs=document.getElementById('pb-trade-tabs');
+  const list=document.getElementById('pb-list');
+  if(!list)return;
+  const trades=_pbSettingsTrades();
+  if(!trades.length){
+    if(tabs)tabs.innerHTML='';
+    list.innerHTML='<div style="padding:22px 4px;font-size:13px;color:var(--text3);line-height:1.6">'+
+      'Nothing here yet, and that is on purpose. Write an estimate and the lines you use twice land here on their own, with what you charged.'+
+      '</div>';
+    return;
+  }
+  if(!_pbTradeTab||!trades.includes(_pbTradeTab))_pbTradeTab=trades[0];
+  if(tabs)tabs.innerHTML=trades.length>1?trades.map(t=>{
+    const on=t===_pbTradeTab;
+    const label=(typeof TRADE_META!=='undefined'&&TRADE_META[t]&&TRADE_META[t].label)||t;
+    return '<button data-t="'+escHtml(t)+'" onclick="_pbPickTrade(this.dataset.t)" class="btn btn-sm" style="white-space:nowrap;'+(on?'background:var(--blue);color:#fff;border-color:var(--blue)':'')+'">'+escHtml(label)+'</button>';
+  }).join(''):'';
+  const rows=(S.priceBook[_pbTradeTab]||[]).slice()
+    .sort((a,b)=>((b.n||1)-(a.n||1))||String(b.last||'').localeCompare(String(a.last||'')));
+  list.innerHTML=rows.map((r,i)=>{
+    const used=(r.n||1)>=2?((r.n||1)+'x'):'once, not offered yet';
+    return '<div style="display:flex;align-items:center;gap:10px;padding:11px 2px;border-bottom:1px solid var(--border)">'+
+      '<div style="flex:1;min-width:0">'+
+        '<button data-i="'+i+'" onclick="_pbRename(+this.dataset.i)" style="display:block;width:100%;text-align:left;background:none;border:none;padding:0;font-family:inherit;cursor:pointer;font-size:13px;font-weight:700;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+escHtml(r.desc)+'</button>'+
+        '<div style="font-size:11px;color:var(--text3)">'+escHtml(used)+(r.last?' · '+escHtml(r.last):'')+'</div>'+
+      '</div>'+
+      '<button data-i="'+i+'" onclick="_pbReprice(+this.dataset.i)" style="background:none;border:none;padding:0;font-family:inherit;cursor:pointer;font-size:14px;font-weight:800;color:var(--blue);flex-shrink:0">'+(typeof fmt==='function'?fmt(r.rate):'$'+r.rate)+'</button>'+
+      '<button data-i="'+i+'" onclick="_pbRemove(+this.dataset.i)" aria-label="Remove" style="background:none;border:none;padding:4px 2px;font-family:inherit;cursor:pointer;font-size:15px;color:var(--text3);flex-shrink:0">&times;</button>'+
+    '</div>';
+  }).join('')+
+  '<div style="font-size:11px;color:var(--text3);padding:12px 2px 0;line-height:1.6">A line lands here the second time you use it, so one-off descriptions never clutter it up.</div>';
+}
+function _pbPickTrade(t){_pbTradeTab=t;renderPriceBookSettings();}
+function _pbSettingsRow(i){
+  const rows=(S.priceBook&&S.priceBook[_pbTradeTab])||[];
+  const sorted=rows.slice().sort((a,b)=>((b.n||1)-(a.n||1))||String(b.last||'').localeCompare(String(a.last||'')));
+  return sorted[i]||null;
+}
+function _pbRename(i){
+  const r=_pbSettingsRow(i);if(!r)return;
+  if(typeof zPrompt!=='function')return;
+  zPrompt('What do you call this?',v=>{
+    const name=String(v||'').trim();
+    if(!name)return;
+    r.desc=name;_settingsChanged();renderPriceBookSettings();
+  },{title:'Rename',value:r.desc});
+}
+function _pbReprice(i){
+  const r=_pbSettingsRow(i);if(!r)return;
+  if(typeof zPrompt!=='function')return;
+  zPrompt('What do you charge for this?',v=>{
+    // Strip only the money noise a person types ($ , and spaces), never the
+    // sign: stripping everything non-numeric turned "-40" into 40 and set a
+    // real price from a typo.
+    const n=parseFloat(String(v||'').replace(/[$,\s]/g,''));
+    if(!(n>0))return;
+    r.rate=n;_settingsChanged();renderPriceBookSettings();
+  },{title:r.desc,value:String(r.rate||'')});
+}
+function _pbRemove(i){
+  const r=_pbSettingsRow(i);if(!r)return;
+  const go=()=>{
+    const arr=S.priceBook[_pbTradeTab]||[];
+    const at=arr.indexOf(r);
+    if(at>=0)arr.splice(at,1);
+    _settingsChanged();renderPriceBookSettings();
+  };
+  if(typeof zConfirm==='function')zConfirm('Remove "'+escHtml(r.desc)+'" from your price book? It will come back if you use it twice again.',go,{title:'Remove',yes:'Remove',danger:true});
+  else go();
 }
 
 function _closeSetDetail() {
@@ -34,6 +120,15 @@ function _renderSetIndex() {
     const state = S.state || '';
     const loc = [city, state].filter(Boolean).join(', ');
     bizMeta.innerHTML = name ? `<strong>${escHtml(name)}</strong>${loc ? '<br>' + escHtml(loc) : ''}` : '';
+  }
+  // Price book meta: how many lines are actually being offered to him, which is
+  // the number that matters, not how many rows are stored.
+  const pbMeta = document.getElementById('set-meta-pricebook');
+  if (pbMeta) {
+    const book = (S && S.priceBook && typeof S.priceBook === 'object') ? S.priceBook : {};
+    let n = 0;
+    Object.keys(book).forEach(t => { if (Array.isArray(book[t])) n += book[t].filter(x => (x.n || 1) >= 2).length; });
+    pbMeta.innerHTML = n ? `<strong>${n}</strong><br>${n === 1 ? 'price' : 'prices'}` : '';
   }
   // Branding meta
   const brandMeta = document.getElementById('set-meta-branding');

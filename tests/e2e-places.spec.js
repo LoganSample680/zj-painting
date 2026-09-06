@@ -810,6 +810,13 @@ test.describe('Places, drive attribution and the map', () => {
 
   test('the shop is lifted out of the business address into td_places, once', async () => {
     const out = await page.evaluate(() => {
+      // The migration now waits for the account's own data before deciding
+      // there is no shop yet (see _migrateShopToPlaces): every guard it uses
+      // reads the in-memory `places` array, and at boot that array is empty
+      // until the snapshot lands. A local-only session has nothing to wait
+      // for, which is what this exercises. The waiting itself is covered
+      // below.
+      const _u = window._supaUser; window._supaUser = null;
       places.length = 0;
       S.officeLat = 37.705; S.officeLon = -97.352; S.bname = 'Sample Painting';
       renderPlaces();
@@ -817,12 +824,37 @@ test.describe('Places, drive attribution and the map', () => {
       renderPlaces();
       renderPlaces();
       const shop = places.find(p => p.kind === 'shop');
+      window._supaUser = _u;
       return { after1, total: places.length, name: shop && shop.name, src: shop && shop.confirmedBy };
     });
     expect(out.after1).toBe(1);
     expect(out.total).toBe(1); // idempotent
     expect(out.name).toBe('Sample Painting shop');
     expect(out.src).toBe('business-address');
+  });
+
+  // The duplicate this prevents, from the owner's own account: two "TradeDesk
+  // shop" places on the identical pin, nine days apart, both minted from the
+  // business address, so one arrival fired two region events.
+  test('a signed-in boot never mints a second shop before the account has loaded', async () => {
+    const out = await page.evaluate(() => {
+      places.length = 0;
+      S.officeLat = 37.705; S.officeLon = -97.352; S.bname = 'Sample Painting';
+      // Signed in, snapshot not merged yet: `places` is empty because nothing
+      // has loaded, not because the account has no shop.
+      const before = places.length;
+      renderPlaces();
+      const during = places.length;
+      // Local-only session (nothing to wait for): it lifts as normal.
+      const _u = window._supaUser; window._supaUser = null;
+      renderPlaces();
+      const after = places.length;
+      window._supaUser = _u;
+      return { before, during, after };
+    });
+    expect(out.before).toBe(0);
+    expect(out.during, 'no shop is invented while the account is still loading').toBe(0);
+    expect(out.after).toBe(1);
   });
 
   test('the places list renders each location with its provenance', async () => {

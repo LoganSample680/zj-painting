@@ -752,6 +752,15 @@ function _placeKindLabel(k){return PLACE_KINDS[k]||PLACE_KINDS.other;}
 // up alongside everything else. Idempotent: guarded on a shop already existing.
 function _migrateShopToPlaces(){
   if(!(S.officeLat&&S.officeLon))return null;
+  // NEVER MIGRATE AGAINST AN EMPTY BOOT. Every guard below reads the in-memory
+  // `places` array, and at boot that array is empty until the cloud snapshot
+  // lands. Open the Places screen in that window and all three guards pass on
+  // an account that already HAS a shop, so a second one is minted at the same
+  // coordinate. The owner's account carried exactly that: two "TradeDesk shop"
+  // places on the identical pin, nine days apart, both confirmedBy
+  // business-address, so one arrival fired two region events.
+  if(typeof supaEnabled==='function'&&supaEnabled()&&typeof _supaUser!=='undefined'&&_supaUser&&
+     typeof _supaCloudLoaded!=='undefined'&&!_supaCloudLoaded)return null;
   if((places||[]).some(p=>p.kind==='shop'))return null;
   if(placeAt({lat:S.officeLat,lon:S.officeLon}))return null;
   return savePlace({

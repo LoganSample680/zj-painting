@@ -7117,6 +7117,9 @@ function _geoOpenDwellPublish(dayKey,res){
     if(dayKey!==_geoDayKeyOf(Date.now(),_geoBizTz()))return;
     const o=res&&res.open;
     const next=o?{id:String(o.id||''),name:String(o.name||''),kind:String(o.kind||''),sinceTs:Number(o.sinceTs)||0,atHome:!!o.atHome,
+      // The deriver's verdict on whether this would bill if it closed now
+      // (rule 14). Screens must not draw it as time when it is false.
+      counts:o.counts!==false,
       sinceIso:new Date(Number(o.sinceTs)||Date.now()).toISOString(),journeyId:String(o.journeyId||''),
       fence:o.fence?{id:o.fence.id,kind:o.fence.kind,name:o.fence.name,jobId:o.fence.jobId,clientId:o.fence.clientId,addr:o.fence.addr||''}:null}:null;
     const prev=window._geoOpenDwell||null;

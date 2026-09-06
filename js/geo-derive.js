@@ -821,6 +821,12 @@ function geoDeriveDay(input) {
   const ended = _gdEndOfDay(housed, fences, opts, open, journeys.some(j => j && j.open), legs);
   // Rule 13: a visit the day cannot vouch for is a question, not a row.
   const asked = _gdHeldVisits(ended, inp, dayStart);
+  // WOULD THIS BILL IF IT CLOSED NOW? The open dwell is published straight to
+  // the screens (_geoOpenDwellPublish) and skips every rule above on the way,
+  // so a man standing in his own kitchen read as time on the clock at the shop
+  // (owner 2026-09-06). It still reports where he is; it now also says whether
+  // that is work, and the rail can stop calling it time.
+  if (open) open.counts = _gdOpenCounts(open, asked);
 
   return {
     day: inp.day || '',
@@ -1123,6 +1129,15 @@ function _gdIsHouse(fence, fences, radiusFt) {
 // also the shop": the fence ranker hands a spot to the shop first, so a house
 // that is also somebody's yard comes back kind 'shop' and keeps the owner's rule
 // that shop time always counts (9.11), with rule 11 still trimming its evening.
+// Rule 14's answer for the live screens: an open dwell at somebody's own
+// address is not time until the day lands in real work. Same test the writer
+// uses, read off the dwells that survived it, so the rail and the row can
+// never disagree.
+function _gdOpenCounts(open, dwells) {
+  if (!open) return false;
+  if (!open.atHome) return true;
+  return (dwells || []).some(d => d && !_gdIsBaseKind(d.kind) && d.kind !== 'office');
+}
 function _gdHouseOffTheClock(dwells) {
   return (dwells || []).filter(d => d && String(d.kind) !== 'home_office');
 }
@@ -1151,39 +1166,67 @@ function _gdEndOfDay(dwells, fences, opts, open, driving, legs) {
   // at your own house with no work in it is not a shift. (The home office
   // itself never reaches here any more: rule 12 cuts it first, on every day.)
   if (!work.length) {
-    // "No work" has to mean no work ANYWHERE, not merely no work DWELL. A day
-    // can hold a real client visit that never becomes a dwell of its own,
-    // because rule 9 drops the first and last stretch: drive from a client to
-    // the house and back and the client is only ever an endpoint. Rule 10 is
-    // explicit that inside the working day the house is a legitimate stop, so
-    // dropping it there would be wrong.
+    // Rule 14: THE DAY HAS TO LAND IN REAL WORK (owner 2026-09-06, looking at
+    // his own live day: "I drove out, never entered a job fence so is that how
+    // we split it? Has to land in a job fence? If not general clock in handles
+    // it").
     //
-    // A leg touching a non-base fence is that proof. Jack's day has none:
-    // home, the gym, home, and the gym has no fence, so the journey stays
-    // pending and writes no leg at all.
-    // The only place that does not count as work is somebody's own house. A
-    // real shop does (owner rule: shop time always counts), so a day of shop,
-    // house, shop is a working day and rule 10's "inside the working day the
-    // house is a stop" applies to the middle of it.
-    const notHome = f => !!f && !_gdIsHouse(f, fences, opts.radiusFt);
-    const workLeg = (legs || []).some(l => l && (notHome(l.from) || notHome(l.to)));
-    if (workLeg) return dwells;
-    // Only a shop that is the house is left to cut: rule 12 already removed
-    // every home_office dwell before this ran.
+    // It does. Landing means a DWELL at a job, client or supply fence. Driving
+    // past one, or out to an address that never resolves, is not landing.
+    //
+    // This replaces a "a leg touched a non-house fence" escape hatch that let
+    // any resolved endpoint flip a whole day back to billable. His 2026-09-06:
+    // out at 10:28, a stop that never resolved, home at 12:22, and then hours
+    // at his own address reading as shop time on the rail. Nothing that day
+    // was work, and the manual clock is how a day like that gets claimed.
     return dwells.filter(d => !(String(d.kind) === 'shop' && _gdShopIsHome(d.fence, fences, opts.radiusFt)));
   }
   const openWork = !!(open && !_gdIsBaseKind(open.kind) && open.kind !== 'office');
   if (openWork || driving) return dwells;                // the day is not over
   const lastWorkEnd = Math.max.apply(null, work.map(d => d.endTs));
+  const firstWorkStart = Math.min.apply(null, work.map(d => d.startTs));
+  const wrapMs = (Number(opts.wrapMin) > 0 ? Number(opts.wrapMin) : 0) * 60000;
+  const trim = (d, a, b) => (b > a)
+    ? Object.assign(_gdDwell(d.fence, a, b, d.journeyId, false), { closedBy: d.closedBy, wrapped: (b - a) < (d.endTs - d.startTs) })
+    : null;
   const out = [];
   for (const d of dwells) {
-    if (!_gdIsBaseKind(d.kind) || d.startTs < lastWorkEnd) { out.push(d); continue; }
-    // After the last real work. A real shop gets the wrap-up allowance.
-    if (d.kind === 'shop' && !_gdShopIsHome(d.fence, fences, opts.radiusFt)) {
-      const cap = d.startTs + (Number(opts.wrapMin) > 0 ? Number(opts.wrapMin) : 0) * 60000;
-      if (cap > d.startTs) out.push(Object.assign(_gdDwell(d.fence, d.startTs, Math.min(d.endTs, cap), d.journeyId, false), { closedBy: d.closedBy, wrapped: d.endTs > cap }));
+    if (!_gdIsBaseKind(d.kind)) { out.push(d); continue; }
+    // Rule 14, second half: A HOME SHOP IS A BOOKEND, NEVER THE DAY. On a day
+    // that did land in real work, the house earns the truck-loading window on
+    // either side of it and nothing else. It used to keep every minute that
+    // started before the last work end, so one job at 3pm paid for the whole
+    // morning at his own address.
+    //
+    // This is the wider reading of the 2026-08-24 rule that CLAUDE.md 9.11
+    // said only the owner could authorise, and he did (2026-09-06): a house
+    // that is also a yard gets the same bounded wrap a real yard gets, at both
+    // ends, instead of everything before the last job and nothing after. It is
+    // capped at wrapMin, so it cannot repeat the 19h38m the evening trim was
+    // written for. Real work at a home shop in the middle of the day is the
+    // manual clock's job, by his own instruction.
+    if (d.kind === 'shop' && _gdShopIsHome(d.fence, fences, opts.radiusFt)) {
+      // BEFORE the first work of the day: the loading window, and only that.
+      // This is the half that was wrong. A dwell starting before the last work
+      // end was kept in FULL, so one job at 3pm paid for the whole morning at
+      // his own address (owner 2026-09-06, watching it happen live).
+      if (d.endTs <= firstWorkStart) { const row = wrapMs ? trim(d, Math.max(d.startTs, d.endTs - wrapMs), d.endTs) : null; if (row) out.push(row); continue; }
+      // BETWEEN two pieces of work: kept whole, unchanged. Work on both sides
+      // is the strongest proof there is that the stop was the truck, not the
+      // couch (owner 2026-09-02, "the shop between two jobs is the shop").
+      if (d.startTs < lastWorkEnd) { out.push(d); continue; }
+      // AFTER the last work: nothing, unchanged. A real yard gets 30 minutes
+      // to unload; an evening at the house does not (owner 2026-09-02 on his
+      // own 5:29, "those aren't needed").
+      continue;
     }
-    // A home office, or a shop that is the house: nothing.
+    if (d.startTs < lastWorkEnd) { out.push(d); continue; }
+    // After the last real work. A real shop gets the wrap-up allowance.
+    if (d.kind === 'shop') {
+      const row = trim(d, d.startTs, Math.min(d.endTs, d.startTs + wrapMs));
+      if (row) out.push(row);
+    }
+    // A home office: nothing.
   }
   return out;
 }

@@ -1083,6 +1083,77 @@ test.describe('geo-derive: the day deriver', () => {
       expect(r.dwells.filter(d => d.kind === 'home_office')).toEqual([]);
     });
 
+    // ── Rule 14: the day has to land in real work ────────────────────────
+    // Owner 2026-09-06, watching his own live day put him on the clock at his
+    // own kitchen table: "I drove out, never entered a job fence so is that
+    // how we split it? Has to land in a job fence? If not general clock in
+    // handles it."
+    test('rule 14: a drive that never lands in a work fence leaves the house off the clock', async () => {
+      // His 2026-09-06 shape: out of the house at 10:28, a stop that resolves
+      // to nothing, home at 12:22, and then hours at his own address.
+      const tape = [mo(T(5, 0), 'still'), mo(T(5, 28), 'driving'), mo(T(5, 45), 'onFoot'),
+                    mo(T(7, 9), 'driving'), mo(T(7, 22), 'onFoot')];
+      const fixes = [fix(T(4, 0), SHOP), fix(T(5, 28, 5), SHOP), fix(T(5, 45, 5), GAS),
+                     fix(T(6, 30), GAS), fix(T(7, 9, 5), GAS), fix(T(7, 22, 5), SHOP), fix(T(9, 0), SHOP)];
+      const r = await run(page, base({ tape, fixes, nowMs: T(10, 0) }));
+      expect(r.dwells.filter(d => d.kind === 'shop')).toEqual([]);
+      expect(r.dwells.filter(d => d.kind === 'home_office')).toEqual([]);
+    });
+
+    test('rule 14: a leg that merely TOUCHES a work fence is not landing in one', async () => {
+      // The escape hatch this replaces: the day's only work evidence is a leg
+      // ENDPOINT at a client (rule 9 drops the first stretch, so the visit is
+      // never a dwell of its own). That used to hand every base dwell back
+      // untouched, house included.
+      const tape = [mo(T(6, 0), 'onFoot'), mo(T(6, 30), 'driving'), mo(T(6, 50), 'onFoot')];
+      const fixes = [fix(T(5, 30), DOE), fix(T(6, 30, 5), DOE), fix(T(6, 50, 5), SHOP), fix(T(9, 0), SHOP), fix(T(12, 0), SHOP)];
+      const r = await run(page, base({ tape, fixes, nowMs: T(13, 0) }));
+      expect(r.legs.map(l => [l.from.name, l.to.name])).toEqual([['John Doe', 'TradeDesk shop']]);
+      expect(r.dwells.filter(d => d.kind === 'shop')).toEqual([]);
+    });
+
+    test('rule 14: a morning at his own address before one afternoon job is the loading window, not the morning', async () => {
+      // Home from the start of the day, out to Doe at 13:00, work, home for
+      // the evening. The morning used to be kept in FULL because it started
+      // before the last work ended.
+      const tape = [mo(T(5, 30), 'driving'), mo(T(6, 0), 'onFoot'), mo(T(13, 0), 'driving'), mo(T(13, 20), 'onFoot'),
+                    mo(T(17, 0), 'driving'), mo(T(17, 20), 'onFoot')];
+      const fixes = [fix(T(6, 0, 5), SHOP), fix(T(9, 0), SHOP), fix(T(12, 0), SHOP), fix(T(13, 0, 5), SHOP),
+                     fix(T(13, 20, 5), DOE), fix(T(15, 0), DOE), fix(T(17, 0, 5), DOE),
+                     fix(T(17, 20, 5), SHOP), fix(T(19, 0), SHOP)];
+      const r = await run(page, base({ tape, fixes }));
+      const shop = r.dwells.filter(d => d.kind === 'shop');
+      // Exactly the wrap allowance, ending when he pulled out, and nothing
+      // after the last job (that half is unchanged, owner 2026-09-02).
+      expect(shop.map(d => [d.minutes, hm(d.endTs), !!d.wrapped])).toEqual([[30, hm(T(13, 0)), true]]);
+      expect(r.dwells.filter(d => d.kind === 'client').length).toBe(1);
+    });
+
+    test('rule 14: the open dwell says whether it would bill, so the rail can stop calling it time', async () => {
+      // Standing at his own address, nothing landed yet today.
+      const tape = [mo(T(5, 30), 'driving'), mo(T(6, 0), 'onFoot')];
+      const fixes = [fix(T(6, 0, 5), SHOP), fix(T(7, 0), SHOP), fix(T(8, 0), SHOP)];
+      const home = await run(page, base({ tape, fixes, nowMs: T(9, 0) }));
+      expect(home.open && home.open.atHome).toBe(true);
+      expect(home.open && home.open.counts).toBe(false);
+
+      // Same spot, but the day landed in a real client visit first.
+      const t2 = [mo(T(6, 0), 'onFoot'), mo(T(6, 30), 'driving'), mo(T(6, 50), 'onFoot'),
+                  mo(T(11, 0), 'driving'), mo(T(11, 20), 'onFoot')];
+      const f2 = [fix(T(6, 30, 5), SHOP), fix(T(6, 50, 5), DOE), fix(T(9, 0), DOE), fix(T(11, 0, 5), DOE),
+                  fix(T(11, 20, 5), SHOP), fix(T(12, 0), SHOP)];
+      const worked = await run(page, base({ tape: t2, fixes: f2, nowMs: T(13, 0) }));
+      expect(worked.open && worked.open.atHome).toBe(true);
+      expect(worked.open && worked.open.counts).toBe(true);
+
+      // Standing at a client: always counts, house rules never apply.
+      const t3 = [mo(T(6, 0), 'onFoot'), mo(T(6, 30), 'driving'), mo(T(6, 50), 'onFoot')];
+      const f3 = [fix(T(6, 30, 5), SHOP), fix(T(6, 50, 5), DOE), fix(T(9, 0), DOE), fix(T(11, 0), DOE)];
+      const onsite = await run(page, base({ tape: t3, fixes: f3, nowMs: T(12, 0) }));
+      expect(onsite.open && onsite.open.name).toBe('John Doe');
+      expect(onsite.open && onsite.open.counts).toBe(true);
+    });
+
     // The other half of that line: a day whose only fences are a REAL yard and
     // a house is still a working day, because shop time always counts. Only
     // somebody's own address fails to make a day a shift.

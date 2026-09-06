@@ -635,7 +635,11 @@ async function _timeLogRows(sinceISO){
           personName:(typeof getOwnerName==='function'&&getOwnerName())||'Me',personUid:me,
           clientName:od.name||(kind==='shop'?((typeof S!=='undefined'&&S&&S.bname)||'Shop'):'On site'),
           addr:(od.fence&&od.fence.addr)||'',jobName:'',clientKey:od.id||null,
-          unpaid:false,detail:'On site now',live:true,
+          // Rule 14: the deriver says whether this would bill if it closed now.
+          // At his own address on a day that has not landed in real work it
+          // would not, so the rail shows where he is and counts none of it,
+          // instead of drawing shop time nobody was ever going to be paid.
+          unpaid:od.counts===false,detail:od.counts===false?'Here now, not counted':'On site now',live:true,
           startTime:od.sinceIso,endTime:new Date().toISOString()
         });
       }
@@ -2444,7 +2448,7 @@ function _tlRenderOpenBanner(){
     const od=window._geoOpenDwell;
     const me=(typeof _supaUser!=='undefined'&&_supaUser)?_supaUser.id:null;
     if(od&&od.sinceTs>0&&me){
-      visible=visible.concat([{rawId:null,geo:true,personName:(typeof getOwnerName==='function'&&getOwnerName())||'Me',personUid:me,
+      visible=visible.concat([{rawId:null,geo:true,notCounted:od.counts===false,personName:(typeof getOwnerName==='function'&&getOwnerName())||'Me',personUid:me,
         clientName:od.name||'On site',jobName:'',startTime:od.sinceIso,startMs:od.sinceTs,elapsedMin:Math.max(0,Math.round((Date.now()-od.sinceTs)/60000))}]);
     }
   }catch(_e){}
@@ -2458,7 +2462,7 @@ function _tlRenderOpenBanner(){
       // before it silently becomes a wrong payroll number.
       '<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;padding:7px 0;border-top:1px solid var(--c-green-edge)">'+
         '<div style="min-width:0">'+
-          '<div style="font-size:13px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+escHtml(r.personName)+(r.elapsedMin>600?' <span title="Clocked in 10+ hours, likely a forgotten clock-out" style="font-size:9px;font-weight:800;padding:2px 5px;border-radius:4px;background:var(--c-red-soft);color:var(--c-red-deep);margin-left:4px">LONG SHIFT</span>':'')+'</div>'+
+          '<div style="font-size:13px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+escHtml(r.personName)+(r.elapsedMin>600?' <span title="Clocked in 10+ hours, likely a forgotten clock-out" style="font-size:9px;font-weight:800;padding:2px 5px;border-radius:4px;background:var(--c-red-soft);color:var(--c-red-deep);margin-left:4px">LONG SHIFT</span>':'')+(r.notCounted?' <span title="Your own address, and the day has not landed in real work yet. Clock in to claim it." style="font-size:9px;font-weight:800;padding:2px 5px;border-radius:4px;background:var(--bg2);color:var(--text3);margin-left:4px">NOT COUNTED</span>':'')+'</div>'+
           '<div style="font-size:11px;color:var(--text2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+escHtml(r.clientName)+(r.jobName?' · '+escHtml(r.jobName):'')+'</div>'+
           '<div style="font-size:11px;color:var(--text3)">since '+_tlFmtTime(r.startTime)+'</div>'+
         '</div>'+

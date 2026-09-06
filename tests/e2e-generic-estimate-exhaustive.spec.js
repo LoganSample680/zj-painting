@@ -4483,4 +4483,148 @@ test.describe('generic-estimate.js: exhaustive coverage', () => {
     });
   });
 
+
+  // ── What it costs him to get there ──────────────────────────────────────────
+  //
+  // The 45-minutes-each-way service call is the job that quietly loses money,
+  // and a contractor almost never works that out on paper. We can tell him
+  // before he sends the bid because we already log every drive he makes, and
+  // the whole thing resolves without a network call.
+  test.describe('drive cost', () => {
+    const arm = (o) => page.evaluate((x) => {
+      // undefined means "never answered", which is a different state from No.
+      if (x.count === undefined) delete S.countDriveCost; else S.countDriveCost = x.count;
+      S.ownerPayRate = 60; S.laborBurden = 1; S.irsRate = 0.7;
+      S.officeLat = 37.6872; S.officeLon = -97.3301;      // Wichita
+      places = [{ id: 1, name: 'The shop', kind: 'shop', lat: 37.6872, lon: -97.3301 }];
+      mileage = x.mileage || [];
+      clients = clients.filter(c => c.id !== 98001);
+      clients.push({ id: 98001, name: 'Drive Test', addr: '1 Far Rd' });
+      _geiClientId = 98001;
+      _geiIsTM = true; _tmEstHours = x.hours != null ? x.hours : 4;
+      _estCrew = []; _byoItems = []; _geiLines = [];
+      try {
+        localStorage.setItem('zp3_nearby_geo', JSON.stringify(x.coords
+          ? { 98001: { lat: x.coords.lat, lon: x.coords.lon, addr: '1 Far Rd' } } : {}));
+      } catch (e) {}
+      return _geiDriveCost();
+    }, o);
+
+    test('a drive he has actually made is used, not a guess', async () => {
+      const r = await arm({ count: true, mileage: [
+        { from_name: 'The shop', to_name: 'Drive Test', miles: 20,
+          startedIso: '2026-09-01T13:00:00Z', endedIso: '2026-09-01T13:30:00Z' },
+        { from_name: 'Drive Test', to_name: 'The shop', miles: 22,
+          startedIso: '2026-09-02T13:00:00Z', endedIso: '2026-09-02T13:34:00Z' },
+      ] });
+      expect(r.source).toBe('driven');
+      expect(r.miles).toBe(42);            // median 21 each way, there and back
+      expect(r.minutes).toBe(64);          // median 32 min each way
+      // 64 min at $60 loaded = $64, plus 42 mi at 70c = $29.40
+      expect(r.cost).toBe(93);
+      expect(r.origin).toBe('The shop');
+    });
+
+    test('with no history it falls back to the map, and says so', async () => {
+      const r = await arm({ count: true, coords: { lat: 37.9, lon: -97.5 } });
+      expect(r.source).toBe('estimated');
+      expect(r.miles).toBeGreaterThan(0);
+      expect(r.minutes).toBeGreaterThan(0);
+    });
+
+    test('with neither it says nothing rather than inventing a drive', async () => {
+      const r = await arm({ count: true });
+      expect(r).toBeNull();
+    });
+
+    test('a three day job is three round trips', async () => {
+      const one = await arm({ count: true, hours: 4, mileage: [
+        { from_name: 'The shop', to_name: 'Drive Test', miles: 10,
+          startedIso: '2026-09-01T13:00:00Z', endedIso: '2026-09-01T13:20:00Z' }] });
+      const three = await arm({ count: true, hours: 24, mileage: [
+        { from_name: 'The shop', to_name: 'Drive Test', miles: 10,
+          startedIso: '2026-09-01T13:00:00Z', endedIso: '2026-09-01T13:20:00Z' }] });
+      expect(one.visits).toBe(1);
+      expect(three.visits).toBe(3);
+      expect(three.cost).toBe(one.cost * 3);
+    });
+
+    test('a trip charge he is already billing is netted off, never counted twice', async () => {
+      await arm({ count: true, mileage: [{ from_name: 'The shop', to_name: 'Drive Test', miles: 20,
+        startedIso: '2026-09-01T13:00:00Z', endedIso: '2026-09-01T13:30:00Z' }] });
+      const r = await page.evaluate(() => {
+        _geiLines = [{ desc: 'Trip charge', rate: 75, total: 75 }];
+        const d = _geiDriveCost();
+        _geiLines = [];
+        return d;
+      });
+      expect(r.billed).toBe(75);
+      expect(r.cost).toBe(Math.max(0, r.gross - 75));
+    });
+
+    test('a short hop counts but says nothing', async () => {
+      const r = await arm({ count: true, mileage: [
+        { from_name: 'The shop', to_name: 'Drive Test', miles: 2,
+          startedIso: '2026-09-01T13:00:00Z', endedIso: '2026-09-01T13:06:00Z' }] });
+      expect(r.quiet).toBe(true);
+      expect(r.ask).toBe(false);
+      const shown = await page.evaluate((d) => {
+        const el = document.getElementById('tm-drive-line');
+        if (!el) return { skip: true };
+        _geiRenderDriveLine('tm', d);
+        return { display: el.style.display };
+      }, r);
+      if (!shown.skip) expect(shown.display).toBe('none');
+    });
+
+    const REAL_DRIVE = [{ from_name: 'The shop', to_name: 'Drive Test', miles: 20,
+      startedIso: '2026-09-01T13:00:00Z', endedIso: '2026-09-01T13:30:00Z' }];
+
+    test('the question is asked once, with a real job on the screen', async () => {
+      await arm({ count: undefined, mileage: REAL_DRIVE });   // never answered
+      const r = await page.evaluate(() => {
+        const d = _geiDriveCost();
+        const el = document.getElementById('tm-drive-line');
+        if (!el) return { skip: true };
+        _geiRenderDriveLine('tm', d);
+        const asked = el.innerHTML.includes('Always count it');
+        _geiSetDriveCost(true);
+        const after = _geiDriveCost();
+        _geiRenderDriveLine('tm', after);
+        return { asked, askedAgain: el.innerHTML.includes('Always count it'), stored: S.countDriveCost, still: !!after };
+      });
+      if (r.skip) return;
+      expect(r.asked).toBe(true);
+      expect(r.stored).toBe(true);
+      expect(r.askedAgain).toBe(false);   // answered once, never again
+      expect(r.still).toBe(true);         // and it keeps counting
+    });
+
+    test('Never means never, and nothing is counted', async () => {
+      await arm({ count: undefined, mileage: REAL_DRIVE });
+      const r = await page.evaluate(() => {
+        _geiSetDriveCost(false);
+        return { d: _geiDriveCost(), stored: S.countDriveCost };
+      });
+      expect(r.stored).toBe(false);
+      expect(r.d).toBeNull();
+    });
+
+    test('junk places and junk mileage rows never take it down', async () => {
+      const r = await page.evaluate(() => {
+        S.countDriveCost = true;
+        const out = [];
+        [[], [null], [{ kind: 'shop' }], [{ kind: 'shop', lat: 'x', lon: 'y' }]].forEach(p => {
+          places = p; S.officeLat = 0; S.officeLon = 0;
+          try { out.push(_geiDriveCost() === null ? 'null' : 'value'); } catch (e) { out.push('threw'); }
+        });
+        places = [{ name: 'The shop', kind: 'shop', lat: 37.6872, lon: -97.3301 }];
+        mileage = [null, {}, { from_name: 'The shop', to_name: 'Drive Test', miles: 0 }];
+        try { out.push(_geiDriveCost() === null ? 'null' : 'value'); } catch (e) { out.push('threw'); }
+        return out;
+      });
+      expect(r).toEqual(['null', 'null', 'null', 'null', 'null']);
+    });
+  });
+
 });

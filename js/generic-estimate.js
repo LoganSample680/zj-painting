@@ -961,6 +961,7 @@ function _geiRenderProfitGauge(prefix,costOninput){
   if(!wrap||wrap.children.length)return; // idempotent: preserve gauge/animation state across repeat page shows
   wrap.innerHTML=
     '<input type="number" id="'+prefix+'-expected-cost" style="display:none" oninput="'+costOninput+'">'+
+    '<div id="'+prefix+'-drive-line" style="display:none;padding:10px 12px;margin:0 0 10px;border-radius:var(--r);border:1px solid var(--border2);background:var(--bg2)"></div>'+
     '<div id="'+prefix+'-gauge-hint" style="display:none"></div>'+
     '<div id="'+prefix+'-profit-gauge" style="display:none;opacity:0;transition:opacity .32s ease">'+
       // Hard-edged stops at the EXACT _updateMarginGauge breakpoints (22/35/55%) so
@@ -1656,6 +1657,144 @@ function _empLoadedFor(email){
   const comp=(typeof _teamComp!=='undefined'&&_teamComp)?_teamComp[(email||'').toLowerCase()]:null;
   return (comp&&typeof _empLoadedHourly==='function')?_empLoadedHourly(comp):0;
 }
+// ── What it costs him to get there ──────────────────────────────────────────
+//
+// Owner 2026-09-06. The 45-minutes-each-way service call is the job that
+// quietly loses money, and a contractor almost never works that out on paper.
+// We are the only tool that can tell him before he sends the bid, because we
+// already log every drive he makes.
+//
+// It runs on EVERY estimate and almost never costs a network call, because it
+// resolves cheapest first:
+//   1. Has he driven there before? Use what the truck actually did. Real miles,
+//      real minutes, free, instant, works with no signal, and better than any
+//      router because it is that road at that hour in his truck.
+//   2. Coordinates on both ends? Straight line times a road factor. Within a
+//      few percent, free, offline.
+//   3. Neither? Return nothing and say nothing. Never invent a drive.
+//
+// Deliberately NOT a line on the customer's proposal. This is cost, and what he
+// charges for a trip is a separate decision he already has a tool for.
+const _DRV_ROAD_FACTOR=1.25;   // straight line to road miles, flat country
+const _DRV_MPH=32;             // mixed local driving, only used without history
+const _DRV_QUIET_MIN=10;       // under this each way, count it but do not natter
+const _DRV_MAX_VISITS=30;
+
+// Where his day starts. Not a setting: the shop if he has one, then the home
+// office, then the business address, which _migrateShopToPlaces already turns
+// into a shop place. Named on the line so a wrong guess is visible.
+function _drvOrigin(){
+  const rows=(typeof places!=='undefined'&&Array.isArray(places))?places:[];
+  const rank=p=>p&&p.kind==='shop'?0:(p&&p.kind==='home_office')?1:9;
+  const cand=rows.filter(p=>rank(p)<9&&Number(p.lat)&&Number(p.lon)).sort((a,b)=>rank(a)-rank(b));
+  if(cand.length)return{name:cand[0].name||'the shop',lat:+cand[0].lat,lon:+cand[0].lon,kind:cand[0].kind};
+  const la=Number(S&&S.officeLat),lo=Number(S&&S.officeLon);
+  if(la&&lo)return{name:'the shop',lat:la,lon:lo,kind:'shop'};
+  return null;
+}
+function _drvClientCoords(clientId){
+  try{
+    const c=JSON.parse(localStorage.getItem('zp3_nearby_geo')||'{}')[clientId];
+    if(c&&Number(c.lat)&&Number(c.lon))return{lat:+c.lat,lon:+c.lon};
+  }catch(_e){}
+  return null;
+}
+// What the truck actually did, median over every logged run between these two.
+function _drvFromHistory(originName,clientName){
+  const rows=(typeof mileage!=='undefined'&&Array.isArray(mileage))?mileage:[];
+  const nm=v=>String(v||'').trim().toLowerCase();
+  const o=nm(originName),c=nm(clientName);
+  if(!o||!c)return null;
+  const hits=[];
+  rows.forEach(m=>{
+    if(!m)return;
+    const f=nm(m.from_name),t=nm(m.to_name);
+    if(!((f===o&&t===c)||(f===c&&t===o)))return;
+    const mi=Number(m.miles)||0;
+    if(mi<=0)return;
+    const a=Date.parse(m.startedIso||''),b=Date.parse(m.endedIso||'');
+    const min=(a>0&&b>a)?Math.round((b-a)/60000):0;
+    hits.push({mi,min});
+  });
+  if(!hits.length)return null;
+  const med=arr=>{const v=arr.slice().sort((x,y)=>x-y);const i=Math.floor(v.length/2);return v.length%2?v[i]:(v[i-1]+v[i])/2;};
+  const miles=med(hits.map(h=>h.mi));
+  const mins=hits.map(h=>h.min).filter(v=>v>0);
+  return{
+    miles:Math.round(miles*10)/10,
+    minutes:Math.round(mins.length?med(mins):(miles/_DRV_MPH*60)),
+    source:'driven',
+  };
+}
+function _drvFromCoords(origin,dest){
+  if(!origin||!dest||typeof _haversineMiles!=='function')return null;
+  let mi=0;
+  try{mi=_haversineMiles({lat:origin.lat,lng:origin.lon},{lat:dest.lat,lng:dest.lon});}catch(_e){return null;}
+  if(!(mi>0))return null;
+  const miles=Math.round(mi*_DRV_ROAD_FACTOR*10)/10;
+  return{miles,minutes:Math.round(miles/_DRV_MPH*60),source:'estimated'};
+}
+// One way. Null when we genuinely cannot tell, which is not the same as zero.
+function _geiDriveLeg(){
+  const origin=_drvOrigin();
+  if(!origin)return null;
+  const c=_geiClientId?((typeof clients!=='undefined'&&clients.find)?clients.find(x=>String(x.id)===String(_geiClientId)):null):null;
+  const hist=_drvFromHistory(origin.name,c&&c.name);
+  if(hist)return Object.assign({origin},hist);
+  const dest=_drvClientCoords(_geiClientId);
+  const est=_drvFromCoords(origin,dest);
+  return est?Object.assign({origin},est):null;
+}
+// A three day job is three round trips. Without this the number is a toy.
+function _geiDriveVisits(){
+  if(!_geiIsTM)return 1;
+  const hrs=Number(_tmEstHours)||0;
+  if(hrs<=0)return 1;
+  return Math.max(1,Math.min(_DRV_MAX_VISITS,Math.ceil(hrs/8)));
+}
+// He may already be billing the trip. That drive is then revenue as well as
+// cost, and counting only the cost side would understate the job twice over.
+// A heuristic on the line's own words, which is what a trip charge is called.
+function _geiTripChargeOnBid(){
+  const re=/\b(trip charge|trip fee|service call|diagnostic|call out|callout)\b/i;
+  let sum=0;
+  (_byoItems||[]).forEach(it=>{if(it&&it.on&&re.test(String(it.label||'')))sum+=Number(it.price)||0;});
+  (_geiLines||[]).forEach(l=>{if(l&&re.test(String(l.desc||'')))sum+=Number(l.total!=null?l.total:(l.rate||0))||0;});
+  return sum;
+}
+// The whole thing: what the driving on this job costs him, net of anything he
+// is already charging for it.
+function _geiDriveCost(){
+  if(S&&S.countDriveCost===false)return null;
+  const leg=_geiDriveLeg();
+  if(!leg)return null;
+  const visits=_geiDriveVisits();
+  const perHr=(_estCrew.length&&_hasEmployees())
+    ? _estCrew.reduce((s,e)=>s+_empLoadedFor(e),0)
+    : _ownerLoadedHourly();
+  const rate=Number(S&&S.irsRate)||0.725;
+  const minutes=leg.minutes*2*visits;
+  const miles=Math.round(leg.miles*2*visits*10)/10;
+  const gross=Math.round((minutes/60)*perHr + miles*rate);
+  const billed=_geiTripChargeOnBid();
+  const cost=Math.max(0,gross-billed);
+  return{
+    minutes,miles,cost,gross,billed,visits,
+    origin:leg.origin&&leg.origin.name,
+    source:leg.source,
+    // Worth a word on screen, or short enough to just fold into the number.
+    quiet:leg.minutes<_DRV_QUIET_MIN,
+    // Asked once, with a real job on the screen, never at signup.
+    ask:(S&&S.countDriveCost===undefined)&&leg.minutes>=_DRV_QUIET_MIN,
+  };
+}
+function _geiSetDriveCost(on){
+  S.countDriveCost=!!on;
+  if(typeof _settingsChanged==='function')_settingsChanged();
+  if(_geiIsFreeForm&&typeof _byoUpdateRail==='function')_byoUpdateRail();
+  else if(typeof _tmInputChange==='function')_tmInputChange();
+}
+
 // His own time, loaded, the same way Crew Cost already values it (finance.js
 // builds exactly this from S.ownerPayType/ownerPayRate). One helper so the
 // estimate and the books can never disagree about what an hour of his costs.
@@ -1749,6 +1888,31 @@ function _renderLaborPicker(type){
     '<div style="font-size:11px;line-height:1.5;min-height:14px">'+body+'</div>'+
     '<div class="summary-divider"></div>';
 }
+// One line in the COST breakdown, never on the customer's proposal. It states
+// what it worked out and where it drove from, so a wrong origin is visible, and
+// it asks the count-it question exactly once, with a real job on the screen
+// instead of at signup where nobody can answer it honestly.
+function _geiRenderDriveLine(type,d){
+  const el=document.getElementById(type+'-drive-line');
+  if(!el)return;
+  if(!d||d.quiet||!(d.cost>0)){el.style.display='none';el.innerHTML='';return;}
+  const mi=d.miles.toLocaleString('en-US',{maximumFractionDigits:1});
+  const trips=d.visits>1?(' \u00b7 '+d.visits+' trips'):'';
+  const netNote=d.billed>0?('<div style="font-size:10.5px;color:var(--text3);margin-top:3px">Less the '+(typeof fmt==='function'?fmt(d.billed):'$'+d.billed)+' you are already charging for the trip.</div>'):'';
+  const ask=d.ask?
+    '<div style="display:flex;gap:8px;margin-top:8px">'+
+      '<button onclick="_geiSetDriveCost(true)" class="btn btn-sm" style="flex:1">Always count it</button>'+
+      '<button onclick="_geiSetDriveCost(false)" class="btn btn-sm" style="flex:1">Never</button>'+
+    '</div>':'';
+  el.style.display='';
+  el.innerHTML=
+    '<div style="display:flex;align-items:baseline;justify-content:space-between;gap:10px">'+
+      '<span style="font-size:12px;color:var(--text2)">Driving from '+escHtml(d.origin||'the shop')+
+        ' \u00b7 '+d.minutes+' min \u00b7 '+mi+' mi'+trips+'</span>'+
+      '<span style="font-size:13px;font-weight:700;color:var(--text)">'+(typeof fmt==='function'?fmt(d.cost):'$'+d.cost)+'</span>'+
+    '</div>'+netNote+ask;
+}
+
 function _updateMarginGauge(type,total){
   const gWrap=document.getElementById(type+'-profit-gauge');
   if(!gWrap)return;
@@ -1870,7 +2034,9 @@ function _byoUpdateRail(){
   // Solo operators have no employees, so labor is 0 and cost stays materials-only.
   const _matTotal=_byoItems.filter(it=>it.on&&!it._rrp&&(it.section||'').toLowerCase()==='materials').reduce((s,it)=>s+it.price,0);
   const _laborCost=(typeof _estLaborCost==='function')?_estLaborCost():0;
-  const _autoCost=_matTotal+_laborCost;
+  const _byoDrive=(typeof _geiDriveCost==='function')?_geiDriveCost():null;
+  const _autoCost=_matTotal+_laborCost+((_byoDrive&&_byoDrive.cost)||0);
+  _geiRenderDriveLine('byo',_byoDrive);
   const _railCostEl=document.getElementById('byo-expected-cost');
   if(_railCostEl&&!_railCostEl.dataset.userSet){
     if(_autoCost>0){_railCostEl.value=_autoCost;_railCostEl.dataset.autoFilled='true';}
@@ -2253,12 +2419,16 @@ function _tmInputChange(){
   if(typeof _renderLaborPicker==='function')_renderLaborPicker('tm');
   // TRUE cost feeds the gauge: materials at raw cost + what the selected crew
   // actually costs the business (loaded pay rates × the T&M hours). No employees
-  //, or none selected, means the OWNER is doing the work: their labor costs
-  // the business $0 and the labor revenue correctly reads as profit. The old
-  // code fed the labor BILLING amount as "cost", which hid all labor profit and
-  // made every T&M job read as underpriced.
+  //, or none selected, means the OWNER is on the job, and his hours are now
+  // costed at his own loaded rate too (_estLaborCost): counting them at zero is
+  // what made the gauge flatter every solo contractor. The old code before that
+  // fed the labor BILLING amount as "cost", which hid all labor profit and made
+  // every T&M job read as underpriced.
   const _tmCrewCost=(typeof _estLaborCost==='function')?_estLaborCost():0;
-  const _tmTrueCost=Math.round(matRaw+_tmCrewCost);
+  // Getting there is a cost too, and on a short job it can be most of it.
+  const _tmDrive=(typeof _geiDriveCost==='function')?_geiDriveCost():null;
+  const _tmTrueCost=Math.round(matRaw+_tmCrewCost+((_tmDrive&&_tmDrive.cost)||0));
+  _geiRenderDriveLine('tm',_tmDrive);
   const _tmCostEl=document.getElementById('tm-expected-cost');
   if(_tmCostEl&&!_tmCostEl.dataset.userSet){_tmCostEl.value=_tmTrueCost>0?_tmTrueCost:'';}
   _updateMarginGauge('tm',total);

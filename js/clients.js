@@ -340,32 +340,82 @@ function _clientCommitNew(c){
 //
 // It used to bounce him to the Clients tab, where four fields were mandatory
 // before he could save, and then he had to walk back to the proposal. He is
-// standing in a driveway. So the two things a document genuinely needs, the
-// name it is filed under and the property it is for, are asked for right here
-// and the record writes itself. Everything downstream (the RRP gate, the
-// multi-property check, the resume chooser, TrueBid's measuring tools) then
-// gets a real client exactly as it always has, which is why this is two fields
-// on one screen rather than a null-client mode threaded through all of it.
+// standing in a driveway.
 //
-// Same shell as the address gate directly below, on purpose (7.3): this IS
-// that gate, asked one field earlier.
+// The question a contractor is actually answering is "who is this for", and
+// most of the time the answer is somebody already in here (owner 2026-09-06).
+// So this is ONE field: he types the name, the people he already has show up
+// under it and a tap goes straight to the estimator. Only when the name is
+// nobody he has does it ask for the address and create the record, which is the
+// difference between this and a form: it asks one question and gets out of the
+// way, instead of assuming the answer is always "somebody new" and quietly
+// making him a second Mike Johnson.
+//
+// Everything downstream (the RRP gate, the multi-property check, the resume
+// chooser, TrueBid's measuring tools) still receives a real client, which is
+// why this is one screen rather than a null-client mode threaded through all
+// of it. Same shell as the address gate directly below, on purpose (7.3).
+function _newcGateMatches(q){
+  const ql=(q||'').trim().toLowerCase();
+  if(!ql)return (clients||[]).slice(-5).reverse();
+  const digits=ql.replace(/\D/g,'');
+  // Same predicate the Clients page search uses (onClientSearch), so "who do I
+  // have" means one thing in this app.
+  return (clients||[]).filter(c=>
+    (c.name||'').toLowerCase().includes(ql)||
+    (c.addr||'').toLowerCase().includes(ql)||
+    (digits&&(c.phone||'').replace(/\D/g,'').includes(digits))
+  ).slice(0,6);
+}
+function _newcGateRender(){
+  const q=(document.getElementById('_newc-gate-name')?.value||'').trim();
+  const hits=document.getElementById('_newc-gate-hits');
+  const block=document.getElementById('_newc-gate-new');
+  const label=document.getElementById('_newc-gate-newlbl');
+  if(!hits||!block)return;
+  const rows=_newcGateMatches(q);
+  hits.innerHTML=rows.length?
+    (q?'':'<div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--text3);margin:2px 0 6px">Recent</div>')+
+    rows.map(c=>'<button onclick="_newcGatePick('+c.id+')" style="width:100%;display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:var(--r);border:1px solid var(--border2);background:var(--bg2);cursor:pointer;font-family:inherit;text-align:left;margin-bottom:6px">'+
+      '<span class="cc-avatar" style="width:30px;height:30px;font-size:11px;flex-shrink:0;'+(typeof stageAvatar==='function'?stageAvatar(getClientStage(c.id).stage):'')+'">'+initials(c.name)+'</span>'+
+      '<span style="flex:1;min-width:0">'+
+        '<span style="display:block;font-size:13px;font-weight:700;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+escHtml(c.name)+'</span>'+
+        '<span style="display:block;font-size:11px;color:var(--text3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+escHtml(c.addr||'No address yet')+'</span>'+
+      '</span></button>').join(''):'';
+  // The create half only appears once the typed name is nobody he already has,
+  // so picking an existing customer never means looking past a form.
+  const exact=q&&(clients||[]).some(c=>(c.name||'').trim().toLowerCase()===q.toLowerCase());
+  const show=!!q&&!exact;
+  block.style.display=show?'':'none';
+  if(show&&label)label.textContent=rows.length?'Nobody above? Add '+q+' as new':'Add '+q+' as a new customer';
+}
+function _newcGatePick(id){
+  const c=getClientById(id);if(!c)return;
+  document.getElementById('_newc-gate-overlay')?.remove();
+  currentClientId=c.id;
+  _rrpGateThenEstimate(c);
+}
 function _newClientQuickGate(){
   document.getElementById('_newc-gate-overlay')?.remove();
   const ov=document.createElement('div');ov.className='zmodal-overlay';ov.id='_newc-gate-overlay';
   const box=document.createElement('div');box.className='zmodal';
   box.style.animation='td-pg-enter .22s cubic-bezier(.22,1,.36,1) both';
   box.innerHTML=
-    '<div style="font-size:18px;margin-bottom:6px">'+svgIcon('👤')+' Who is this for?</div>'+
-    '<div style="font-size:13px;color:var(--text2);margin-bottom:14px;line-height:1.5">Just the name and the address. Everything else can wait.</div>'+
+    '<div style="font-size:18px;margin-bottom:6px">'+svgIcon('👤')+' Who is it for?</div>'+
+    '<div style="font-size:13px;color:var(--text2);margin-bottom:12px;line-height:1.5">Start typing. Tap them if they are already in here.</div>'+
     '<input id="_newc-gate-name" type="text" placeholder="Name" autocomplete="off" '+
       'style="width:100%;box-sizing:border-box;padding:11px 12px;border:1.5px solid var(--border2);border-radius:var(--r);font-size:15px;font-family:inherit;background:var(--bg2);color:var(--text);margin-bottom:10px">'+
-    '<div style="position:relative;margin-bottom:6px">'+
-      '<input id="_newc-gate-addr" type="text" placeholder="123 Main St, City, ST" autocomplete="off" '+
-        'style="width:100%;box-sizing:border-box;padding:11px 12px;border:1.5px solid var(--border2);border-radius:var(--r);font-size:15px;font-family:inherit;background:var(--bg2);color:var(--text)">'+
+    '<div id="_newc-gate-hits" style="max-height:33vh;overflow-y:auto;-webkit-overflow-scrolling:touch"></div>'+
+    '<div id="_newc-gate-new" style="display:none;border-top:1px solid var(--border);padding-top:12px;margin-top:4px">'+
+      '<div id="_newc-gate-newlbl" style="font-size:12px;font-weight:700;color:var(--text2);margin-bottom:8px"></div>'+
+      '<div style="position:relative;margin-bottom:6px">'+
+        '<input id="_newc-gate-addr" type="text" placeholder="123 Main St, City, ST" autocomplete="off" '+
+          'style="width:100%;box-sizing:border-box;padding:11px 12px;border:1.5px solid var(--border2);border-radius:var(--r);font-size:15px;font-family:inherit;background:var(--bg2);color:var(--text)">'+
+      '</div>'+
+      '<div id="_newc-gate-err" style="display:none;font-size:12px;color:#A32D2D;margin-bottom:8px"></div>'+
+      '<button id="_newc-gate-ok" style="width:100%;padding:14px;border-radius:var(--r);border:none;background:var(--blue);color:#fff;font-size:15px;font-weight:700;cursor:pointer;font-family:inherit">Start proposal</button>'+
     '</div>'+
-    '<div id="_newc-gate-err" style="display:none;font-size:12px;color:#A32D2D;margin-bottom:8px"></div>'+
-    '<button id="_newc-gate-ok" style="width:100%;padding:14px;border-radius:var(--r);border:none;background:var(--blue);color:#fff;font-size:15px;font-weight:700;cursor:pointer;font-family:inherit;margin:8px 0">Start proposal</button>'+
-    '<button onclick="document.getElementById(\'_newc-gate-overlay\')?.remove()" style="width:100%;padding:10px;border-radius:var(--r);border:1px solid var(--border2);background:none;color:var(--text3);font-size:14px;cursor:pointer;font-family:inherit">Cancel</button>';
+    '<button onclick="document.getElementById(\'_newc-gate-overlay\')?.remove()" style="width:100%;padding:10px;border-radius:var(--r);border:1px solid var(--border2);background:none;color:var(--text3);font-size:14px;cursor:pointer;font-family:inherit;margin-top:10px">Cancel</button>';
   ov.appendChild(box);document.body.appendChild(ov);
   ov.addEventListener('click',e=>{if(e.target===ov)ov.remove();});
   const nameEl=document.getElementById('_newc-gate-name');
@@ -373,36 +423,39 @@ function _newClientQuickGate(){
   // Same address autocomplete the address gate uses, so a typed street still
   // fills in the city, state and zip the property lookup needs.
   if(addrEl&&typeof _addrAutoFull==='function')_addrAutoFull(addrEl,null);
+  nameEl?.addEventListener('input',_newcGateRender);
   nameEl?.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();addrEl?.focus();}});
   addrEl?.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();document.getElementById('_newc-gate-ok')?.click();}});
+  document.getElementById('_newc-gate-ok').onclick=_newcGateCreate;
+  _newcGateRender();
   setTimeout(()=>nameEl?.focus(),100);
-  document.getElementById('_newc-gate-ok').onclick=()=>{
-    const name=(nameEl?.value||'').trim();
-    const addr=(addrEl?.value||'').trim();
-    const err=document.getElementById('_newc-gate-err');
-    if(!name){if(err){err.textContent='A name, so the paperwork has somewhere to live.';err.style.display='block';}nameEl?.focus();return;}
-    if(!addr){if(err){err.textContent='An address, so we know what property this is.';err.style.display='block';}addrEl?.focus();return;}
-    const p=_parseAddrParts(addr);
-    const c=_clientCommitNew({id:Date.now(),name,phone:'',email:'',
-      addr,street:p.street||'',city:p.city||'',state:p.state||'',zip:p.zip||'',
-      ptype:'Single family home',partyType:'',source:'',ref:'',notes:'',
-      created:todayKey(),createdAt:new Date().toISOString(),
-      yearBuilt:null,sqft:null,estimatedValue:null,propertyType:null,stories:null,
-      exteriorMaterial:null,lastSaleDate:null,lastSalePrice:null,lotSize:null,
-      roofType:null,garage:null,bedrooms:null,bathrooms:null,isRental:null,
-      assessorUrl:null,propDataSource:null,propDataExact:null,propDataFetchedAt:null,
-      extraAddresses:[],clientToken:'',clientHubKey:''});
-    saveAll();
-    // The blanks fill themselves in from here: year built (which decides the
-    // pre-1978 lead-paint gate), property data, and the geofence warm-up all
-    // key off the address he just typed.
-    if(p.street&&p.city&&typeof _lookupPropertyData==='function')
-      _lookupPropertyData(c.id,{street:p.street,city:p.city,state:p.state||'',zip:p.zip||''});
-    if(typeof _eagerGeocodeClient==='function')_eagerGeocodeClient(c.id,addr).catch(()=>{});
-    ov.remove();
-    currentClientId=c.id;
-    _rrpGateThenEstimate(c);
-  };
+}
+function _newcGateCreate(){
+  const name=(document.getElementById('_newc-gate-name')?.value||'').trim();
+  const addr=(document.getElementById('_newc-gate-addr')?.value||'').trim();
+  const err=document.getElementById('_newc-gate-err');
+  if(!name){if(err){err.textContent='A name, so the paperwork has somewhere to live.';err.style.display='block';}document.getElementById('_newc-gate-name')?.focus();return;}
+  if(!addr){if(err){err.textContent='An address, so we know what property this is.';err.style.display='block';}document.getElementById('_newc-gate-addr')?.focus();return;}
+  const p=_parseAddrParts(addr);
+  const c=_clientCommitNew({id:Date.now(),name,phone:'',email:'',
+    addr,street:p.street||'',city:p.city||'',state:p.state||'',zip:p.zip||'',
+    ptype:'Single family home',partyType:'',source:'',ref:'',notes:'',
+    created:todayKey(),createdAt:new Date().toISOString(),
+    yearBuilt:null,sqft:null,estimatedValue:null,propertyType:null,stories:null,
+    exteriorMaterial:null,lastSaleDate:null,lastSalePrice:null,lotSize:null,
+    roofType:null,garage:null,bedrooms:null,bathrooms:null,isRental:null,
+    assessorUrl:null,propDataSource:null,propDataExact:null,propDataFetchedAt:null,
+    extraAddresses:[],clientToken:'',clientHubKey:''});
+  saveAll();
+  // The blanks fill themselves in from here: year built (which decides the
+  // pre-1978 lead-paint gate), property data, and the geofence warm-up all
+  // key off the address he just typed.
+  if(p.street&&p.city&&typeof _lookupPropertyData==='function')
+    _lookupPropertyData(c.id,{street:p.street,city:p.city,state:p.state||'',zip:p.zip||''});
+  if(typeof _eagerGeocodeClient==='function')_eagerGeocodeClient(c.id,addr).catch(()=>{});
+  document.getElementById('_newc-gate-overlay')?.remove();
+  currentClientId=c.id;
+  _rrpGateThenEstimate(c);
 }
 function _gateAddressThenEstimate(c){
   if(!c)return;

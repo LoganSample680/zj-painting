@@ -4716,6 +4716,13 @@ async function _geiConfirmInPerson(){
   // record the same way the remote send keeps it (_finalizeProposalSend). An
   // in-person signature had no snapshot at all before this.
   if(!bid.proposalHtml&&typeof window!=='undefined'&&window._geiLastProposalHtml)bid.proposalHtml=window._geiLastProposalHtml;
+  // MINT THE HUB TOKEN NOW, NOT WHEN THE NETWORK SAYS SO. It is random hex and
+  // needs nothing but the device, yet it was only ever created inside
+  // _uploadClientHub. So the client he just signed at the kitchen table, who is
+  // usually brand new, had no hub link at the exact moment he tapped "Text them
+  // their copy": a race when online and a flat failure when not. The token
+  // exists immediately; the hub contents publish when there is signal.
+  if(bid.client_id&&typeof _ensureClientToken==='function')_ensureClientToken(bid.client_id);
   const clientName=document.getElementById('gei-client')?.value||bid.client_name||'Client';
   bid.client_name=bid.client_name||clientName;
   saveAll();

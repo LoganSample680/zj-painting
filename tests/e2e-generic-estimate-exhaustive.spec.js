@@ -5174,6 +5174,61 @@ test.describe('generic-estimate.js: exhaustive coverage', () => {
       expect(r.noDefault).toBe(25);
     });
 
+    // The client he signs at the kitchen table is usually BRAND NEW, and the
+    // hub token was only ever minted inside _uploadClientHub. So at the exact
+    // moment he tapped "Text them their copy" there was no link: a race online
+    // and a flat failure with no signal.
+    test('a brand new client has a hub link the moment they sign, with no network', async () => {
+      const r = await page.evaluate(() => {
+        const c = { id: 90405, name: 'Brand New Client', addr: '13 Table Rd', phone: '3165550188' };
+        clients = clients.filter(x => x.id !== 90405).concat([c]);   // no clientToken at all
+        bids = bids.filter(x => x.client_id !== 90405);
+        openGenericEstimate(c, null, null, { mode: 'byo' });
+        goGeiStep(2);
+        _byoItems = [{ id: 1, section: 'Work', label: 'Water heater replacement', price: 1400, on: true }];
+        _byoUpdateRail();
+        const id = _geiEditBidId;
+        const before = clients.find(x => x.id === 90405).clientToken || null;
+        _geiSignInPerson();
+        document.getElementById('gei-ip-pname').value = 'Brand New';
+        _geiConfirmInPerson();
+        document.getElementById('_gei-ip-ov')?.remove();
+        const after = clients.find(x => x.id === 90405).clientToken || null;
+        const url = _geiHubUrlFor(bids.find(x => x.id === id));
+        return { before, hasToken: !!after, url };
+      });
+      expect(r.before, 'the fixture really did start with no token').toBe(null);
+      expect(r.hasToken, 'signing mints it, no network involved').toBe(true);
+      expect(r.url).toContain('client.html?t=');
+      expect(r.url).toContain('&c=90405');
+    });
+
+    test('the hub link is the client hub, and _geiHubUrlFor mints a token on demand', async () => {
+      const r = await page.evaluate(() => {
+        const c = { id: 90406, name: 'No Token Client', addr: '14 Table Rd' };
+        clients = clients.filter(x => x.id !== 90406).concat([c]);
+        const b = { id: 904061, client_id: 90406, client_name: 'No Token Client', amount: 500 };
+        bids = bids.filter(x => x.id !== 904061).concat([b]);
+        const url = _geiHubUrlFor(b);
+        const out = {
+          url,
+          minted: !!clients.find(x => x.id === 90406).clientToken,
+          // never the sign page, never the raw proposal: the hub is the one
+          // place a client sees everything about their job
+          notSignPage: !/sign\.html/.test(url || ''),
+          noBid: _geiHubUrlFor({ id: 1, client_id: 999999 }),
+          nul: _geiHubUrlFor(null)
+        };
+        bids = bids.filter(x => x.id !== 904061);
+        return out;
+      });
+      expect(r.url).toContain('client.html?t=');
+      expect(r.minted).toBe(true);
+      expect(r.notSignPage).toBe(true);
+      expect(r.noBid).toBe(null);
+      expect(r.nul).toBe(null);
+    });
+
     test('the after-signature helpers never throw on a missing bid, client or token', async () => {
       const r = await page.evaluate(() => {
         const out = [];

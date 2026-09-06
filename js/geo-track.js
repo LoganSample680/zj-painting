@@ -3211,6 +3211,66 @@ function _geoBannerHtml(title,body,cta){
 //
 // MUST be called from inside a real user gesture: browsers only surface the
 // geolocation prompt in response to a tap.
+// ── ONE PROMPT AT A TIME (owner 2026-09-06) ─────────────────────────────────
+//
+// "the iOS location and motion prompts bombarding each other when we're
+// onboarding, I knew what they were for and almost spam not allowed."
+//
+// The intent was already written down here: "one consent flow, prompts in
+// sequence, never stacked: location, then motion, then push." It was
+// implemented as sequence IN THE CODE, not sequence IN TIME. Arming the event
+// set, the deliberate motion query and pushEnable all fired inside the same
+// callback, so iOS queued three dialogs and showed them back to back with no
+// gap. A person who knows exactly what they are for nearly denied them; a
+// contractor who does not, will.
+//
+// So each ask now waits for the previous one to be ANSWERED. Location is
+// already answered by the time this runs (we are inside the watcher's own
+// callback). Arming the event set is what raises Motion & Fitness, natively,
+// on the first coprocessor query, so that is the motion ask and there is no
+// second one. Push waits until the motion status has actually left 'prompt'.
+//
+// Bounded, and it never blocks tracking: the engine is armed on the first
+// line, and if the person walks away without answering, the poll gives up and
+// push is simply not asked for on this run. The setup checklist still offers
+// it later, which is the whole reason that row exists.
+const _GEO_CHAIN_POLL_MS=400;
+const _GEO_CHAIN_MAX_MS=45000;
+function _geoConsentChain(){
+  let armed=false;
+  try{
+    const Td=_geoTdPlugin();
+    if(Td&&typeof Td.startEvents==='function'){
+      // This raises the Motion & Fitness dialog by itself: startEvents starts
+      // the coprocessor stream, and the first query is what iOS prompts on.
+      Promise.resolve(Td.startEvents({regions:_geoParkRegions(null)})).catch(()=>{});
+      armed=true;
+    }
+  }catch(_e){}
+  const askPush=()=>{
+    try{if(typeof pushEnable==='function')Promise.resolve(pushEnable()).catch(()=>{});}catch(_e){}
+    try{if(typeof _motionRefreshPermCache==='function')_motionRefreshPermCache();}catch(_e){}
+  };
+  if(!armed){askPush();return;}
+  const started=Date.now();
+  const tick=()=>{
+    let Td=null;
+    try{Td=_geoTdPlugin();}catch(_e){}
+    if(!Td||typeof Td.motionPermStatus!=='function'){askPush();return;}
+    Promise.resolve(Td.motionPermStatus()).then(r=>{
+      const st=String((r&&r.status)||'');
+      // Anything but 'prompt' means the dialog is gone: granted, denied or
+      // restricted. All three are an answer, and push may ask now.
+      if(st&&st!=='prompt'){_geoParkNote('consent-chain','motion '+st);askPush();return;}
+      if(Date.now()-started>_GEO_CHAIN_MAX_MS){
+        _geoParkNote('consent-chain','motion unanswered, push deferred');
+        return;
+      }
+      setTimeout(tick,_GEO_CHAIN_POLL_MS);
+    },()=>askPush());
+  };
+  setTimeout(tick,_GEO_CHAIN_POLL_MS);
+}
 function _geoRequestPermission(cb){
   const done=(state)=>{
     _geoReportPermission(state);
@@ -5536,41 +5596,14 @@ function startGeoTracking(){
         // watcher runs, and it is the only thing still standing if the app
         // is killed mid-drive: the native buffer catches the wakes and the
         // replay rebuilds the day on next open.
-        try{
-          const _TdN=_geoTdPlugin();
-          if(_TdN&&typeof _TdN.startEvents==='function')
-            Promise.resolve(_TdN.startEvents({regions:_geoParkRegions(null)})).catch(()=>{});
-        }catch(_e){}
-        // The heartbeat is armed alongside it, same rule: from the first
-        // minute of tracking, not only at park time. If this boot is actually
-        // at home, the park arm minutes later corrects it to off.
+        // The heartbeat is armed alongside the watcher, same rule as before:
+        // from the first minute of tracking, not only at park time. If this
+        // boot is actually at home, the park arm minutes later corrects it.
+        // It raises no dialog, so it does not belong in the consent chain.
         _geoHeartbeatSync(null);
-        // Chain the Motion & Fitness ask right behind the location grant
-        // (owner 2026-08-14): one consent flow, prompts in sequence, never
-        // stacked. The first coprocessor query is what surfaces the dialog;
-        // the errand classifier (_mileTapeHadPause, js/mileage.js) needs the
-        // grant to read walk windows out of the activity history.
-        try{
-          const _Td=_geoTdPlugin();
-          if(_Td&&typeof _Td.motionSince==='function')Promise.resolve(_Td.motionSince({sinceMs:Date.now()-60000})).catch(()=>{});
-        }catch(_e){}
-        // ...and push registration behind THAT, same chain, same reason
-        // (owner 2026-08-27: "why cant that be the same opt in on location
-        // when they setup location services in the beginning for new users").
-        // _pushResume (js/push.js) covers a phone that ALREADY granted
-        // notifications, on every boot. This covers the other half: a NEW
-        // user answering the location prompt for the first time, who has
-        // granted nothing yet and whose only other route to a token is a
-        // setup-checklist row they may never tap. One flow at setup, prompts
-        // in sequence, never stacked: location, then motion, then push.
-        //
-        // pushEnable, not _pushResume: this is the moment it is correct to
-        // ASK, the person is consenting to tracking right now. Idempotent for
-        // everyone else, iOS answers an already-granted request with no
-        // dialog and the listener upserts on the token.
-        try{if(typeof pushEnable==='function')Promise.resolve(pushEnable()).catch(()=>{});}catch(_e){}
-        // The watcher running IS the shell's 'granted' state: refresh the
-        // dashboard's permission cache so "Turn on location" clears itself.
+        // Location has just been answered (we are inside the watcher's own
+        // callback). Motion and push follow it ONE AT A TIME, never stacked.
+        _geoConsentChain();
         try{if(typeof _geoRefreshBattery==='function')_geoRefreshBattery();}catch(_e){}
         try{if(typeof _geoRefreshPermCache==='function')_geoRefreshPermCache();}catch(_e){}
         try{if(typeof _motionRefreshPermCache==='function')_motionRefreshPermCache();}catch(_e){}

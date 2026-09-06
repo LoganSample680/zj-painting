@@ -319,9 +319,39 @@ test.describe('Crew location permission', () => {
     const i = src.indexOf("_geoParkNote('watcher-on'");
     expect(i).toBeGreaterThan(-1);
     const after = src.slice(i, i + 3000);
-    expect(after.includes('motionSince'), 'the motion ask must still be chained').toBe(true);
-    expect(after.includes('pushEnable'), 'push registration must ride the same chain').toBe(true);
-    expect(after.indexOf('motionSince')).toBeLessThan(after.indexOf('pushEnable'));
+    // WHAT CHANGED, 2026-09-06. This used to assert that motionSince appeared
+    // before pushEnable inside the watcher callback. It did, and all three
+    // dialogs still stacked, because that was sequence in the SOURCE, not in
+    // TIME: everything fired in one tick and iOS queued the alerts back to
+    // back (owner: "bombarding each other... almost spam not allowed").
+    //
+    // The order is now enforced by _geoConsentChain, which is a real gate:
+    // arming the event set raises Motion & Fitness natively on the first
+    // coprocessor query, and push is not asked until motionPermStatus has
+    // left 'prompt'. So the thing to assert is the chain and its gate, not
+    // the two call sites' positions in a string.
+    expect(after.includes('_geoConsentChain'), 'the asks must still be chained').toBe(true);
+    const chain = src.slice(src.indexOf('function _geoConsentChain'));
+    expect(chain.includes('startEvents'), 'arming is what raises the motion dialog').toBe(true);
+    expect(chain.includes('motionPermStatus'), 'push must WAIT on motion, not merely follow it').toBe(true);
+    expect(chain.includes('pushEnable'), 'push registration still rides the chain').toBe(true);
+    // Deliberately NOT an index comparison. That is the very mistake this
+    // commit fixes: position in a string is not order in time. askPush is
+    // declared before the poll and called only from its resolved branches,
+    // which is what the runtime assertions above and below actually pin.
+  });
+
+  test('nothing asks for push in the same tick as location', async () => {
+    // The whole defect in one assertion: inside the watcher callback there
+    // must be no direct pushEnable, only the chain that gates it.
+    const fs = require('fs'); const path = require('path');
+    const src = fs.readFileSync(path.join(__dirname, '..', 'js', 'geo-track.js'), 'utf8');
+    const i = src.indexOf("_geoParkNote('watcher-on'");
+    const j = src.indexOf('function _geoConsentChain');
+    const cb = src.slice(i, src.indexOf('watcher-fail', i));
+    expect(j).toBeGreaterThan(-1);
+    expect(cb.includes('pushEnable'), 'push is asked by the chain, never inline').toBe(false);
+    expect(cb.includes('motionSince'), 'and motion is raised by arming, not a second query').toBe(false);
   });
 
   test('denied shows red', async () => {

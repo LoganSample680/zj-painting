@@ -263,8 +263,19 @@ test.describe('Wake region set for the dead app', () => {
     const i = src.indexOf("_geoParkNote('watcher-on'");
     expect(i).toBeGreaterThan(-1);
     const after = src.slice(i, i + 1500);
-    expect(after.includes('startEvents'), 'the watcher-on path must arm the events baseline').toBe(true);
-    expect(after.includes('_geoParkRegions(null)')).toBe(true);
+    // The arming moved one function along on 2026-09-06: the watcher callback
+    // now calls _geoConsentChain, which arms the event set on its FIRST line
+    // and then gates the permission prompts that follow so iOS cannot stack
+    // them. The guarantee this test exists for is unchanged: the moment the
+    // live watcher starts, the force-close net is armed, so a kill mid-drive
+    // still leaves regions, visits and significant-change listening.
+    expect(after.includes('_geoConsentChain'), 'the watcher-on path must still reach the arming').toBe(true);
+    const chain = src.slice(src.indexOf('function _geoConsentChain'));
+    expect(chain.includes('startEvents'), 'and that path arms the events baseline').toBe(true);
+    expect(chain.includes('_geoParkRegions(null)')).toBe(true);
+    // Armed BEFORE anything can wait on a dialog: a person who never answers
+    // must still be tracked.
+    expect(chain.indexOf('startEvents')).toBeLessThan(chain.indexOf('motionPermStatus'));
   });
 
   test('the native plugin recreates its manager at launch (the wake handler)', async () => {

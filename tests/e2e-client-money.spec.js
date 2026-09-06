@@ -2061,6 +2061,18 @@ test.describe('Job completion, price change signature gate', () => {
   const JC_CLIENT_ID = 910002;
   let page;
 
+  // A seeded row has to be a REAL record, not just an entry in the live array.
+  //
+  // cloud.js reassigns clients/bids/jobs wholesale in several places (the
+  // cache-restore blocks in supaInit, _enterOfflineMode and supaLoadFromCloud).
+  // A row pushed only into the array is in no snapshot, so when one of those
+  // lands between this seed and the test body that reads it back, the fixture
+  // is simply gone and `bids.find(...)` is undefined. That is the flake this
+  // file has now been bitten by three times, most recently on webkit shard 1
+  // (ada3a56), and each previous fix pinned one test rather than fixing the
+  // seed. Writing the app's own local cache makes the fixture survive a
+  // reassignment the same way a real record does, which is the actual
+  // difference between the two.
   async function seedJob(bidId, jobId, amount) {
     await page.evaluate(([cid, bId, jId, amt]) => {
       clients = clients.filter(c => c.id !== cid);
@@ -2070,6 +2082,7 @@ test.describe('Job completion, price change signature gate', () => {
       jobs = jobs.filter(j => j.id !== jId);
       jobs.push({ id: jId, client_id: cid, bid_id: bId, name: 'Job complete test', status: 'scheduled', start: '2026-06-05' });
       _adjType = null; _jobDoneCapture = null;
+      if (typeof _writeLocalCache === 'function') _writeLocalCache();
     }, [JC_CLIENT_ID, bidId, jobId, amount]);
   }
 
@@ -2079,6 +2092,10 @@ test.describe('Job completion, price change signature gate', () => {
     await mockAllExternal(page);
     await page.goto('/', { waitUntil: 'domcontentloaded', timeout: 20000 });
     await waitForAppBoot(page);
+    // The other half: a cloud load landing mid-suite replaces the arrays from
+    // SERVER data, which the cache cannot rescue. Nothing here is testing sync,
+    // so the load is turned off for this page rather than raced.
+    await page.evaluate(() => { window.supaLoadFromCloud = async () => {}; });
   });
 
   test.afterAll(async () => { await page.context().close(); });

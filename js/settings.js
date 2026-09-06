@@ -1787,7 +1787,7 @@ async function devSwitchTrade(type){
 }
 
 // ── Onboarding ────────────────────────────────────────────────────────
-let _ob={step:1,name:'',email:'',password:'',businessType:'',tradeLines:[],businessName:'',phone:'',address:'',state:'',licenseInfo:'',role:'owner',vehicles:[],team:[],stripeKey:'',acceptCash:true,acceptCheck:true,allowPayLater:true,wantCards:true,jobs:[]};
+let _ob={step:1,name:'',email:'',password:'',businessType:'',tradeLines:[],businessName:'',phone:'',address:'',state:'',licenseInfo:'',role:'owner',vehicles:[],team:[],stripeKey:'',acceptCash:true,acceptCheck:true,allowPayLater:true,wantCards:true,jobs:[],svcPick:false,svcPicked:[],svcAll:false};
 
 async function showOnboarding(){
   _removeBootOverlay();
@@ -1813,7 +1813,7 @@ function _beginOAuthOnboarding(){
     // flag true forever, blocking every future sign-in (the SIGNED_IN handler returns
     // early on _obInProgress). obSubmit owns _obInProgress during the actual write.
     if(typeof document!=='undefined'&&document.getElementById('onboarding-overlay'))return;
-    _ob={step:1,name:'',email:'',password:'',businessType:'',tradeLines:[],businessName:'',phone:'',address:'',state:'',licenseInfo:'',role:'owner',vehicles:[],team:[],stripeKey:'',acceptCash:true,acceptCheck:true,allowPayLater:true,wantCards:true,jobs:[],oauth:true};
+    _ob={step:1,name:'',email:'',password:'',businessType:'',tradeLines:[],businessName:'',phone:'',address:'',state:'',licenseInfo:'',role:'owner',vehicles:[],team:[],stripeKey:'',acceptCash:true,acceptCheck:true,allowPayLater:true,wantCards:true,jobs:[],svcPick:false,svcPicked:[],svcAll:false,oauth:true};
     if(typeof _supaUser!=='undefined'&&_supaUser){
       const m=_supaUser.user_metadata||{};
       _ob.name=m.full_name||m.name||m.given_name||'';
@@ -1899,7 +1899,7 @@ function renderObStep(){
 
   const body=document.getElementById('ob-body');
   if(_ob.step===1)obStepAccount(body);
-  else if(_ob.step===2)obStep3(body);   // trade
+  else if(_ob.step===2)(_ob.svcPick?obStepServices(body):obStep3(body));   // trade, then what he does
   else if(_ob.step===3)obStep8(body);   // get paid
 }
 
@@ -2191,6 +2191,79 @@ function obNext3(){
   const err=document.getElementById('ob-err');
   if(!_ob.tradeLines.length){if(err)err.textContent='Select at least one trade.';return;}
   _ob.businessType=_ob.tradeLines[0];
+  // We already ship 215 priced services across the trades, so a starting price
+  // book is a tapping exercise, not a setup project and not an AI problem.
+  // Skipped entirely for a trade we have no services for.
+  if(!_ob.svcPick&&_obSvcJobs().length){_ob.svcPick=true;renderObStep();return;}
+  _ob.step=3;renderObStep();
+}
+
+// ── "Tap the ones you do" ───────────────────────────────────────────────────
+//
+// The ServiceTitan complaint is that the price book is a project you finish
+// before you are allowed to work. This is the opposite end of it: twelve of his
+// trade's most common jobs, already priced, tap the ones he does, thirty
+// seconds, skippable. Whatever he taps lands in the book already promoted, so
+// it is offered in the estimate builder from his very first proposal instead of
+// waiting for him to use it twice.
+const _OB_SVC_SHOWN=12;
+function _obSvcJobs(){
+  const t=_ob.tradeLines[0]||_ob.businessType;
+  if(!t||typeof TRADE_JOBS==='undefined')return [];
+  const jobs=TRADE_JOBS[t];
+  return Array.isArray(jobs)?jobs.filter(j=>j&&j.name&&!j.custom):[];
+}
+function _obSvcPrice(j){return Math.round((j.labor||0)+(j.mat||0));}
+function obStepServices(el){
+  const jobs=_obSvcJobs();
+  const all=!!_ob.svcAll;
+  const shown=all?jobs:jobs.slice(0,_OB_SVC_SHOWN);
+  _ob.svcPicked=_ob.svcPicked||[];
+  const tLabel=(typeof TRADE_META!=='undefined'&&TRADE_META[_ob.tradeLines[0]]&&TRADE_META[_ob.tradeLines[0]].label)||'your trade';
+  el.innerHTML=
+    '<div style="margin-bottom:20px"><div style="font-size:28px;margin-bottom:10px">'+svgIcon('🔖',{size:28})+'</div>'+
+    '<div style="font-size:22px;font-weight:800;letter-spacing:-.02em;margin-bottom:4px">What do you actually do?</div>'+
+    '<div style="font-size:14px;color:var(--text3)">Tap the jobs you take. Prices are a starting point, you can change any of them later, and the app learns the rest as you work.</div></div>'+
+    '<div style="display:flex;flex-direction:column;gap:8px;margin-bottom:14px">'+
+    shown.map((j,i)=>{
+      const idx=jobs.indexOf(j);
+      const on=_ob.svcPicked.includes(idx);
+      return '<button onclick="obToggleSvc('+idx+')" style="display:flex;align-items:center;gap:10px;padding:12px 14px;border-radius:var(--r);border:2px solid '+(on?'var(--blue)':'var(--border2)')+';background:'+(on?'var(--blue-lt)':'var(--bg2)')+';cursor:pointer;font-family:inherit;text-align:left">'+
+        '<span style="flex:1;min-width:0;font-size:14px;font-weight:700;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+escHtml(j.name)+'</span>'+
+        '<span style="font-size:13px;font-weight:700;color:'+(on?'var(--blue)':'var(--text3)')+';flex-shrink:0">$'+_obSvcPrice(j).toLocaleString()+'</span>'+
+      '</button>';
+    }).join('')+
+    '</div>'+
+    (!all&&jobs.length>_OB_SVC_SHOWN?'<button onclick="_ob.svcAll=true;renderObStep()" style="width:100%;padding:10px;background:none;border:1px dashed var(--border2);border-radius:var(--r);color:var(--text3);font-size:12px;cursor:pointer;font-family:inherit;margin-bottom:14px">Show all '+jobs.length+' '+escHtml(tLabel.toLowerCase())+' jobs</button>':'')+
+    obBtn(_ob.svcPicked.length?'Add '+_ob.svcPicked.length+' to my price book':'Continue','obNextServices()')+
+    obBtn('Skip, I will build it as I go','obNextServices(true)','quiet');
+}
+function obToggleSvc(i){
+  _ob.svcPicked=_ob.svcPicked||[];
+  const at=_ob.svcPicked.indexOf(i);
+  if(at===-1)_ob.svcPicked.push(i);else _ob.svcPicked.splice(at,1);
+  renderObStep();
+}
+function obNextServices(skip){
+  if(!skip&&(_ob.svcPicked||[]).length){
+    const trade=_ob.tradeLines[0]||_ob.businessType||'general';
+    const jobs=_obSvcJobs();
+    if(!S.priceBook||typeof S.priceBook!=='object')S.priceBook={};
+    if(!Array.isArray(S.priceBook[trade]))S.priceBook[trade]=[];
+    const book=S.priceBook[trade];
+    _ob.svcPicked.forEach(i=>{
+      const j=jobs[i];if(!j)return;
+      const rate=_obSvcPrice(j);
+      if(rate<=0)return;
+      if(book.some(x=>String(x.desc||'').trim().toLowerCase()===String(j.name).trim().toLowerCase()))return;
+      // n:2 = already earned its place. He told us he does this job, which is
+      // exactly what using it twice would have told us, so it is offered from
+      // his first proposal rather than after his third.
+      book.push({desc:j.name,unit:j.unit||'ea',rate,n:2,last:todayKey()});
+    });
+    if(typeof _settingsChanged==='function')_settingsChanged();
+  }
+  _ob.svcPick=false;
   _ob.step=3;renderObStep();
 }
 

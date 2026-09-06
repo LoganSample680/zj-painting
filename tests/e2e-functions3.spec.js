@@ -8774,6 +8774,121 @@ test.describe('Generic estimate, panel, and industrial functions', () => {
   // from what he adds and is read by the add sheet. Asserting the old names are
   // gone, not just that the new ones work, so a revert cannot quietly restore a
   // write-only price book (7.1).
+  // ── Onboarding: tap the services you do ─────────────────────────────────────
+  //
+  // We already ship 215 priced services across the trades, so a starting price
+  // book is a tapping exercise, not a setup project and not an AI problem. What
+  // he taps lands already promoted, so it is offered on his first proposal
+  // instead of after he has used it twice.
+  test.describe('onboarding service picker', () => {
+    const arm = (trade) => page.evaluate((t) => {
+      // renderObStep paints into the signup overlay, which is not on screen
+      // outside signup, so give it one. It builds its own #ob-body inside.
+      if (!document.getElementById('onboarding-overlay')) {
+        const ov = document.createElement('div');
+        ov.id = 'onboarding-overlay';
+        document.body.appendChild(ov);
+      }
+      S.priceBook = {};
+      _ob.step = 2; _ob.svcPick = false; _ob.svcPicked = []; _ob.svcAll = false;
+      _ob.tradeLines = [t]; _ob.businessType = t;
+      obNext3();
+      return { onPicker: !!_ob.svcPick, step: _ob.step };
+    }, trade);
+
+    test('picking a trade with services opens the picker before Get paid', async () => {
+      const r = await arm('plumbing');
+      expect(r.onPicker).toBe(true);
+      expect(r.step).toBe(2);
+      const shown = await page.evaluate(() => document.querySelectorAll('#ob-body button').length);
+      expect(shown).toBeGreaterThan(5);
+    });
+
+    test('twelve at a time, with the rest one tap away', async () => {
+      await arm('electrical');   // 120 services, the wall we must not show
+      const r = await page.evaluate(() => {
+        const rows = [...document.querySelectorAll('#ob-body button')].filter(b => /\$/.test(b.textContent));
+        const before = rows.length;
+        _ob.svcAll = true; renderObStep();
+        const after = [...document.querySelectorAll('#ob-body button')].filter(b => /\$/.test(b.textContent)).length;
+        return { before, after };
+      });
+      expect(r.before).toBe(12);
+      expect(r.after).toBeGreaterThan(50);
+    });
+
+    test('what he taps lands in the book already offered', async () => {
+      await arm('plumbing');
+      const r = await page.evaluate(() => {
+        obToggleSvc(0); obToggleSvc(2);
+        const label = document.querySelector('#ob-body button.btn-p, #ob-body button')?.textContent || '';
+        obNextServices();
+        const book = S.priceBook.plumbing || [];
+        return {
+          count: book.length,
+          promoted: book.every(x => (x.n || 1) >= 2),   // offered from the first proposal
+          priced: book.every(x => x.rate > 0),
+          named: book.every(x => !!x.desc),
+          step: _ob.step, picker: _ob.svcPick,
+          bodyLabel: label,
+        };
+      });
+      expect(r.count).toBe(2);
+      expect(r.promoted).toBe(true);
+      expect(r.priced).toBe(true);
+      expect(r.named).toBe(true);
+      expect(r.step).toBe(3);        // straight on to Get paid
+      expect(r.picker).toBe(false);
+    });
+
+    test('skipping adds nothing and still moves on', async () => {
+      await arm('plumbing');
+      const r = await page.evaluate(() => {
+        obToggleSvc(0);            // even with something ticked
+        obNextServices(true);      // skip means skip
+        return { book: (S.priceBook.plumbing || []).length, step: _ob.step };
+      });
+      expect(r.book).toBe(0);
+      expect(r.step).toBe(3);
+    });
+
+    test('tapping the same job twice unticks it, and nothing is added twice', async () => {
+      await arm('plumbing');
+      const r = await page.evaluate(() => {
+        obToggleSvc(1); obToggleSvc(1);           // on, then off
+        obToggleSvc(3);
+        obNextServices();
+        obNextServices();                          // a double tap on Continue
+        return (S.priceBook.plumbing || []).length;
+      });
+      expect(r).toBe(1);
+    });
+
+    test('a trade we ship no services for skips the screen entirely', async () => {
+      const r = await page.evaluate(() => {
+        S.priceBook = {};
+        _ob.step = 2; _ob.svcPick = false; _ob.svcPicked = [];
+        _ob.tradeLines = ['painting']; _ob.businessType = 'painting';
+        obNext3();
+        return { picker: _ob.svcPick, step: _ob.step, jobs: _obSvcJobs().length };
+      });
+      // Painting has its own surface-by-surface estimator, no flat job list.
+      expect(r.jobs).toBe(0);
+      expect(r.picker).toBe(false);
+      expect(r.step).toBe(3);
+    });
+
+    test('no trade picked never reaches the picker', async () => {
+      const r = await page.evaluate(() => {
+        _ob.step = 2; _ob.svcPick = false; _ob.tradeLines = []; _ob.businessType = '';
+        obNext3();
+        return { picker: _ob.svcPick, step: _ob.step };
+      });
+      expect(r.picker).toBe(false);
+      expect(r.step).toBe(2);        // held on the trade grid, as before
+    });
+  });
+
   test('the write-only price book functions are gone', async () => {
     const r = await page.evaluate(() => ({
       addFromBook: typeof window._geiAddFromBook,

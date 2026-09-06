@@ -442,8 +442,10 @@ function _newClientQuickGate(){
   box.innerHTML=
     '<div style="font-size:18px;margin-bottom:6px">'+svgIcon('👤')+' Who is it for?</div>'+
     '<div style="font-size:13px;color:var(--text2);margin-bottom:12px;line-height:1.5">Start typing. Tap them if they are already in here.</div>'+
-    '<input id="_newc-gate-name" type="text" placeholder="Name" autocomplete="off" '+
-      'style="width:100%;box-sizing:border-box;padding:11px 12px;border:1.5px solid var(--border2);border-radius:var(--r);font-size:15px;font-family:inherit;background:var(--bg2);color:var(--text);margin-bottom:10px">'+
+    '<div style="position:relative;margin-bottom:10px">'+
+      '<input id="_newc-gate-name" type="text" placeholder="Name" autocomplete="off" '+
+        'style="width:100%;box-sizing:border-box;padding:11px 44px 11px 12px;border:1.5px solid var(--border2);border-radius:var(--r);font-size:15px;font-family:inherit;background:var(--bg2);color:var(--text)">'+
+    '</div>'+
     '<div id="_newc-gate-hits" style="max-height:33vh;overflow-y:auto;-webkit-overflow-scrolling:touch"></div>'+
     '<div id="_newc-gate-new" style="display:none;border-top:1px solid var(--border);padding-top:12px;margin-top:4px">'+
       '<div id="_newc-gate-newlbl" style="font-size:12px;font-weight:700;color:var(--text2);margin-bottom:8px"></div>'+
@@ -459,6 +461,26 @@ function _newClientQuickGate(){
   ov.addEventListener('click',e=>{if(e.target===ov)ov.remove();});
   const nameEl=document.getElementById('_newc-gate-name');
   const addrEl=document.getElementById('_newc-gate-addr');
+  // Hold the mic and say the whole thing: "T and M for the Delaneys, about
+  // eight hours, water heater replacement." It resolves against his own
+  // customers and his own price book with no network call (js/estimate-speak.js),
+  // and if what he said was only a name, it stays a name and the screen behaves
+  // exactly as if he had typed it.
+  if(typeof _voiceAttach==='function'){
+    _voiceAttach('_newc-gate-name',{
+      host:nameEl&&nameEl.parentElement,
+      style:'position:absolute;right:8px;top:6px;display:inline-flex;align-items:center;justify-content:center;width:30px;height:30px;border-radius:50%;border:1.5px solid var(--border2);background:var(--bg);color:var(--text3)',
+      onDone:(said)=>{
+        const t=String(said||'').trim();
+        if(!t||typeof tdSpeakEstimate!=='function'){_newcGateRender();return;}
+        const plan=tdSpeakEstimate(t);
+        if(plan&&plan.actionable){document.getElementById('_newc-gate-overlay')?.remove();return;}
+        // Not a bid, just a name: put it back in the field and search on it.
+        if(nameEl&&plan&&plan.client)nameEl.value=plan.client.name;
+        _newcGateRender();
+      },
+    });
+  }
   // Same address autocomplete the address gate uses, so a typed street still
   // fills in the city, state and zip the property lookup needs.
   if(addrEl&&typeof _addrAutoFull==='function')_addrAutoFull(addrEl,null);

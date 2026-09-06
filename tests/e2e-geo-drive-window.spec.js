@@ -908,6 +908,60 @@ test.describe('The route a leg actually drove', () => {
     expect(r.without).toBe(0);
   });
 
+  // WHY THE NUMBER IS SHORTER THAN THE LINE (owner 2026-09-06). A leg
+  // collapsed through a personal stop is billed at the direct route, but the
+  // drawn path is the whole detour, so the map and the figure disagreed on
+  // screen with nothing explaining it. His own Home Depot run home carried
+  // collapsedStops:2 and gpsMiles:0, so even the "Traced" half was suppressed
+  // and it read as a bare "Logged 3.6 mi" over a wandering line.
+  test('a leg collapsed through a personal stop says why its mileage is shorter', async () => {
+    const r = await page.evaluate(() => {
+      const saved = mileage.slice();
+      try {
+        mileage.length = 0;
+        // 3.6 logged, a drawn detour well over that, two stops removed.
+        mileage.push({ id: 94, date: todayKey(), miles: 3.6, from: 'HD', to: 'Home',
+                       from_name: 'The Home Depot', to_name: 'TradeDesk shop',
+                       fromCoord: { lat: 39.045, lng: -95.758 }, toCoord: { lat: 39.031, lng: -95.711 },
+                       gpsMiles: 0, collapsedStops: 2, calc_method: 'derived-routed',
+                       path: [[39.045, -95.758, 1], [39.03, -95.79, 2], [39.02, -95.74, 3], [39.031, -95.711, 4]] });
+        openMileageRoute(94);
+        const t = document.getElementById('_mil-route-ov').textContent;
+        document.getElementById('_mil-route-ov').remove();
+
+        // One stop reads as one, and a drawn path that is NOT longer never
+        // claims a comparison it cannot back up.
+        mileage.length = 0;
+        mileage.push({ id: 95, date: todayKey(), miles: 4.0, from: 'A', to: 'B',
+                       from_name: 'Shop', to_name: 'Job', collapsedStops: 1,
+                       fromCoord: { lat: 39.1, lng: -94.1 }, toCoord: { lat: 39.11, lng: -94.11 },
+                       path: [[39.1, -94.1, 1], [39.11, -94.11, 2]] });
+        openMileageRoute(95);
+        const one = document.getElementById('_mil-route-ov').textContent;
+        document.getElementById('_mil-route-ov').remove();
+
+        // A normal leg says nothing about personal stops at all.
+        mileage.length = 0;
+        mileage.push({ id: 96, date: todayKey(), miles: 3.2, from: 'A', to: 'B',
+                       from_name: 'Shop', to_name: 'Job', gpsMiles: 3.4, collapsedStops: 0,
+                       fromCoord: { lat: 39.1, lng: -94.1 }, toCoord: { lat: 39.2, lng: -94.2 },
+                       path: [[39.1, -94.1, 1], [39.2, -94.2, 2]] });
+        openMileageRoute(96);
+        const clean = document.getElementById('_mil-route-ov').textContent;
+        document.getElementById('_mil-route-ov').remove();
+        return { t, one, clean };
+      } finally { mileage.length = 0; saved.forEach(m => mileage.push(m)); }
+    });
+    expect(r.t).toContain('2 personal stops on this leg');
+    expect(r.t).toContain('The Home Depot');
+    expect(r.t).toContain('TradeDesk shop');
+    expect(r.t).toContain('3.6 mi');
+    expect(r.t, 'the drawn detour is named so the picture and the number stop arguing').toMatch(/not the \d+\.\d mi drawn/);
+    expect(r.one).toContain('1 personal stop on this leg');
+    expect(r.one, 'no comparison when the drawn path is not longer').not.toMatch(/not the .* drawn/);
+    expect(r.clean).not.toContain('personal stop');
+  });
+
   test('openMileageRoute draws one modal with the route in it, and closes cleanly', async () => {
     const r = await page.evaluate(() => {
       const saved = mileage.slice();

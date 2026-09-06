@@ -2838,13 +2838,31 @@ function openMileageRoute(id){
   // routed distance; the ONE thing worth acting on is when it reads OVER,
   // which is the case _mileBestMiles already promotes.
   const gps=(r.gpsMiles>0)?('Traced '+(+r.gpsMiles).toFixed(1)+' mi · '):'';
+  // WHY THE NUMBER IS SHORTER THAN THE LINE (owner 2026-09-06, looking at his
+  // own Home Depot run home through two personal stops). A leg collapsed
+  // through a personal stop is billed at the DIRECT route (rule 6, see
+  // _geoDeriveRouteMiles), but the drawn path is still the whole detour, so
+  // the picture and the figure disagreed on screen with nothing to explain it.
+  // Say it here, in the one place he is already looking at both.
+  const _cs=Number(r.collapsedStops)||0;
+  const _drawn=(typeof _milePathMiles==='function')?_milePathMiles(r):0;
+  let _csNote='';
+  if(_cs>0){
+    const _stops=_cs===1?'1 personal stop':_cs+' personal stops';
+    const _vs=(_drawn>(+r.miles||0)+0.05)?(', not the '+_drawn.toFixed(1)+' mi drawn'):'';
+    _csNote='<div style="font-size:11px;line-height:1.6;color:#856404;background:var(--amber-lt);border:1px solid var(--amber);border-radius:var(--r);padding:8px 10px;margin-bottom:12px">'+
+      svgIcon('ℹ',{size:11})+' '+_stops+' on this leg. Billed at the direct route between '+
+      escHtml(r.from_name||r.from||'start')+' and '+escHtml(r.to_name||r.to||'end')+
+      ' ('+_mi+' mi)'+_vs+'. The detour is yours, so it is not on the books.</div>';
+  }
   box.innerHTML=
     '<div style="font-size:17px;font-weight:800;line-height:1.25;margin-bottom:2px">Route driven</div>'+
     '<div style="font-size:12px;color:var(--text3);margin-bottom:12px">'+
       escHtml((r.from_name||r.from||'Start'))+' → '+escHtml((r.to_name||r.to||'End'))+'</div>'+
     '<div id="_mil-route-body" style="margin-bottom:10px"></div>'+
-    '<div style="font-size:11px;color:var(--text3);line-height:1.6;margin-bottom:12px">'+
+    '<div style="font-size:11px;color:var(--text3);line-height:1.6;margin-bottom:'+(_csNote?'8px':'12px')+'">'+
       gps+'Logged '+_mi+' mi</div>'+
+    _csNote+
     '<button onclick="this.closest(\'.zmodal-overlay\').remove()" class="btn" style="width:100%">Close</button>';
   ov.appendChild(box);document.body.appendChild(ov);
   try{

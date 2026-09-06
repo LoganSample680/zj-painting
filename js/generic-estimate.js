@@ -1042,6 +1042,12 @@ function _geiDepositPct(){
   const el=document.getElementById(_geiIsTM?'tm-deposit-pct':'byo-deposit-pct');
   const typed=parseFloat(el?.value);
   if(typed>0)return typed;
+  // A TYPED ZERO IS AN ANSWER, not a blank. Settings has said "0 = no deposit"
+  // since it shipped, but zero fell through to the account default here, so a
+  // contractor who wanted none got 25% anyway and only found out when the
+  // client's proposal asked for money up front. An empty field is still NaN
+  // and still falls through, which is the case the default exists for.
+  if(typed===0)return 0;
   // His own standard, learned the first time he changes it (_geiRememberDeposit),
   // and 25 only for a contractor who has never said otherwise.
   const own=Number(S&&S.depositPct);
@@ -3851,7 +3857,7 @@ function _geiBuildTermsHtml(){
   return _clausesHtml+_customTermsBlock;
 }
 
-async function sendGenericProposal(previewOnly){
+async function sendGenericProposal(previewOnly,opts){
   saveGenericEstimate(true); // draft=true skips navigation, modal shows over estimate page
   _saveToLineHistory();
   if(!previewOnly){
@@ -4101,7 +4107,11 @@ async function sendGenericProposal(previewOnly){
   // it only appears in the accordion under the signature on the actual sign
   // step (owner directive 2026-07-13). The preview mirrors that: it shows
   // only the document, same as sign.html's Review step before Approve & Sign.
-  if(previewOnly){_showProposalPreviewOverlay(proposalHtml);return;}
+  // The document the client would receive, kept so the in-person sheet can put
+  // the SAME one in front of them (_geiSignInPerson). Building it twice, once
+  // for the screen and once for the signature, is how the two drift apart.
+  window._geiLastProposalHtml=proposalHtml;
+  if(previewOnly){if(!opts||!opts.silent)_showProposalPreviewOverlay(proposalHtml);return proposalHtml;}
   const bidId=_geiEditBidId;
   const token=Array.from(crypto.getRandomValues(new Uint8Array(16)),b=>b.toString(16).padStart(2,'0')).join('');
   const proposalKey=`proposals/${_supaUser.id}/${bidId}_${token}.json`;
@@ -4571,6 +4581,56 @@ function _stsuSave(){
 }
 
 // ─── Sign in person, T&M and Build Your Own ─────────────────────────────────
+// The proposal document, rendered into the in-person sheet. Built by the same
+// call that builds the emailed one (sendGenericProposal in silent preview mode,
+// which promises nothing and stamps nothing), so there is exactly one document
+// in the product. Scrolls inside its own box: the sheet is already tall and the
+// signature has to stay reachable on a phone.
+function _geiIpDoc(){
+  try{
+    if(typeof sendGenericProposal==='function')sendGenericProposal(true,{silent:true});
+  }catch(_e){}
+  return (typeof window!=='undefined'&&window._geiLastProposalHtml)||'';
+}
+function _geiIpDocHTML(){
+  const doc=_geiIpDoc();
+  if(!doc)return'';
+  return'<div style="font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.06em;color:var(--text3);margin-bottom:8px">What they are signing</div>'+
+    '<div id="gei-ip-doc" style="max-height:46vh;overflow-y:auto;-webkit-overflow-scrolling:touch;border:1px solid var(--border);border-radius:var(--r);padding:8px;background:var(--bg2);margin-bottom:16px">'+doc+'</div>';
+}
+
+// ── The signature is never left on the phone ────────────────────────────────
+// An in-person signature used to go to signed_proposals as a fire-and-forget
+// insert inside a try/catch that console.warned and moved on. In a basement
+// with no signal that is the single most important record in the business,
+// silently lost, while the bid itself saved fine and looked signed.
+//
+// Same shape the photo queue already uses (_drainPhotoQueue, js/jobs.js): park
+// the pending write ON THE BID, which syncs, survives a force-quit and drains
+// on the next connection. No new storage, no new durability story.
+function _geiQueueSignature(bid,row){
+  if(!bid||!row)return;
+  bid.sigPending=row;
+  try{saveAll();}catch(_e){}
+}
+async function _drainSignatureQueue(){
+  if(typeof supaEnabled!=='function'||!supaEnabled())return;
+  if(typeof _supaUser==='undefined'||!_supaUser||!_supa)return;
+  let dirty=false;
+  for(const b of (typeof bids!=='undefined'?bids:[])){
+    const row=b&&b.sigPending;
+    if(!row)continue;
+    try{
+      const{data:rows}=await _supa.from('signed_proposals').select('id')
+        .eq('bid_id',String(b.id)).eq('contractor_user_id',_supaUser.id).limit(1);
+      if(rows&&rows[0])await _supa.from('signed_proposals').update(row).eq('id',rows[0].id);
+      else await _supa.from('signed_proposals').insert(row);
+      delete b.sigPending;dirty=true;
+      if(b.client_id&&typeof _uploadClientHub==='function')_uploadClientHub(b.client_id).catch(()=>{});
+    }catch(_e){/* still no signal: it stays queued, on the bid, for next time */}
+  }
+  if(dirty){try{saveAll();}catch(_e){}}
+}
 function _geiSignInPerson(){
   saveGenericEstimate(true);
   const bid=bids.find(x=>x.id===_geiEditBidId);
@@ -4604,6 +4664,14 @@ function _geiSignInPerson(){
             :'<div style="display:flex;justify-content:space-between;font-size:12px;padding:4px 0"><span style="color:var(--text3)">Due on completion</span><strong>'+fmt(total)+'</strong></div>'
           )+
         '</div>'+
+        // THE DOCUMENT THEY ARE SIGNING (owner 2026-09-06: "I want it done and
+        // prepared in person, sign on the spot"). This sheet used to show a
+        // total, a deposit and a signature box, so the version used face to
+        // face was weaker than the one sign.html puts in front of a remote
+        // client, and it was also the one most likely to be argued about
+        // later. Same HTML, built once by sendGenericProposal and reused here,
+        // so the in-person contract and the emailed one can never differ.
+        _geiIpDocHTML()+
         // The ONE shared signing pad + the ONE shared terms block (esign.js)
         //, same layout, same capture code, same substance as sign.html's
         // remote signature for this exact document. Full clause list, not a
@@ -4644,6 +4712,10 @@ async function _geiConfirmInPerson(){
   const ts=new Date().toISOString();
   bid.amount=total;bid.deposit=depAmt;bid.status='Closed Won';bid.draft=false;
   bid.signedAt=ts;bid.estStatus='signed';
+  // The exact document that was on screen when they signed, kept as the legal
+  // record the same way the remote send keeps it (_finalizeProposalSend). An
+  // in-person signature had no snapshot at all before this.
+  if(!bid.proposalHtml&&typeof window!=='undefined'&&window._geiLastProposalHtml)bid.proposalHtml=window._geiLastProposalHtml;
   const clientName=document.getElementById('gei-client')?.value||bid.client_name||'Client';
   bid.client_name=bid.client_name||clientName;
   saveAll();
@@ -4672,21 +4744,26 @@ async function _geiConfirmInPerson(){
         '<div style="font-size:12px;display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid #dcfce7"><span style="color:#374151">Signed by</span><strong>'+escHtml(pname)+'</strong></div>'+
         '<div style="font-size:12px;display:flex;justify-content:space-between;padding:4px 0"><span style="color:#374151">Date &amp; time</span><span>'+dtFmt+'</span></div>'+
       '</div>'+
+      // Do the two things that are only possible WHILE HE IS STILL IN THE ROOM.
+      // The deposit leads because card-in-hand right after a signature is the
+      // best collection moment in the business, and this screen used to walk
+      // straight past it to "Back to home".
+      (depAmt>0?'<button onclick="_geiCollectDepositNow('+bid.id+')" style="width:100%;padding:14px;border-radius:var(--rl,12px);border:none;background:var(--green,#16a34a);color:#fff;font-size:16px;font-weight:700;cursor:pointer;font-family:inherit;margin-bottom:8px">'+svgIcon('💳',{size:16,color:'#fff'})+' Collect '+fmt(depAmt)+' now</button>':'')+
+      '<button onclick="_geiTextSignedCopy('+bid.id+')" style="width:100%;padding:13px;border-radius:var(--rl,12px);border:1px solid var(--border2);background:var(--bg2);color:var(--text);font-size:15px;font-weight:700;cursor:pointer;font-family:inherit;margin-bottom:8px">'+svgIcon('📱',{size:15})+' Text them their copy</button>'+
       '<button onclick="document.getElementById(\'_gei-ip-ov\').remove();goPg(\'pg-dash\');setTimeout(showScheduleAlerts,400)" style="width:100%;padding:14px;border-radius:var(--rl,12px);border:none;background:var(--blue);color:#fff;font-size:16px;font-weight:700;cursor:pointer;font-family:inherit">'+svgIcon('🏠',{size:16,color:'#fff'})+' Back to home</button>'+
     '</div>';
   }
-  // Background: write to signed_proposals + upload client hub
-  if(typeof supaEnabled==='function'&&supaEnabled()&&typeof _supaUser!=='undefined'&&_supaUser&&bid.client_id){(async()=>{
-    const row={bid_id:String(bid.id),contractor_user_id:_supaUser.id,
-      client_name:bid.client_name,client_signed_name:pname||typed,
-      signed_at:ts,signature_data:sigData,
-      payment_status:'pending',deposit:depAmt,amount:total};
-    try{
-      const{data:rows}=await _supa.from('signed_proposals').select('id')
-        .eq('bid_id',String(bid.id)).eq('contractor_user_id',_supaUser.id).limit(1);
-      if(rows&&rows[0])await _supa.from('signed_proposals').update(row).eq('id',rows[0].id);
-      else await _supa.from('signed_proposals').insert(row);
-      if(typeof _uploadClientHub==='function')_uploadClientHub(bid.client_id).catch(()=>{});
-    }catch(e){console.warn('gei in-person sign save:',e);}
-  })();}
+  // QUEUE FIRST, THEN SEND. The row is parked on the bid before any network is
+  // attempted, so a signature taken in a basement is on the device, in a record
+  // that syncs, and drains the moment there is signal (_drainSignatureQueue).
+  // This used to be a bare insert whose only failure handling was a console
+  // warning, which meant no signal equalled no signature, silently.
+  const _sigRow={bid_id:String(bid.id),contractor_user_id:(typeof _supaUser!=='undefined'&&_supaUser)?_supaUser.id:null,
+    client_name:bid.client_name,client_signed_name:pname||typed,
+    signed_at:ts,signature_data:sigData,
+    payment_status:'pending',deposit:depAmt,amount:total};
+  if(bid.client_id){
+    _geiQueueSignature(bid,_sigRow);
+    if(typeof _drainSignatureQueue==='function')_drainSignatureQueue();
+  }
 }

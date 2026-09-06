@@ -634,7 +634,7 @@ const _supaMode=(()=>{try{return localStorage.getItem('zp3_supa_mode');}catch(_e
 // `let` so the supaInit auto-fallback can flip it to the proxy before the client is built.
 let SUPA_URL = (_supaMode==='proxy') ? _SUPA_PROXY_URL : _SUPA_DIRECT_URL;
 const SUPA_KEY = 'sb_publishable_kaahEa5tFydocUuYi8plHg_K78HPyvJ';
-const APP_VERSION='09.06.26.16';
+const APP_VERSION='09.06.26.17';
 let _supa=null,_supaUser=null,_syncTimer=null,_syncStatus='local',_supaCloudLoaded=false,_lastLocalSaveAt=0;
 let _syncBroadcastChannel=null,_realtimeSubscribed=false,_loadInProgress=false,_activeLoadPromise=null,_broadcastReloadTimer=null,_broadcastPending=false,_reconcileTimer=null,_writeCacheTimer=null,_rtRenderTimer=null;
 // True only for the window between an in-tab sign-in landing on the dashboard
@@ -2424,6 +2424,7 @@ async function supaInit(){
             goPg('pg-dash'); // ensure we land on home whether cloud load succeeded or fell back to cache
             typeof _drainHubQueue==='function'&&_drainHubQueue();
             typeof _drainPhotoQueue==='function'&&_drainPhotoQueue();
+            typeof _drainSignatureQueue==='function'&&_drainSignatureQueue();
           } else {
             await supaLoadFromCloud();
             goPg('pg-dash');
@@ -6725,6 +6726,7 @@ async function _onReconnect(){
       _hideOfflineBanner();
       typeof _drainHubQueue==='function'&&_drainHubQueue();
       typeof _drainPhotoQueue==='function'&&_drainPhotoQueue();
+            typeof _drainSignatureQueue==='function'&&_drainSignatureQueue();
     }catch(e){_showOfflineBanner(false);}
     return;
   }
@@ -6736,6 +6738,7 @@ async function _onReconnect(){
       await supaLoadFromCloud({silent:true});renderDash&&renderDash();_hideOfflineBanner();
       typeof _drainHubQueue==='function'&&_drainHubQueue();
       typeof _drainPhotoQueue==='function'&&_drainPhotoQueue();
+            typeof _drainSignatureQueue==='function'&&_drainSignatureQueue();
     }catch(e){_showOfflineBanner(false);}
     return;
   }
@@ -6791,6 +6794,7 @@ async function _onReconnect(){
     _hideOfflineBanner();
     typeof _drainHubQueue==='function'&&_drainHubQueue();
     typeof _drainPhotoQueue==='function'&&_drainPhotoQueue();
+            typeof _drainSignatureQueue==='function'&&_drainSignatureQueue();
   }catch(e){_showOfflineBanner(false);}
 }
 async function _probeAndSync(){
@@ -7975,6 +7979,39 @@ async function _extendBidPrice(bidId,days){
   }catch(_e){}
   if(typeof showToast==='function')showToast('Price held through '+(typeof _fmtValidUntil==='function'?_fmtValidUntil(b.validUntil):b.validUntil),'⏳');
   if(typeof renderDash==='function')setTimeout(renderDash,300);
+}
+// ── After an in-person signature ────────────────────────────────────────────
+// He signs at the kitchen table and the client used to walk away with nothing
+// in their hand while he was still standing there. Both of these use the hub
+// link the account already mints (same builder as resendProposalLink), so
+// there is one client-facing URL in the product, not a second one.
+function _geiHubUrlFor(bid){
+  const c=bid&&bid.client_id?getClientById(bid.client_id):null;
+  if(!c||!c.clientToken)return null;
+  return _clientBaseUrl()+'client.html?t='+c.clientToken+'&u='+((typeof _supaUser!=='undefined'&&_supaUser)?_supaUser.id:'')+'&c='+c.id;
+}
+// Their copy, sent while he is still in the room.
+function _geiTextSignedCopy(bidId){
+  const b=bids.find(x=>String(x.id)===String(bidId));
+  if(!b)return;
+  const c=b.client_id?getClientById(b.client_id):null;
+  const url=_geiHubUrlFor(b);
+  if(!url){if(typeof showToast==='function')showToast('No client hub link yet','⚠️');return;}
+  const first=((c&&c.name)||b.client_name||'there').split(' ')[0];
+  const biz=(S&&S.bname)||'your contractor';
+  const msg='Hi '+first+', thanks for signing with '+biz+'. Your signed copy and everything about the job lives here: '+url;
+  if(c&&c.phone){window.location.href='sms:'+String(c.phone).replace(/\D/g,'')+'?body='+encodeURIComponent(msg);return;}
+  navigator.clipboard.writeText(url).then(()=>{if(typeof showToast==='function')showToast('Link copied','📋');}).catch(()=>{});
+}
+// The best collection moment there is: card in hand, contract just signed. The
+// hub carries the account's real Stripe checkout, so this opens THAT rather
+// than growing a second payment path inside the estimator.
+function _geiCollectDepositNow(bidId){
+  const b=bids.find(x=>String(x.id)===String(bidId));
+  if(!b)return;
+  const url=_geiHubUrlFor(b);
+  if(!url){if(typeof showToast==='function')showToast('Connect Stripe to collect here','⚠️');return;}
+  try{window.open(url,'_blank');}catch(_e){window.location.href=url;}
 }
 function resendProposalLink(bidId){
   const b=bids.find(x=>x.id===bidId);

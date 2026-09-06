@@ -4980,4 +4980,219 @@ test.describe('generic-estimate.js: exhaustive coverage', () => {
     assertNoErrors(page, 'generic-estimate.js step-1 pass');
   });
 
+
+  // ── The in-person close (owner 2026-09-06) ──────────────────────────────────
+  // "I want it done and prepared in person, sign on the spot." That path
+  // existed but was the weaker one: they signed a total with no document, the
+  // signature write was fire-and-forget, and the client walked away with
+  // nothing while he was still standing there.
+  test.describe('signing at the kitchen table', () => {
+    const openIp = () => page.evaluate(() => {
+      const c = { id: 90401, name: 'Kitchen Table Client', addr: '9 Table Rd', phone: '3165550199', clientToken: 'tok-90401' };
+      clients = clients.filter(x => x.id !== 90401).concat([c]);
+      bids = bids.filter(x => x.client_id !== 90401);
+      openGenericEstimate(c, null, null, { mode: 'byo' });
+      goGeiStep(2);
+      _byoItems = [{ id: 1, section: 'Work', label: 'Water heater replacement', price: 1400, on: true }];
+      _byoUpdateRail();
+      const dep = document.getElementById('byo-deposit-pct');
+      if (dep) dep.value = '25';
+      _geiSignInPerson();
+      return _geiEditBidId;
+    });
+
+    test('the sheet puts the actual document in front of them, the same one the email carries', async () => {
+      const r = await openIp().then(() => page.evaluate(() => {
+        const ov = document.getElementById('_gei-ip-ov');
+        const doc = document.getElementById('gei-ip-doc');
+        const out = {
+          hasDoc: !!doc,
+          // The document, not a summary: the line item and the scope heading
+          // are both in it, exactly as the remote client would see them.
+          saysWork: !!(doc && doc.textContent.includes('Water heater replacement')),
+          saysScope: !!(doc && /Scope of work/i.test(doc.textContent)),
+          // It scrolls in its own box so the signature stays reachable
+          scrolls: !!(doc && /overflow-y:\s*auto/.test(doc.getAttribute('style') || '')),
+          stillHasPad: !!(ov && ov.querySelector('canvas')),
+          // Same HTML object the send path builds, never a second render
+          matchesSend: !!(doc && window._geiLastProposalHtml && doc.innerHTML.trim() === window._geiLastProposalHtml.trim())
+        };
+        ov?.remove();
+        return out;
+      }));
+      expect(r.hasDoc).toBe(true);
+      expect(r.saysWork).toBe(true);
+      expect(r.saysScope).toBe(true);
+      expect(r.scrolls).toBe(true);
+      expect(r.stillHasPad).toBe(true);
+      expect(r.matchesSend).toBe(true);
+    });
+
+    test('a preview built for the sheet promises nothing: no stamp, no overlay', async () => {
+      const r = await page.evaluate(async () => {
+        const c = { id: 90402, name: 'Silent Preview Client', addr: '10 Table Rd' };
+        clients = clients.filter(x => x.id !== 90402).concat([c]);
+        bids = bids.filter(x => x.client_id !== 90402);
+        openGenericEstimate(c, null, null, { mode: 'byo' });
+        goGeiStep(2);
+        _byoItems = [{ id: 1, section: 'Work', label: 'Panel upgrade', price: 2200, on: true }];
+        _byoUpdateRail();
+        const id = _geiEditBidId;
+        await sendGenericProposal(true, { silent: true });
+        return {
+          noOverlay: document.querySelectorAll('#_prop-preview-ov').length,
+          gotHtml: !!(window._geiLastProposalHtml || '').includes('Panel upgrade'),
+          noStamp: bids.find(x => x.id === id)?.validUntil || null
+        };
+      });
+      expect(r.noOverlay).toBe(0);
+      expect(r.gotHtml).toBe(true);
+      expect(r.noStamp, 'preparing the sheet must not promise a price hold').toBe(null);
+    });
+
+    test('the signature is parked on the bid before any network, and the document is kept', async () => {
+      const r = await openIp().then(bidId => page.evaluate((id) => {
+        // Sign it the way a thumb does: type the name, confirm.
+        document.getElementById('gei-ip-pname').value = 'Mike Johnson';
+        _geiConfirmInPerson();
+        const b = bids.find(x => x.id === id);
+        document.getElementById('_gei-ip-ov')?.remove();
+        return {
+          status: b.status,
+          signedAt: !!b.signedAt,
+          queued: !!b.sigPending,
+          signer: b.sigPending && b.sigPending.client_signed_name,
+          amount: b.sigPending && b.sigPending.amount,
+          hasSig: !!(b.sigPending && b.sigPending.signature_data),
+          snapshot: !!(b.proposalHtml && b.proposalHtml.includes('Water heater replacement'))
+        };
+      }, bidId));
+      expect(r.status).toBe('Closed Won');
+      expect(r.signedAt).toBe(true);
+      expect(r.queued, 'no signal must never mean no signature').toBe(true);
+      expect(r.signer).toBe('Mike Johnson');
+      expect(r.amount).toBe(1400);
+      expect(r.hasSig).toBe(true);
+      expect(r.snapshot, 'the in-person signature IS the contract, so the document is kept').toBe(true);
+    });
+
+    test('the queue drains once, clears itself, and survives a write that fails', async () => {
+      const r = await page.evaluate(async () => {
+        const b = { id: 904099, client_id: 90401, client_name: 'Kitchen Table Client', amount: 1400,
+                    sigPending: { bid_id: '904099', client_signed_name: 'Mike Johnson', amount: 1400 } };
+        bids = bids.filter(x => x.id !== 904099).concat([b]);
+        const realFrom = _supa.from.bind(_supa);
+        let inserts = 0, fail = true;
+        _supa.from = (t) => {
+          if (t !== 'signed_proposals') return realFrom(t);
+          return {
+            select: () => ({ eq: () => ({ eq: () => ({ limit: async () => ({ data: [] }) }) }) }),
+            insert: async () => { if (fail) throw new Error('offline'); inserts++; return { data: null }; },
+            update: () => ({ eq: async () => ({ data: null }) })
+          };
+        };
+        await _drainSignatureQueue();
+        const stillQueued = !!bids.find(x => x.id === 904099).sigPending;
+        fail = false;
+        await _drainSignatureQueue();
+        const afterOnline = !!bids.find(x => x.id === 904099).sigPending;
+        await _drainSignatureQueue();   // nothing left to send
+        _supa.from = realFrom;
+        bids = bids.filter(x => x.id !== 904099);
+        return { stillQueued, afterOnline, inserts };
+      });
+      expect(r.stillQueued, 'a failed write leaves it queued, on the bid').toBe(true);
+      expect(r.afterOnline, 'a good write clears it').toBe(false);
+      expect(r.inserts, 'and never sends it twice').toBe(1);
+    });
+
+    test('the confirmation offers the deposit and their copy, not just Back to home', async () => {
+      const r = await openIp().then(bidId => page.evaluate((id) => {
+        document.getElementById('gei-ip-pname').value = 'Mike Johnson';
+        _geiConfirmInPerson();
+        const html = document.getElementById('_gei-ip-ov').innerHTML;
+        document.getElementById('_gei-ip-ov').remove();
+        return {
+          collect: html.includes('_geiCollectDepositNow(' + id + ')'),
+          amount: /Collect \$350\.00 now/.test(html),
+          copy: html.includes('_geiTextSignedCopy(' + id + ')'),
+          home: html.includes('Back to home')
+        };
+      }, bidId));
+      expect(r.collect).toBe(true);
+      expect(r.amount, 'the deposit figure is on the button, not hidden behind it').toBe(true);
+      expect(r.copy).toBe(true);
+      expect(r.home).toBe(true);
+    });
+
+    test('a job with no deposit does not offer to collect nothing', async () => {
+      const r = await page.evaluate(() => {
+        const c = { id: 90403, name: 'No Deposit Client', addr: '11 Table Rd', clientToken: 'tok-90403' };
+        clients = clients.filter(x => x.id !== 90403).concat([c]);
+        bids = bids.filter(x => x.client_id !== 90403);
+        openGenericEstimate(c, null, null, { mode: 'byo' });
+        goGeiStep(2);
+        _byoItems = [{ id: 1, section: 'Work', label: 'Drain cleaning', price: 240, on: true }];
+        _byoUpdateRail();
+        const dep = document.getElementById('byo-deposit-pct');
+        if (dep) dep.value = '0';
+        _geiSignInPerson();
+        document.getElementById('gei-ip-pname').value = 'Nobody';
+        _geiConfirmInPerson();
+        const html = document.getElementById('_gei-ip-ov').innerHTML;
+        document.getElementById('_gei-ip-ov').remove();
+        return { collect: html.includes('_geiCollectDepositNow'), copy: html.includes('_geiTextSignedCopy') };
+      });
+      expect(r.collect).toBe(false);
+      expect(r.copy, 'they still get their copy').toBe(true);
+    });
+
+    // Settings has promised "0 = no deposit" since it shipped, and the
+    // estimator quietly returned 25 anyway, so a contractor who wanted none
+    // found out when his client's proposal asked for money up front.
+    test('a typed zero deposit is an answer, an empty field still takes his default', async () => {
+      const r = await page.evaluate(() => {
+        const c = { id: 90404, name: 'Deposit Pct Client', addr: '12 Table Rd' };
+        clients = clients.filter(x => x.id !== 90404).concat([c]);
+        bids = bids.filter(x => x.client_id !== 90404);
+        S.depositPct = 40;
+        openGenericEstimate(c, null, null, { mode: 'byo' });
+        goGeiStep(2);
+        const el = document.getElementById('byo-deposit-pct');
+        const out = {};
+        el.value = '0'; out.zero = _geiDepositPct();
+        el.value = ''; out.blank = _geiDepositPct();
+        el.value = '33'; out.typed = _geiDepositPct();
+        el.value = 'abc'; out.junk = _geiDepositPct();
+        delete S.depositPct; el.value = ''; out.noDefault = _geiDepositPct();
+        return out;
+      });
+      expect(r.zero, 'zero means zero').toBe(0);
+      expect(r.blank, 'a blank field still takes his own standard').toBe(40);
+      expect(r.typed).toBe(33);
+      expect(r.junk).toBe(40);
+      expect(r.noDefault).toBe(25);
+    });
+
+    test('the after-signature helpers never throw on a missing bid, client or token', async () => {
+      const r = await page.evaluate(() => {
+        const out = [];
+        bids = bids.filter(x => x.id !== 904098).concat([{ id: 904098, client_id: 999999, amount: 100 }]);
+        [() => _geiTextSignedCopy(904098), () => _geiCollectDepositNow(904098),
+         () => _geiTextSignedCopy(123456789), () => _geiCollectDepositNow(123456789),
+         () => _geiTextSignedCopy(null), () => _geiCollectDepositNow(undefined),
+         () => _geiQueueSignature(null, {}), () => _geiQueueSignature({}, null)].forEach(f => {
+          try { f(); out.push('ok'); } catch (e) { out.push('threw'); }
+        });
+        bids = bids.filter(x => x.id !== 904098);
+        return out;
+      });
+      expect(r).toEqual(['ok', 'ok', 'ok', 'ok', 'ok', 'ok', 'ok', 'ok']);
+    });
+
+    test('no console errors across the in-person close', async () => {
+      assertNoErrors(page, 'in-person close');
+    });
+  });
+
 });

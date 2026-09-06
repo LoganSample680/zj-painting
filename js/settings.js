@@ -1028,6 +1028,81 @@ async function _clearTeamLinksCloud(){
   if(typeof supaEnabled!=='function'||!supaEnabled()||typeof _supa==='undefined'||!_supa||!_supaUser)return;
   try{await _supa.from('team_members').delete().eq('contractor_user_id',_supaUser.id);}catch(_e){}
 }
+// ── Delete account, for real (App Review 5.1.1(v)) ──────────────────────────
+//
+// "If your app supports account creation, you must also offer account deletion
+// within the app." Factory reset above empties the records and leaves the
+// login standing, which is a different thing and does not satisfy the rule.
+//
+// TWO SENTENCES, because there are two truths and a crew member deserves the
+// one that applies to them. An owner loses the business records. A crew member
+// does NOT get to delete their employer's payroll: their hours stay in that
+// employer's books with the name taken off, and their login, their crew link
+// and every position their phone ever reported are gone. Saying that plainly
+// here is the difference between a promise we keep and one we do not.
+function _delAcctCopy(){
+  const crew=(typeof _isEmployee!=='undefined'&&_isEmployee);
+  return crew
+    ? 'Closes your login and unlinks you from this business. Your locations and device history are deleted. The hours you already worked stay in your employer\'s payroll records with your name removed, because those are their books.'
+    : 'Closes your login and deletes your business: clients, proposals, jobs, mileage, expenses, photos and settings. Anyone you have on the crew keeps their own login and is unlinked from you. This cannot be undone.';
+}
+function _delAcctWord(){
+  // A real speed bump, not a second OK. Typing the word is the only thing in
+  // the app that asks somebody to say what they mean in their own hand.
+  return 'DELETE';
+}
+// Returns a promise that settles when the WHOLE flow is done, including the
+// path where the person cancels. Two nested callback modals otherwise resolve
+// this function long before anything has happened, which makes it untestable
+// and makes any caller that waits on it wrong.
+function deleteMyAccount(){
+  if(typeof _supaUser==='undefined'||!_supaUser){
+    if(typeof zAlert==='function')zAlert('You are signed out already, so there is nothing here to delete.',{title:'Nothing to delete'});
+    return Promise.resolve(false);
+  }
+  const word=_delAcctWord();
+  return new Promise(done=>{
+    zConfirm(_delAcctCopy(),()=>{
+      zPrompt('Type '+word+' to confirm.',(v)=>{
+        if(String(v||'').trim().toUpperCase()!==word){
+          if(typeof zAlert==='function')zAlert('Not deleted. The word did not match, so nothing was touched.',{title:'Cancelled'});
+          done(false);return;
+        }
+        Promise.resolve(_deleteAccountNow()).then(r=>done(r),()=>done(false));
+      },{title:'Last chance',placeholder:word});
+    },{title:'Delete account',yes:'Continue',danger:true,onNo:()=>done(false)});
+  });
+}
+async function _deleteAccountNow(){
+  const btn=document.getElementById('set-del-acct-btn');
+  if(btn){btn.disabled=true;btn.textContent='Deleting\u2026';}
+  try{
+    const {data}=await _supa.auth.getSession();
+    const tok=data&&data.session&&data.session.access_token;
+    if(!tok)throw new Error('You are signed out. Sign in again and retry.');
+    const r=await fetch(_SUPA_DIRECT_URL+'/functions/v1/delete-account',{
+      method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+tok},
+    });
+    const out=await r.json().catch(()=>({}));
+    if(!r.ok||!out.ok)throw new Error(out.error||'Could not delete the account.');
+    // Nothing on this device should outlive the account. Sign-out clears the
+    // session; the wipe below clears the caches and the offline queues, so a
+    // reload cannot restore a snapshot of an account that no longer exists.
+    try{await _supa.auth.signOut();}catch(_e){}
+    try{
+      Object.keys(localStorage).forEach(k=>{
+        if(/^zp3_|^td_geo|^geo_owner_consent$/.test(k))localStorage.removeItem(k);
+      });
+    }catch(_e){}
+    if(typeof zAlert==='function')zAlert('Your account is deleted. Thanks for giving TradeDesk a run.',{title:'Deleted'});
+    setTimeout(()=>{try{location.reload();}catch(_e){}},1200);
+    return true;
+  }catch(e){
+    if(btn){btn.disabled=false;btn.innerHTML='Delete my account';}
+    if(typeof zAlert==='function')zAlert((e&&e.message)||'Could not delete the account. Try again, or email support.',{title:'Not deleted'});
+    return false;
+  }
+}
 function clearAllData(){
   zConfirm('This will permanently delete ALL clients, proposals, jobs, income, expenses, mileage, and your invited team. This cannot be undone.',()=>{
     zConfirm('Last chance, are you absolutely sure you want to delete everything?',async()=>{

@@ -3575,6 +3575,16 @@ body.dark .cal-cell.other{background:var(--cream)}
         <div style="font-size:13px;font-weight:700;color:var(--c-red);margin-bottom:4px">Factory reset</div>
         <div style="font-size:12px;color:var(--text2);margin-bottom:12px">Wipes everything, clients, proposals, mileage, expenses, fleet, settings. Cannot be undone.</div>
         <button class="btn btn-r" onclick="clearAllData()" style="width:100%;padding:12px;font-size:13px"><span data-ico="🗑" data-ico-size="14"></span> Clear ALL data, start fresh</button>
+        <!-- App Review Guideline 5.1.1(v): an app that creates accounts must
+             offer deletion IN the app. Factory reset above empties the records
+             and leaves the login standing, which is not the same thing and is
+             not what the rule asks for. Sits under the reset because it is the
+             larger of the two, and it is the last control on the screen. -->
+        <div style="border-top:1px solid var(--border);margin:16px 0 0;padding-top:16px">
+          <div style="font-size:13px;font-weight:700;color:var(--c-red);margin-bottom:4px">Delete account</div>
+          <div id="set-del-acct-copy" style="font-size:12px;color:var(--text2);margin-bottom:12px">Closes your login and removes your data for good. Cannot be undone.</div>
+          <button id="set-del-acct-btn" class="btn btn-r" onclick="deleteMyAccount()" style="width:100%;padding:12px;font-size:13px"><span data-ico="⚠" data-ico-size="14"></span> Delete my account</button>
+        </div>
       </div>
 
     </div>

@@ -2200,8 +2200,17 @@ body.dark .cal-cell.other{background:var(--cream)}
 
   <!-- Step 1: Job Info -->
   <div id="gei-s1" style="padding:10px 14px 80px">
+    <!-- The job's details, STATED not asked (owner 2026-09-06). Property type
+         and work type are resolved from the customer's own record and his
+         account defaults (_geiFacts), so the normal case is a line he reads in
+         a second and taps nothing. Change opens the same controls that used to
+         be the first thing on the screen. -->
+    <button id="gei-facts-line" onclick="_geiToggleFacts()" style="width:100%;display:flex;align-items:center;justify-content:space-between;gap:10px;padding:12px 14px;border-radius:var(--r);border:1px solid var(--border2);background:var(--bg2);cursor:pointer;font-family:inherit;text-align:left;margin-bottom:12px">
+      <span id="gei-facts-text" style="font-size:13px;color:var(--text2)">Residential, repair, normal hours</span>
+      <span id="gei-facts-chev" style="font-size:12px;font-weight:700;color:var(--blue);flex-shrink:0">Change</span>
+    </button>
     <!-- Job type, drives tax treatment, templates, and terms -->
-    <div class="card" style="margin-bottom:12px">
+    <div class="card" id="gei-facts-card" style="margin-bottom:12px;display:none">
       <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--text3);margin-bottom:6px">Property type</div>
       <div style="display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:6px;margin-bottom:10px">
         <button id="gei-prop-res"  onclick="_geiSetPropertyType('residential')" class="btn btn-sm" style="border:2px solid var(--blue);background:var(--blue-lt);color:var(--blue-dk)"><span data-ico="🏠" data-ico-size="14"></span> Residential</button>

@@ -4246,4 +4246,151 @@ test.describe('generic-estimate.js: exhaustive coverage', () => {
     });
   });
 
+
+  // ── One fact, one home ──────────────────────────────────────────────────────
+  //
+  // Every one of these was a question on step 1 whose answer was already in the
+  // account or on the customer record, and the estimator threw the stored
+  // answer away and started blank. Smart starts with not asking a man something
+  // he has already told you.
+  test.describe('the estimate resolves what it already knows', () => {
+    const openFor = (client, settings) => page.evaluate(([c, st]) => {
+      Object.assign(S, st);
+      clients = clients.filter(x => x.id !== 97001);
+      clients.push(Object.assign({ id: 97001, name: 'Facts Test', addr: '1 Fact St, Wichita, KS 67201' }, c));
+      // Each open leaves a draft behind, and a second open for the same
+      // customer then asks "resume the one in progress?" through zConfirm, which
+      // an earlier describe in this file has stubbed to record and never answer.
+      // So the estimator never opened and the test read the PREVIOUS test's
+      // values. Clear the drafts and answer yes like a person would.
+      bids = bids.filter(b => b.client_id !== 97001);
+      window.zConfirm = (m, yes) => { if (typeof yes === 'function') yes(); };
+      _activeTrade = 'plumbing';
+      openTMEstimate(getClientById(97001));
+      document.getElementById('_style-pick-ov')?.remove();
+      // Mount the T&M page the way the app does, so the deposit field is the
+      // one this estimate rendered rather than whatever a previous test left in
+      // the DOM. _geiDepositPct reads that field first, by design.
+      if (typeof _tmShowPage === 'function') _tmShowPage();
+      return {
+        commercial: _geiIsCommercial, scope: _geiJobScope, newWork: _geiNewWork,
+        rate: _tmRatePerMan, deposit: _geiDepositPct(),
+        line: document.getElementById('gei-facts-text')?.textContent,
+      };
+    }, [client, settings || {}]);
+
+    test('a commercial customer opens commercial, without being asked', async () => {
+      const r = await openFor({ ptype: 'Commercial' });
+      expect(r.commercial).toBe(true);
+      expect(r.line).toContain('Commercial');
+    });
+
+    test('a new-construction customer opens as a new build', async () => {
+      const r = await openFor({ ptype: 'New construction' });
+      expect(r.scope).toBe('improvement');
+      expect(r.newWork).toBe(true);
+      expect(r.line).toContain('new build');
+    });
+
+    test('an ordinary house opens residential repair', async () => {
+      const r = await openFor({ ptype: 'Single family home' });
+      expect(r.commercial).toBe(false);
+      expect(r.scope).toBe('repair');
+      expect(r.line).toBe('Residential, repair, normal hours');
+    });
+
+    test('a customer with no property type on file still opens sanely', async () => {
+      const r = await openFor({});
+      expect(r.commercial).toBe(false);
+      expect(r.scope).toBe('repair');
+    });
+
+    test('his hourly rate comes from Settings, not zero', async () => {
+      const r = await openFor({ ptype: 'Single family home' }, { laborRate: 95 });
+      // It started at 0 every time, so he typed his own rate on every bid and
+      // Send refused him until he did.
+      expect(r.rate).toBe(95);
+    });
+
+    test('his own deposit standard is used, not a hardcoded 25', async () => {
+      const r = await openFor({ ptype: 'Single family home' }, { depositPct: 33 });
+      expect(r.deposit).toBe(33);
+    });
+
+    test('the deposit field itself opens at his standard, not the last estimate\'s', async () => {
+      // The field was built once with a hardcoded 25 and never reset, so his
+      // default was ignored AND the previous estimate's percent carried over.
+      const r = await page.evaluate(() => {
+        const el = document.getElementById('tm-deposit-pct');
+        if (!el) return { skip: true };
+        el.value = '70';                       // as if the last estimate left it here
+        S.depositPct = 33;
+        _geiApplyDepositDefault('tm');
+        return { shown: el.value };
+      });
+      if (!r.skip) expect(r.shown).toBe('33');
+    });
+
+    test('a contractor who never set one still gets 25', async () => {
+      const r = await openFor({ ptype: 'Single family home' }, { depositPct: 0 });
+      expect(r.deposit).toBe(25);
+    });
+
+    test('a junk stored deposit is ignored rather than trusted', async () => {
+      const r = await page.evaluate(() => {
+        const out = [];
+        [-5, 250, 'banana', null, undefined].forEach(v => { S.depositPct = v; out.push(_geiDepositPct()); });
+        S.depositPct = 25;
+        return out;
+      });
+      expect(r).toEqual([25, 25, 25, 25, 25]);
+    });
+
+    test('changing the deposit teaches it, so the next estimate opens there', async () => {
+      const r = await page.evaluate(() => {
+        S.depositPct = 25;
+        _geiIsTM = true;
+        const el = document.getElementById('tm-deposit-pct');
+        if (!el) return { skip: true };
+        el.value = '40';
+        _geiRememberDeposit();
+        return { learned: S.depositPct };
+      });
+      if (!r.skip) expect(r.learned).toBe(40);
+    });
+
+    test('the details are one line, and the controls are behind it', async () => {
+      const r = await openFor({ ptype: 'Single family home' });
+      const state = await page.evaluate(() => {
+        const card = () => document.getElementById('gei-facts-card');
+        const chev = () => document.getElementById('gei-facts-chev');
+        const closed = card().style.display === 'none' && chev().textContent === 'Change';
+        _geiToggleFacts();
+        const opened = card().style.display !== 'none' && chev().textContent === 'Done';
+        _geiToggleFacts();
+        return { closed, opened, backClosed: card().style.display === 'none' };
+      });
+      expect(r.line).toBeTruthy();
+      expect(state.closed).toBe(true);
+      expect(state.opened).toBe(true);
+      expect(state.backClosed).toBe(true);
+    });
+
+    test('correcting the guess updates the line he reads', async () => {
+      await openFor({ ptype: 'Single family home' });
+      const r = await page.evaluate(() => {
+        _geiSetPropertyType('commercial');
+        const a = document.getElementById('gei-facts-text').textContent;
+        _geiSetWorkType('improvement');
+        const b = document.getElementById('gei-facts-text').textContent;
+        _geiEmergency = true; _geiSyncJobTypeButtons();
+        const c = document.getElementById('gei-facts-text').textContent;
+        return { a, b, c };
+      });
+      expect(r.a).toContain('Commercial');
+      expect(r.b).toContain('new build');
+      expect(r.c).toContain('emergency rate');
+    });
+  });
+
 });

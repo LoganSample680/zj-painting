@@ -509,6 +509,59 @@ function _geiStartFreshDraft(){
   openGenericEstimate(c,null,null,{mode,forceNew:true,forceAddr:addr});
 }
 
+// ── One fact, one home ──────────────────────────────────────────────────────
+//
+// Owner 2026-09-06: fewer clicks, less setup, and it has to be the smartest
+// tool out there. Smart starts with not asking a man something the app has
+// already been told.
+//
+// Every one of these was a question on step 1 whose answer was already sitting
+// in the account or on the customer record, and the estimator threw the stored
+// answer away and started blank:
+//
+//   * PROPERTY TYPE. The client form asks single family / condo / rental /
+//     commercial / new construction. Step 1 asked Residential or Commercial
+//     again, and _geiIsCommercial was hardcoded false on every open.
+//   * WORK TYPE. "New construction" is one of those same client-form answers.
+//     Step 1 asked Repair or New build as if nobody had said.
+//   * HIS HOURLY RATE. S.laborRate is set in Settings and this file NEVER read
+//     it: _tmRatePerMan started at 0 every time, so he typed his own rate on
+//     every T&M bid, and the send button refused him until he did.
+//   * THE DEPOSIT. Hardcoded 25% with nowhere to store his own standard, so a
+//     contractor who always takes a third re-set it on every single estimate.
+//
+// The chain is: what he set on THIS estimate, then this customer's record,
+// then his account default, then the trade's. Nothing starts at zero that the
+// app has been told, and the screen states the answer instead of asking the
+// question.
+function _geiFacts(c){
+  const pt=String((c&&c.ptype)||'').toLowerCase();
+  const rate=Number(S&&S.laborRate)||0;
+  const dep=Number(S&&S.depositPct);
+  return {
+    // The customer's own property type, which is a strictly better answer than
+    // a blank toggle: he told us when he wrote the customer down.
+    commercial:pt==='commercial',
+    // Same field, second question. "New construction" answers both.
+    workScope:pt==='new construction'?'improvement':'repair',
+    // His rate, not zero.
+    laborRate:rate>0?rate:0,
+    // His standard deposit, and 25 only when he has never said otherwise.
+    depositPct:(dep>0&&dep<=100)?dep:25,
+  };
+}
+// What the summary line on step 1 reads out, in his words. It states what the
+// app worked out so he can correct it in one tap, instead of making him
+// re-enter it every time to prove he means it.
+function _geiFactsLine(){
+  const bits=[
+    _geiIsCommercial?'Commercial':'Residential',
+    _geiJobScope==='improvement'?'new build':'repair',
+    _geiEmergency?'emergency rate':'normal hours',
+  ];
+  return bits.join(', ');
+}
+
 function openGenericEstimate(c,bidId,_tradePick,opts){
   // Start of the drafting clock, so "how long to write a proposal" is measurable.
   try{if(typeof lcProposalStarted==='function')lcProposalStarted(c&&c.id!=null?c.id:_geiClientId);}catch(_e){}
@@ -520,7 +573,14 @@ function openGenericEstimate(c,bidId,_tradePick,opts){
   _geiClientId=c?.id||null;
   _geiEditBidId=bidId||null;
   _geiClientTaxRate=null;
-  _geiLines=[];_byoItems=[];_byoCustomSections=[];_byoCustomTerms='';_geiIsCommercial=false;_geiEmergency=false;_panelSched=null;_geiStep=1;_geiNewWork=false;_geiJobScope='repair';_geiScopeChips=[];_geiScopeNoScope=false;_estCrew=[];
+  const _facts=_geiFacts(c);
+  _geiLines=[];_byoItems=[];_byoCustomSections=[];_byoCustomTerms='';_geiEmergency=false;_panelSched=null;_geiStep=1;_geiScopeChips=[];_geiScopeNoScope=false;_estCrew=[];
+  // Resolved, not blanked. An emergency is the one thing nobody can know in
+  // advance, so that one still starts off.
+  _geiIsCommercial=_facts.commercial;
+  _geiJobScope=_facts.workScope;
+  _geiNewWork=(_facts.workScope==='improvement');
+  if(typeof _geiFactsOpen!=='undefined')_geiFactsOpen=false;
   _geiScanId=null;
   // Seeded lines (scan / TrueMeasure) are computed here but NOT applied to
   // _geiLines yet: the resume-an-existing-draft lookup below this block can
@@ -567,7 +627,9 @@ function openGenericEstimate(c,bidId,_tradePick,opts){
       if(typeof showToast==='function')showToast('Measured line loaded from TrueMeasure','🛰️');
     }
   }
-  _tmCrewCount=1;_tmRatePerMan=0;_tmEstHours=0;_tmBillingCycle='weekly';_tmCapAction='Stop & get re-approval';
+  // His hourly rate comes from Settings. It used to start at 0, which made him
+  // type his own rate on every bid and blocked Send until he did.
+  _tmCrewCount=1;_tmRatePerMan=_facts.laborRate;_tmEstHours=0;_tmBillingCycle='weekly';_tmCapAction='Stop & get re-approval';
   document.getElementById('gei-cart-bar')?.remove();
   if(_tradePick)_activeTrade=_tradePick;
   _geiTrade=_tradePick||getActiveTrade();
@@ -611,7 +673,7 @@ function openGenericEstimate(c,bidId,_tradePick,opts){
       // and letting isFreeForm win resumed T&M drafts as empty BYO estimates.
       if(b.isTM){
         _geiIsTM=true;_geiIsFreeForm=false;
-        _tmCrewCount=b.tmCrewCount||1;_tmRatePerMan=b.tmRatePerMan||0;
+        _tmCrewCount=b.tmCrewCount||1;_tmRatePerMan=b.tmRatePerMan||_facts.laborRate;
         _tmEstHours=b.tmEstHours||0;_tmBillingCycle=b.tmBillingCycle||'weekly';
         _tmCapAction=b.tmCapAction||'Stop & get re-approval';
       }
@@ -667,7 +729,7 @@ function openGenericEstimate(c,bidId,_tradePick,opts){
       if(_b.panelSched)_panelSched=JSON.parse(JSON.stringify(_b.panelSched));
       // isTM precedence, legacy dual-flag rows (see _byoAutosave note) must
       // resume as T&M, never as an empty BYO.
-      if(_b.isTM){_geiIsTM=true;_geiIsFreeForm=false;_tmCrewCount=_b.tmCrewCount||1;_tmRatePerMan=_b.tmRatePerMan||0;_tmEstHours=_b.tmEstHours||0;_tmBillingCycle=_b.tmBillingCycle||'weekly';_tmCapAction=_b.tmCapAction||'Stop & get re-approval';}
+      if(_b.isTM){_geiIsTM=true;_geiIsFreeForm=false;_tmCrewCount=_b.tmCrewCount||1;_tmRatePerMan=_b.tmRatePerMan||_facts.laborRate;_tmEstHours=_b.tmEstHours||0;_tmBillingCycle=_b.tmBillingCycle||'weekly';_tmCapAction=_b.tmCapAction||'Stop & get re-approval';}
       else if(_b.isFreeForm){_geiIsFreeForm=true;_geiIsTM=false;}
       if(_b.scopeChips)_geiScopeChips=[..._b.scopeChips];
       _geiScopeNoScope=!!(_b.scopeNoScope);
@@ -947,12 +1009,47 @@ function _geiRenderDepositField(prefix,onInputExpr){
     '</div>'+
     '<div class="summary-row" style="color:var(--text-3)"><span>Balance later</span><span id="'+prefix+'-rail-balance">$0</span></div>';
 }
+// The field is BUILT once and never reset, with a hardcoded 25 in the markup.
+// Two things followed from that: his own default (S.depositPct, whose settings
+// help text has always promised it is "applied to every new proposal") was
+// ignored, and the last estimate's deposit carried into the next one. Both are
+// fixed here, on every page show: the resumed bid's own percent if it has one,
+// then his standard, then 25 for a contractor who has never said.
+function _geiApplyDepositDefault(prefix){
+  const el=document.getElementById(prefix+'-deposit-pct');
+  if(!el)return;
+  const b=_geiEditBidId?bids.find(x=>x.id===_geiEditBidId):null;
+  let pct=Number(b&&b.tmDepositPct);
+  // BYO stores dollars, not a percent, so read the percent back off the pair.
+  if(!(pct>0)&&b&&Number(b.amount)>0&&Number(b.deposit)>0)pct=Math.round(Number(b.deposit)/Number(b.amount)*100);
+  if(!(pct>0&&pct<=100)){
+    const own=Number(S&&S.depositPct);
+    pct=(own>0&&own<=100)?own:25;
+  }
+  el.value=String(pct);
+}
 // Single source of truth for "what % deposit does this estimate use", read by
 // _byoAutosave, saveGenericEstimate, sendGenericProposal, _geiSignInPerson, and
 // _geiConfirmInPerson so T&M and BYO can never drift onto different formulas.
 function _geiDepositPct(){
   const el=document.getElementById(_geiIsTM?'tm-deposit-pct':'byo-deposit-pct');
-  return parseFloat(el?.value)||25;
+  const typed=parseFloat(el?.value);
+  if(typed>0)return typed;
+  // His own standard, learned the first time he changes it (_geiRememberDeposit),
+  // and 25 only for a contractor who has never said otherwise.
+  const own=Number(S&&S.depositPct);
+  return (own>0&&own<=100)?own:25;
+}
+// What he corrects, the app keeps. He sets a third once and every estimate
+// after it opens at a third, the same way the price book learns what he
+// charges. Never learned from the value we put there ourselves.
+function _geiRememberDeposit(){
+  const el=document.getElementById(_geiIsTM?'tm-deposit-pct':'byo-deposit-pct');
+  const v=parseFloat(el?.value);
+  if(!(v>0&&v<=100))return;
+  if(Number(S.depositPct)===v)return;
+  S.depositPct=v;
+  if(typeof _settingsChanged==='function')_settingsChanged();
 }
 
 // ── Estimate mode registry ────────────────────────────────────────────────────
@@ -991,7 +1088,7 @@ const _GEI_MODES={
     editFnName:'_editTMTitle',
     titleSuffix:'Time & Materials',
     gaugeOninput:'_tmInputChange()',
-    depositOninput:'_tmInputChange()',
+    depositOninput:'_tmInputChange();_geiRememberDeposit()',
     actionOpts:{sendLabel:'Send T&amp;M proposal'},
   },
   byo:{
@@ -1000,7 +1097,7 @@ const _GEI_MODES={
     editFnName:'_editByoTitle',
     titleSuffix:'Build Your Own',
     gaugeOninput:"this.dataset.userSet='true';_byoUpdateRail();_byoAutosave()",
-    depositOninput:'_byoUpdateRail();_byoAutosave()',
+    depositOninput:'_byoUpdateRail();_byoAutosave();_geiRememberDeposit()',
     actionOpts:{extraButtons:[{label:svgIcon('📋',{size:11})+' Option B',onclick:'_byoDuplicateBid()'}]},
   },
 };
@@ -1077,6 +1174,7 @@ function _geiShowSharedChrome(prefix){
   _geiRenderProfitGauge(prefix,m.gaugeOninput);
   _geiRenderActionButtons(prefix,m.actionOpts);
   _geiRenderDepositField(prefix,m.depositOninput);
+  _geiApplyDepositDefault(prefix);
   _geiRenderSiteNoteField(prefix);
   // Trade branding in title
   const tmMeta=TRADE_META[_geiTrade||getActiveTrade()]||{icon:'🔧',label:'Trade'};
@@ -2580,7 +2678,25 @@ function _geiSetWorkType(scope){
   if(_geiStep===2)_geiRenderTemplates();
   calcGeiTotal();
 }
+// The summary line and the controls behind it. Open once and it stays open for
+// the rest of the estimate, because a man who had to correct the guess is
+// probably about to correct another one.
+let _geiFactsOpen=false;
+function _geiToggleFacts(){
+  _geiFactsOpen=!_geiFactsOpen;
+  _geiSyncJobTypeButtons();
+}
+function _geiRenderFactsLine(){
+  const txt=document.getElementById('gei-facts-text');
+  const card=document.getElementById('gei-facts-card');
+  const chev=document.getElementById('gei-facts-chev');
+  if(txt)txt.textContent=_geiFactsLine();
+  if(card)card.style.display=_geiFactsOpen?'':'none';
+  if(chev)chev.textContent=_geiFactsOpen?'Done':'Change';
+}
+
 function _geiSyncJobTypeButtons(){
+  _geiRenderFactsLine();
   const _propActive=_geiIsCommercial?'comm':'res';
   ['res','comm'].forEach(k=>{
     const btn=document.getElementById('gei-prop-'+k);if(!btn)return;

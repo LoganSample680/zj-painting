@@ -4166,4 +4166,84 @@ test.describe('generic-estimate.js: exhaustive coverage', () => {
     });
   });
 
+
+  // ── Nobody else's trade on his paperwork ────────────────────────────────────
+  //
+  // Owner 2026-09-06: "any trade specific branding goes out the window in this
+  // redesign, everything has to be aligned to each of the trades."
+  //
+  // getActiveTrade() used to fall back to 'painting', and every other fallback
+  // in the app chained off it, so a plumber whose business_type had not loaded,
+  // a crew session, or any path that lost the trade for a moment produced a
+  // document headed "Painting Proposal" with a palette on it.
+  test.describe('trade branding', () => {
+    test('an unknown trade is never painting', async () => {
+      const r = await page.evaluate(() => {
+        const prevA = window._activeTrade, prevC = window._config;
+        _activeTrade = null; _config = {};
+        const got = getActiveTrade();
+        _activeTrade = prevA; _config = prevC;
+        return got;
+      });
+      expect(r).toBe('general');
+    });
+
+    test('each trade names its own proposal', async () => {
+      const r = await page.evaluate(() => ({
+        plumbing: _tradeProposalLabel('plumbing'),
+        electrical: _tradeProposalLabel('electrical'),
+        hvac: _tradeProposalLabel('hvac'),
+        roofing: _tradeProposalLabel('roofing'),
+        landscaping: _tradeProposalLabel('landscaping'),
+        painting: _tradeProposalLabel('painting'),
+      }));
+      expect(r).toEqual({
+        plumbing: 'Plumbing Proposal',
+        electrical: 'Electrical Proposal',
+        hvac: 'HVAC Proposal',
+        roofing: 'Roofing Proposal',
+        landscaping: 'Landscaping Proposal',
+        painting: 'Painting Proposal',
+      });
+    });
+
+    test('a trade we cannot name says Proposal, never another trade\'s word', async () => {
+      const r = await page.evaluate(() => [
+        _tradeProposalLabel('general'),
+        _tradeProposalLabel('other'),
+        _tradeProposalLabel(''),
+        _tradeProposalLabel(null),
+        _tradeProposalLabel(undefined),
+        _tradeProposalLabel('a trade that does not exist'),
+      ]);
+      expect(r).toEqual(['Proposal', 'Proposal', 'Proposal', 'Proposal', 'Proposal', 'Proposal']);
+      expect(r.join(' ')).not.toMatch(/painting/i);
+    });
+
+    test('the lower-case eyebrow follows the same rule', async () => {
+      const r = await page.evaluate(() => [
+        _tradeProposalLabel('plumbing', { lower: true }),
+        _tradeProposalLabel('general', { lower: true }),
+      ]);
+      expect(r).toEqual(['Plumbing proposal', 'Proposal']);
+    });
+
+    test('the estimator header shows HIS trade, not the default one', async () => {
+      const r = await page.evaluate(() => {
+        clients = clients.filter(c => c.id !== 96001);
+        clients.push({ id: 96001, name: 'Brand Test', addr: '1 Brand St, Wichita, KS 67201' });
+        _activeTrade = 'plumbing';
+        openTMEstimate(getClientById(96001));
+        document.getElementById('_style-pick-ov')?.remove();
+        const title = document.getElementById('gei-trade-title')?.textContent || '';
+        const eyebrow = document.getElementById('gei-tbar-eyebrow')?.textContent || '';
+        clients = clients.filter(c => c.id !== 96001);
+        return { title: title.trim(), eyebrow };
+      });
+      expect(r.title).toContain('Plumbing');
+      expect(r.title).not.toMatch(/painting/i);
+      expect(r.eyebrow).toBe('Plumbing proposal');
+    });
+  });
+
 });

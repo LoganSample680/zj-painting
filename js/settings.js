@@ -1732,7 +1732,7 @@ function _renderSettingsTradeSections(){
 function _renderDevTradeCard(){
   const _hasFleet=typeof _fleetRoster!=='undefined'&&_fleetRoster&&_fleetRoster.length;
   if(!_config?.is_dev&&!_hasFleet)return;
-  const current=_config?.business_type||'painting';
+  const current=_config?.business_type||'general';
   const trades=[
     {id:'painting',icon:'🎨',label:'Painting'},
     {id:'plumbing',icon:'🔧',label:'Plumbing'},

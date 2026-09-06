@@ -2597,7 +2597,7 @@ function saveDebriefAndComplete(jobId,btn){
   // Upload actual hours to crowdsourced benchmark pool
   const _debJob=jobs.find(x=>x.id===jobId);
   const _debBid=_debJob?.bid_id?bids.find(b=>b.id===_debJob.bid_id):null;
-  const _debTrade=_debBid?.trade_type||'painting';
+  const _debTrade=_debBid?.trade_type||'general';
   const _benchRows=[];
   inputs.forEach(inp=>{
     const scopeId=inp.dataset.scope;

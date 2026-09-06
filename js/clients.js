@@ -262,7 +262,7 @@ const _RRP_EXEMPT_TRADES=['landscaping'];
 // passes nothing and behaves exactly as before.
 function _rrpGateThenEstimate(c,pickedAddr){
   if(!c)return;
-  const _trade=typeof getActiveTrade==='function'?getActiveTrade():'painting';
+  const _trade=typeof getActiveTrade==='function'?getActiveTrade():'general';
   if(c.yearBuilt&&c.yearBuilt<1978&&!_RRP_EXEMPT_TRADES.includes(_trade)){
     if((c.addr||'').trim()){
       // Open estimate picker first so it's the backdrop behind the RRP modal

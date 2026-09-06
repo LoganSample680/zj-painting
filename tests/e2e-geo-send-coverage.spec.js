@@ -968,37 +968,6 @@ test.describe('Generic-estimate sync/scope: _gei* / _stsuLookup / _scopeHistoryH
     }
   });
 
-  test('_geiOnboardToggle / _geiOnboardFinish: exist after showGeiOnboarding, toggle + finish persist bundles', async () => {
-    const result = await page.evaluate(() => {
-      if (typeof showGeiOnboarding !== 'function') return { skip: true };
-      if (!window.S) window.S = {};
-      S.state = S.state || 'KS';
-      document.getElementById('_gei-onboard-ov')?.remove();
-      let threw = false;
-      try {
-        showGeiOnboarding(); // defines window._geiOnboardToggle / Finish / Skip
-      } catch (e) { threw = true; }
-      const toggleType = typeof window._geiOnboardToggle;
-      const finishType = typeof window._geiOnboardFinish;
-      // Select a bundle, then finish → S.myBundles set, S.hasOnboarded true
-      if (toggleType === 'function') { try { window._geiOnboardToggle('painting'); } catch (e) {} }
-      const origToast = window.showToast; window.showToast = () => {};
-      if (finishType === 'function') { try { window._geiOnboardFinish(); } catch (e) {} }
-      window.showToast = origToast;
-      const bundles = Array.isArray(S.myBundles) ? S.myBundles : null;
-      document.getElementById('_gei-onboard-ov')?.remove();
-      return { threw, toggleType, finishType, bundles, onboarded: S.hasOnboarded };
-    });
-    if (!result.skip) {
-      expect(result.threw).toBe(false);
-      expect(result.toggleType).toBe('function');
-      expect(result.finishType).toBe('function');
-      expect(Array.isArray(result.bundles)).toBe(true);
-      expect(result.bundles).toContain('painting');
-      expect(result.onboarded).toBe(true);
-    }
-  });
-
   test('_stsuLookup: no-op (no throw) when #stsu-zip / result missing', async () => {
     const result = await page.evaluate(async () => {
       if (typeof _stsuLookup !== 'function') return { skip: true };

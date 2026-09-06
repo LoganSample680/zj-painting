@@ -2209,8 +2209,8 @@ body.dark .cal-cell.other{background:var(--cream)}
       </div>
       <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--text3);margin-bottom:6px">Work type</div>
       <div style="display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:6px;margin-bottom:8px">
-        <button id="gei-work-repair"   onclick="_geiSetWorkType('repair')"      class="btn btn-sm" style="border:2px solid var(--blue);background:var(--blue-lt);color:var(--blue-dk)"><span data-ico="🔧" data-ico-size="14"></span> Repair / Remodel</button>
-        <button id="gei-work-newbuild" onclick="_geiSetWorkType('improvement')" class="btn btn-sm" style="border:2px solid var(--border2);background:var(--bg2);color:var(--text2)"><span data-ico="🏗" data-ico-size="14"></span> New Build / Addition</button>
+        <button id="gei-work-repair"   onclick="_geiSetWorkType('repair')"      class="btn btn-sm" style="border:2px solid var(--blue);background:var(--blue-lt);color:var(--blue-dk);min-width:0;white-space:normal;line-height:1.25"><span data-ico="🔧" data-ico-size="14"></span> Repair</button>
+        <button id="gei-work-newbuild" onclick="_geiSetWorkType('improvement')" class="btn btn-sm" style="border:2px solid var(--border2);background:var(--bg2);color:var(--text2);min-width:0;white-space:normal;line-height:1.25"><span data-ico="🏗" data-ico-size="14"></span> New build</button>
       </div>
       <div id="gei-jtype-note" style="font-size:11px;color:var(--text3)"></div>
       <div style="display:flex;gap:6px;margin-top:8px">
@@ -2297,7 +2297,7 @@ body.dark .cal-cell.other{background:var(--cream)}
       <button onclick="goGeiStep(3)" class="btn btn-p" style="margin-top:10px;margin-bottom:4px">Review &amp; send proposal →</button>
     </div>
     <div id="gei-svc-wrap" style="display:flex;justify-content:flex-end;margin-bottom:4px">
-      <button onclick="showGeiOnboarding({force:true})" style="font-size:11px;padding:4px 10px;background:none;border:1px solid var(--border2);border-radius:var(--r);color:var(--text3);cursor:pointer;font-family:inherit"><span data-ico="⚙" data-ico-size="13"></span> Change services</button>
+
     </div>
     <div id="gei-templates"></div>
   </div>
@@ -4233,12 +4233,6 @@ loadAll();applySettings();registerDevice();applyBrandLogo();
 setTimeout(()=>{if(typeof _initTabBarDrag==='function')_initTabBarDrag();},0);
 setTimeout(showDailyBriefing,1200);
 setTimeout(checkStripeConnectReturn,800);
-setTimeout(()=>{
-  const _lines=_getTradeLines();
-  const _needsGei=_lines.some(t=>t!=='painting'&&t!=='general');
-  if(_needsGei&&(!S.myBundles||!S.myBundles.length))showGeiOnboarding();
-},900);
-
 if(supaEnabled()){
   // Show loading overlay, don't render local data, wait for cloud
   (function showLoadingScreen(){

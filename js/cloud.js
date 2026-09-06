@@ -282,7 +282,7 @@ function _restoreIdentityFromCache(){
     _user=_ac.user;
     if(_ac.isEmployee){_isEmployee=true;_contractorUserId=_ac.contractorUserId;}
     else{_isEmployee=false;_contractorUserId=null;_employeeRecord=null;}
-    _activeTrade=_ac.activeTrade||'painting';
+    _activeTrade=_ac.activeTrade||'general';
     if(_ac.account){_account=_ac.account;if(_account.business_name&&!S.bname)S.bname=_account.business_name;}
     if(_ac.config)_config=_ac.config;
     _renderNavTradeSwitcher();applyPermissions();
@@ -351,7 +351,7 @@ async function loadAccountData(){
       if(_account?.phone&&!S.bphone){S.bphone=_account.phone;_seeded.push('bphone');}
       if(_account?.license_info&&!S.blic){S.blic=_account.license_info;_seeded.push('blic');}
       if(_account?.state&&!S.state){S.state=_account.state;_seeded.push('state');}
-      _activeTrade=_config?.business_type||'painting';
+      _activeTrade=_config?.business_type||'general';
       _renderNavTradeSwitcher();
       applyPermissions();
       // Cache for offline restore
@@ -372,7 +372,7 @@ async function loadAccountData(){
       // never silent, the signed-in person always has a signal to notice.
       if(welcome)showToast('Welcome to the team, '+escHtml(row.name||'there')+'! 👋','✅');
       else showToast('Signed in as crew ('+escHtml(row.role||'employee')+'). Not expecting this? Contact the business that invited you.','👷',6000);
-      try{localStorage.setItem('zp3_acct_'+_supaUser.id,JSON.stringify({user:_user,activeTrade:'painting',isEmployee:true,contractorUserId:_contractorUserId}));}catch(_e){}
+      try{localStorage.setItem('zp3_acct_'+_supaUser.id,JSON.stringify({user:_user,activeTrade:'general',isEmployee:true,contractorUserId:_contractorUserId}));}catch(_e){}
       return true;
     };
     const _pend=(()=>{try{return JSON.parse(localStorage.getItem('_pendingEmpInvite')||'null');}catch(_e){return null;}})();
@@ -436,7 +436,7 @@ async function loadAccountData(){
         applyPermissions();
         localStorage.removeItem('_pendingEmpInvite');
         showToast('Welcome to the crew! 👋','✅');
-        try{localStorage.setItem('zp3_acct_'+_supaUser.id,JSON.stringify({user:_user,activeTrade:'painting',isEmployee:true,contractorUserId:_contractorUserId}));}catch(_e){}
+        try{localStorage.setItem('zp3_acct_'+_supaUser.id,JSON.stringify({user:_user,activeTrade:'general',isEmployee:true,contractorUserId:_contractorUserId}));}catch(_e){}
         return true;
       }
     }
@@ -455,7 +455,7 @@ async function loadAccountData(){
       _isEmployee=false;_employeeRecord=null;_contractorUserId=null;
       _user={id:_supaUser.id,email:_supaUser.email,name:getOwnerName()||'',role:'owner',account_id:null};
       applyPermissions();
-      try{localStorage.setItem('zp3_acct_'+_supaUser.id,JSON.stringify({user:_user,activeTrade:_activeTrade||'painting',isEmployee:false}));}catch(_e){}
+      try{localStorage.setItem('zp3_acct_'+_supaUser.id,JSON.stringify({user:_user,activeTrade:_activeTrade||'general',isEmployee:false}));}catch(_e){}
       return true;
     }
     return false;
@@ -470,7 +470,7 @@ async function loadAccountData(){
         // from a different account earlier in this tab (see _applyEmployeeNavGating).
         if(_ac.isEmployee){_isEmployee=true;_contractorUserId=_ac.contractorUserId;}
         else{_isEmployee=false;_contractorUserId=null;_employeeRecord=null;}
-        _activeTrade=_ac.activeTrade||'painting';
+        _activeTrade=_ac.activeTrade||'general';
         if(_ac.account){_account=_ac.account;if(_account.business_name&&!S.bname)S.bname=_account.business_name;if(_account.phone&&!S.bphone)S.bphone=_account.phone;}
         if(_ac.config)_config=_ac.config;
         _renderNavTradeSwitcher();applyPermissions();
@@ -634,7 +634,7 @@ const _supaMode=(()=>{try{return localStorage.getItem('zp3_supa_mode');}catch(_e
 // `let` so the supaInit auto-fallback can flip it to the proxy before the client is built.
 let SUPA_URL = (_supaMode==='proxy') ? _SUPA_PROXY_URL : _SUPA_DIRECT_URL;
 const SUPA_KEY = 'sb_publishable_kaahEa5tFydocUuYi8plHg_K78HPyvJ';
-const APP_VERSION='09.06.26.5';
+const APP_VERSION='09.06.26.6';
 let _supa=null,_supaUser=null,_syncTimer=null,_syncStatus='local',_supaCloudLoaded=false,_lastLocalSaveAt=0;
 let _syncBroadcastChannel=null,_realtimeSubscribed=false,_loadInProgress=false,_activeLoadPromise=null,_broadcastReloadTimer=null,_broadcastPending=false,_reconcileTimer=null,_writeCacheTimer=null,_rtRenderTimer=null;
 // True only for the window between an in-tab sign-in landing on the dashboard

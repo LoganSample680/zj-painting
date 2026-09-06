@@ -266,7 +266,30 @@ const TRADE_SCOPE_CHIPS={
 };
 let _activeTrade=null; // set on login from account_config.business_type
 
-function getActiveTrade(){return _activeTrade||_config?.business_type||'painting';}
+// THERE IS NO DEFAULT TRADE (owner 2026-09-06: "any trade specific branding
+// goes out the window, everything has to be aligned to each of the trades").
+//
+// This used to fall back to 'painting', and every other fallback in the app
+// chained off it, so a plumber whose business_type had not loaded yet, a crew
+// session, or any path that lost the trade for a moment got a proposal headed
+// "Painting Proposal" with a palette icon on it. That is somebody else's trade
+// on his paperwork.
+//
+// 'general' is the honest answer to "we do not know yet": it is a real trade in
+// TRADE_META, it has its own services and scope chips, and _tradeProposalLabel
+// below prints it as plain "Proposal" rather than branding his document with a
+// word he never chose.
+function getActiveTrade(){return _activeTrade||_config?.business_type||'general';}
+
+// What a proposal calls itself. A plumber's says Plumbing, a roofer's says
+// Roofing, and one we cannot name says Proposal: never another trade's word.
+function _tradeProposalLabel(trade,opts){
+  const t=trade||'';
+  const m=TRADE_META[t];
+  const bare=(opts&&opts.bare)?'Proposal':'Proposal';
+  if(!m||t==='general'||t==='other')return bare;
+  return m.label+' '+((opts&&opts.lower)?'proposal':'Proposal');
+}
 
 function setActiveTrade(type){
   _activeTrade=type;
@@ -551,9 +574,9 @@ function openGenericEstimate(c,bidId,_tradePick,opts){
   const trade=_geiTrade;
   const m=TRADE_META[trade]||{icon:'🔧',label:trade.charAt(0).toUpperCase()+trade.slice(1)};
   const titleEl=document.getElementById('gei-trade-title');
-  if(titleEl)titleEl.innerHTML=svgIcon(m.icon,{size:24})+' '+m.label+' Proposal';
+  if(titleEl)titleEl.innerHTML=svgIcon(m.icon,{size:24})+' '+_tradeProposalLabel(trade);
   const eyebrowEl=document.getElementById('gei-tbar-eyebrow');
-  if(eyebrowEl)eyebrowEl.textContent=m.label+' proposal';
+  if(eyebrowEl)eyebrowEl.textContent=_tradeProposalLabel(trade,{lower:true});
   const sf=(id,val)=>{const el=document.getElementById(id);if(el)el.value=val||'';};
   sf('gei-client',c?.name||'');
   sf('gei-addr',opts?.forceAddr||c?.addr||''); // forceAddr = property chosen at the type gate
@@ -759,7 +782,6 @@ function goGeiStep(n){
   const _tmP=document.getElementById('gei-tm-page');if(_tmP)_tmP.style.display='none';
   const _byoP=document.getElementById('gei-byo-page');if(_byoP)_byoP.style.display='none';
   // If going to Step 2 and no bundles are set, show the onboarding picker first
-  if(n===2&&(!S.myBundles||!S.myBundles.length)){showGeiOnboarding();return;}
   _geiStep=n;
   [1,2,3].forEach(i=>{const el=document.getElementById('gei-s'+i);if(el)el.style.display=(i===n)?'':'none';});
   if(n===1)_geiRenderSiteNoteField('gen'); // generic wizard: field lives in step 1, by the property context
@@ -1385,7 +1407,7 @@ function _byoAutosave(){
   // button (saveGenericEstimate): every autosave silently dropped a name edit until
   // the user hit Save, so backing out mid-edit lost the new name.
   const _trade=_geiTrade||getActiveTrade();
-  const _typeLabel=_geiIsTM?'Time & Materials Proposal':_geiIsFreeForm?'Custom Proposal':(TRADE_META[_trade]?.label||'Trade')+' Proposal';
+  const _typeLabel=_geiIsTM?'Time & Materials Proposal':_geiIsFreeForm?'Custom Proposal':_tradeProposalLabel(_trade);
   const _descVal=document.getElementById('gei-desc')?.value||'';
   b.type=_descVal||_typeLabel;
   b.geiDesc=_descVal;
@@ -1479,7 +1501,7 @@ function _estLaborHours(){
   // picker + payroll-cost stack (_estLaborCost, _renderLaborPicker) work for
   // both estimate types without duplicating any of it.
   if(_geiIsTM)return _tmEstHours||0;
-  const trade=_geiTrade||(typeof getActiveTrade==='function'?getActiveTrade():'painting');
+  const trade=_geiTrade||(typeof getActiveTrade==='function'?getActiveTrade():'general');
   const allItems=[..._GEN_SCOPE,...((typeof TRADE_SCOPE_ITEMS!=='undefined'&&TRADE_SCOPE_ITEMS[trade])||[])];
   let hrs=0;
   (_geiScopeChips||[]).forEach(label=>{
@@ -2404,14 +2426,22 @@ function _geiAddWithRate(job,inputEl){
   renderGeiLines();calcGeiTotal();
 }
 
-function _geiVisibleJobIds(){
-  const bundles=S.myBundles||[];
-  if(!bundles.length||bundles[0]==='__all')return null;
-  const ids=new Set();
-  bundles.forEach(b=>(GEI_BUNDLES[b]||[]).forEach(id=>ids.add(id)));
-  return ids;
-}
-
+// The "Set up your services" gate is DELETED (owner 2026-09-06: "any trade
+// specific branding goes out the window, everything has to be aligned to each
+// of the trades", and less setup).
+//
+// It asked "what kind of work do you do?" 900ms after boot and again the first
+// time anybody opened step 2, from a hardcoded list of TEN ELECTRICAL
+// categories: Panels & Circuits, EV & Solar, Smart Home & Security. A plumber
+// was asked which of those he does. Worse, GEI_BUNDLES held nothing but
+// electrical job ids, so a plumber who answered it filtered his own service
+// list down to zero rows and had to find the "search all" link to recover.
+//
+// Nothing replaces it, because the question is already asked properly: the
+// onboarding service picker (js/settings.js obStepServices) offers his own
+// trade's real jobs at his own prices, once, at signup. Everybody now sees
+// every service their trade ships with, organised by that trade's own
+// categories, and the add sheet's search covers the rest.
 function _geiOpenCatSheet(catLabel){
   const trade=_geiTrade||'general';
   const allJobs=TRADE_JOBS[trade]||TRADE_JOBS.general;
@@ -2492,7 +2522,6 @@ function _geiRenderTemplates(){
   const allJobs=TRADE_JOBS[trade]||TRADE_JOBS.general;
   const scope=_geiIsCommercial?'commercial':'resi';
   const jobs=allJobs.filter(j=>!j.scope||j.scope==='both'||j.scope===scope);
-  const visibleIds=_geiVisibleJobIds();
 
   let html='';
   if(_geiEmergency)html+=`<div style="background:#fef2f2;border:1px solid #fca5a5;border-radius:var(--r);padding:9px 12px;font-size:12px;color:#b91c1c;margin-bottom:12px;font-weight:600">${svgIcon('🚨',{size:12,color:'#b91c1c'})} Emergency mode, labor rates ×1.5 · after-hours surcharge added</div>`;
@@ -2504,7 +2533,7 @@ function _geiRenderTemplates(){
     const jobById=Object.fromEntries(jobs.map(j=>[j.id,j]));
     html+=`<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">`;
     for(const [catLabel,ids] of Object.entries(cats)){
-      const catJobs=ids.map(id=>jobById[id]).filter(Boolean).filter(j=>!visibleIds||visibleIds.has(j.id));
+      const catJobs=ids.map(id=>jobById[id]).filter(Boolean);
       if(!catJobs.length)continue;
       const parts=catLabel.split(' ');
       const emoji=parts[0];
@@ -2518,10 +2547,6 @@ function _geiRenderTemplates(){
       </button>`;
     }
     html+=`</div>`;
-    if(visibleIds){
-      const totalCount=(TRADE_JOBS[trade]||[]).length;
-      html+=`<button onclick="_geiShowAllServices()" style="width:100%;margin-top:12px;padding:10px;background:none;border:1px dashed var(--border2);border-radius:var(--r);color:var(--text3);font-size:12px;cursor:pointer;font-family:inherit">+ Find unlisted service (search all ${totalCount} services)</button>`;
-    }
   } else {
     // Flat chip fallback for general/other
     const makeChip=job=>{
@@ -2534,77 +2559,6 @@ function _geiRenderTemplates(){
     html+=`<div style="display:flex;flex-wrap:wrap;gap:6px">${jobs.map(makeChip).join('')}</div>`;
   }
   el.innerHTML=html;
-}
-
-function _geiShowAllServices(){
-  S.myBundles=['__all'];_settingsChanged();_geiRenderTemplates();showToast('Showing all services','✓');
-}
-
-function showGeiOnboarding(opts){
-  if(!opts?.force&&S.myBundles&&S.myBundles.length)return;
-  const BUNDLE_CARDS=[
-    {id:'residential',   emoji:'🏠', label:'Residential\nService'},
-    {id:'panels_circuits',emoji:'⚡',label:'Panels &\nCircuits'},
-    {id:'service_upgrades',emoji:'🔧',label:'Service\nUpgrades'},
-    {id:'ev_solar',      emoji:'☀️', label:'EV & Solar'},
-    {id:'outdoor_pool',  emoji:'🏊', label:'Outdoor\n& Pool'},
-    {id:'smart_security',emoji:'🔒', label:'Smart Home\n& Security'},
-    {id:'appliances',    emoji:'🍳', label:'Appliance\nCircuits'},
-    {id:'diagnostics',   emoji:'🔍', label:'Diagnostics\n& Specialty'},
-    {id:'new_construction',emoji:'🏗️',label:'New\nConstruction'},
-    {id:'commercial',    emoji:'🏢', label:'Commercial'},
-  ];
-  const selected=new Set();
-  const ov=document.createElement('div');
-  ov.id='_gei-onboard-ov';
-  ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:99999;display:flex;align-items:center;justify-content:center;padding:16px;box-sizing:border-box';
-  function render(){
-    const stateStr=S.state||'US';
-    const mult=STATE_LABOR_MULT[S.state]||1.0;
-    const multNote=mult!==1.0?` (${mult>1?'+':''}${Math.round((mult-1)*100)}% vs national avg)`:'';
-    ov.innerHTML=`<div style="background:var(--bg);border-radius:var(--rl);width:100%;max-width:480px;max-height:90vh;overflow-y:auto;box-sizing:border-box;padding:22px 18px 28px">
-      <div style="font-size:20px;font-weight:800;color:var(--text);margin-bottom:4px">${svgIcon('⚡',{size:20})} Set up your services</div>
-      <div style="font-size:12px;color:var(--text3);margin-bottom:14px">Takes about 30 seconds · you can change this anytime</div>
-      <div style="background:var(--blue-lt);border:1px solid var(--blue);border-radius:var(--r);padding:10px 14px;margin-bottom:16px;font-size:12px;color:var(--blue-dk)">
-        ${svgIcon('📍',{size:12,color:'var(--blue-dk)'})} You're in <strong>${stateStr}</strong>, market rates loaded${multNote}
-        <button onclick="document.getElementById('_gei-state-sel')?.classList.toggle('show')" style="margin-left:8px;background:none;border:none;color:var(--blue);font-size:11px;cursor:pointer;text-decoration:underline;font-family:inherit">Change</button>
-        <select id="_gei-state-sel" class="show" onchange="S.state=this.value;_settingsChanged();showGeiOnboarding()" style="display:block;margin-top:8px;padding:6px 8px;border-radius:var(--r);border:1px solid var(--border2);font-size:13px;background:var(--bg);color:var(--text);width:100%">
-          ${['AL','AK','AZ','AR','CA','CO','CT','DE','FL','GA','HI','ID','IL','IN','IA','KS','KY','LA','ME','MD','MA','MI','MN','MS','MO','MT','NE','NV','NH','NJ','NM','NY','NC','ND','OH','OK','OR','PA','RI','SC','SD','TN','TX','UT','VT','VA','WA','WV','WI','WY','DC'].map(st=>`<option value="${st}"${S.state===st?' selected':''}>${st}</option>`).join('')}
-        </select>
-      </div>
-      <div style="font-size:13px;font-weight:700;color:var(--text);margin-bottom:10px">What kind of work do you do? <span style="font-weight:400;color:var(--text3)">(tap all that apply)</span></div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:18px">
-        ${BUNDLE_CARDS.map(b=>{
-          const on=selected.has(b.id);
-          return `<button onclick="_geiOnboardToggle('${b.id}')" data-bid="${b.id}" style="display:flex;flex-direction:column;align-items:center;justify-content:center;padding:14px 8px;border-radius:var(--rl);border:2px solid ${on?'var(--blue)':'var(--border2)'};background:${on?'var(--blue-lt)':'var(--bg2)'};cursor:pointer;font-family:inherit;gap:5px;min-height:80px;text-align:center;box-sizing:border-box">
-            <span style="font-size:26px;line-height:1">${svgIcon(b.emoji,{size:26})}</span>
-            <span style="font-size:11px;font-weight:700;color:${on?'var(--blue-dk)':'var(--text)'};white-space:pre-line;line-height:1.3">${b.label}</span>
-            ${on?'<span style="font-size:10px;color:var(--blue);font-weight:700">'+svgIcon('✓',{size:10,color:'var(--blue)'})+'</span>':''}
-          </button>`;
-        }).join('')}
-      </div>
-      <button onclick="_geiOnboardFinish()" id="_gei-ob-btn" style="width:100%;padding:14px;border-radius:var(--rl);border:none;background:${selected.size?'var(--blue)':'var(--border2)'};color:${selected.size?'#fff':'var(--text3)'};font-weight:800;font-size:15px;cursor:${selected.size?'pointer':'default'};font-family:inherit;margin-bottom:10px">
-        ${selected.size?`Get started → (${selected.size} service type${selected.size!==1?'s':''})`:'Select at least one service type'}
-      </button>
-      <button onclick="_geiOnboardSkip()" style="width:100%;padding:10px;background:none;border:none;color:var(--text3);font-size:12px;cursor:pointer;font-family:inherit">Set up later, you'll be reminded next time</button>
-    </div>`;
-  }
-  window._geiOnboardToggle=function(id){
-    if(selected.has(id))selected.delete(id);else selected.add(id);
-    document.getElementById('_gei-onboard-ov')?.remove();
-    document.body.appendChild(ov);
-    render();
-  };
-  window._geiOnboardFinish=function(){
-    if(!selected.size)return;
-    S.myBundles=[...selected];S.hasOnboarded=true;_settingsChanged();
-    ov.remove();showToast('Services set up, showing '+S.state+' market rates','✓');
-  };
-  window._geiOnboardSkip=function(){
-    ov.remove(); // session-only dismiss, myBundles stays unset, popup re-appears next load
-  };
-  render();
-  document.body.appendChild(ov);
 }
 
 function _geiSetScope(commercial){
@@ -3219,7 +3173,7 @@ function saveGenericEstimate(draft){
       }
     }
   }
-  const _typeLabel=_geiIsTM?'Time & Materials Proposal':_geiIsFreeForm?'Custom Proposal':(TRADE_META[trade]?.label||'Trade')+' Proposal';
+  const _typeLabel=_geiIsTM?'Time & Materials Proposal':_geiIsFreeForm?'Custom Proposal':_tradeProposalLabel(trade);
   // Extract BYO field values before object literals, Safari fails to parse ?.?? inside spread conditionals
   const _byoTermsEl=document.getElementById('byo-custom-terms');
   const _byoTermsSave=_byoTermsEl?_byoTermsEl.value:(_byoCustomTerms||'');
@@ -3478,7 +3432,7 @@ async function sendGenericProposal(previewOnly){
     const _pRows=(_panelSched.circuits||[]).map((c,i)=>`<tr><td style="text-align:center;padding:4px 6px;border:1px solid #cbd5e1;font-size:11px">${i+1}</td><td style="padding:4px 8px;border:1px solid #cbd5e1;font-size:11px">${escHtml(c.desc||'-')}</td><td style="text-align:center;padding:4px 6px;border:1px solid #cbd5e1;font-size:11px">${c.amps||''}A</td><td style="text-align:center;padding:4px 6px;border:1px solid #cbd5e1;font-size:11px">${c.phase==='2pole'?'2-pole':c.phase}</td><td style="text-align:center;padding:4px 6px;border:1px solid #cbd5e1;font-size:11px">${escHtml(c.gauge||'')}</td><td style="text-align:center;padding:4px 6px;border:1px solid #cbd5e1;font-size:11px">${c.afci?'✓':''}</td><td style="text-align:center;padding:4px 6px;border:1px solid #cbd5e1;font-size:11px">${c.gfci?'✓':''}</td></tr>`).join('');
     _propPanelHtml=`<div style="padding:16px 24px;border-top:2px solid #e2e8f0"><div style="font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.1em;color:${_pAccent};margin-bottom:10px">Panel Schedule, ${_panelSched.panelAmps}A</div><p style="font-size:11px;color:#64748b;margin:0 0 8px">L1 leg: ${_pl1}A · L2 leg: ${_pl2}A${_pimb>0.10?' · <strong style="color:#dc2626">Rebalance recommended</strong>':' · ✓ Balanced'}</p><table style="width:100%;border-collapse:collapse"><thead><tr><th style="background:${_pAccent};color:#fff;padding:5px 6px;border:1px solid #cbd5e1;font-size:10px">#</th><th style="background:${_pAccent};color:#fff;padding:5px 8px;border:1px solid #cbd5e1;text-align:left;font-size:10px">Circuit</th><th style="background:${_pAccent};color:#fff;padding:5px 6px;border:1px solid #cbd5e1;font-size:10px">Amps</th><th style="background:${_pAccent};color:#fff;padding:5px 6px;border:1px solid #cbd5e1;font-size:10px">Phase</th><th style="background:${_pAccent};color:#fff;padding:5px 6px;border:1px solid #cbd5e1;font-size:10px">Wire</th><th style="background:${_pAccent};color:#fff;padding:5px 6px;border:1px solid #cbd5e1;font-size:10px">AFCI</th><th style="background:${_pAccent};color:#fff;padding:5px 6px;border:1px solid #cbd5e1;font-size:10px">GFCI</th></tr></thead><tbody>${_pRows}</tbody></table></div>`;
   }
-  const _hdrLabel=_geiIsTM?'Time &amp; Materials':tradeName+' Proposal';
+  const _hdrLabel=_geiIsTM?'Time &amp; Materials':_tradeProposalLabel(trade);
   // No standalone NTE pricing row, the cap is already disclosed in the Terms &
   // Conditions "Contract type" clause below, so this isn't a lost disclosure, just
   // one less dollar figure sitting in the pricing table.

@@ -2354,7 +2354,23 @@ test.describe('clients.js: exhaustive coverage', () => {
       document.getElementById('_newc-gate-overlay')?.remove();
       currentClientId = null;
       window.__rrp = [];
-      window._rrpGateThenEstimate = (c) => { window.__rrp.push(c && c.id); };
+      // Stashed once, because a later test needs the REAL chain back: a picked
+      // property is only proved to work by watching it come out the far end.
+      window.__origRrp = window.__origRrp || window._rrpGateThenEstimate;
+      window._rrpGateThenEstimate = (c, addr) => { window.__rrp.push(c && c.id); window.__rrpAddr = addr; };
+      window._canEstimate = () => true;
+      openEstimateForClient();
+      return !!document.getElementById('_newc-gate-overlay');
+    });
+    // The same, but with the real gate chain in place and only the final step
+    // stubbed, so the address a pick chose is observed where it lands.
+    const armReal = () => page.evaluate(() => {
+      document.getElementById('_newc-gate-overlay')?.remove();
+      currentClientId = null;
+      if (window.__origRrp) window._rrpGateThenEstimate = window.__origRrp;
+      window.__opened = [];
+      window.__origOpen = window.__origOpen || window._doOpenEstimate;
+      window._doOpenEstimate = (c, addr) => { window.__opened.push([c && c.id, addr || null]); };
       window._canEstimate = () => true;
       openEstimateForClient();
       return !!document.getElementById('_newc-gate-overlay');
@@ -2475,6 +2491,66 @@ test.describe('clients.js: exhaustive coverage', () => {
       expect(r.createShown).toBe(false);
       expect(r.offered).toBe(1);
       await page.evaluate(() => { clients = clients.filter(c => c.name !== 'GateExact Person'); document.getElementById('_newc-gate-overlay')?.remove(); });
+    });
+
+    // A landlord with four rentals must never have a proposal land on the wrong
+    // house because the app used whichever address it happened to store first.
+    test('a customer with several properties opens instead of guessing, and the pick rides through', async () => {
+      await page.evaluate(() => {
+        clients = clients.filter(c => !/^GateLandlord/.test(c.name || ''));
+        clients.push({ id: 55510003, name: 'GateLandlord Rentals', addr: '1 First St, Wichita, KS 67201',
+          extraAddresses: [{ label: 'Duplex', addr: '9 Second Ave, Wichita, KS 67202' },
+                           { label: 'Triplex', addr: '77 Third Rd, Derby, KS 67037' }] });
+      });
+      await armReal();
+      await typeName('GateLandlord');
+      const collapsed = await page.evaluate(() => {
+        const hits = document.getElementById('_newc-gate-hits');
+        return { sub: hits.textContent, subRows: hits.querySelectorAll('button').length };
+      });
+      expect(collapsed.sub).toContain('3 properties');   // counted, not guessed
+      expect(collapsed.subRows).toBe(1);                 // still one row until opened
+
+      const opened = await page.evaluate(() => {
+        document.getElementById('_newc-gate-hits').querySelector('button').click();
+        const btns = [...document.getElementById('_newc-gate-hits').querySelectorAll('button')];
+        return { count: btns.length, text: document.getElementById('_newc-gate-hits').textContent };
+      });
+      expect(opened.count).toBe(4);                      // the row plus its three properties
+      expect(opened.text).toContain('Duplex');
+      expect(opened.text).toContain('77 Third Rd');
+
+      const picked = await page.evaluate(() => {
+        const btns = [...document.getElementById('_newc-gate-hits').querySelectorAll('button')];
+        btns[3].click();                                 // the Triplex
+        return { opened: window.__opened[window.__opened.length - 1], closed: !document.getElementById('_newc-gate-overlay') };
+      });
+      expect(picked.opened[0]).toBe(55510003);
+      expect(picked.opened[1]).toBe('77 Third Rd, Derby, KS 67037');
+      expect(picked.closed).toBe(true);
+      await page.evaluate(() => { clients = clients.filter(c => !/^GateLandlord/.test(c.name || '')); });
+    });
+
+    test('one property is still one tap, and carries no address override', async () => {
+      await page.evaluate(() => {
+        clients = clients.filter(c => !/^GateSingle/.test(c.name || ''));
+        clients.push({ id: 55510004, name: 'GateSingle Home', addr: '5 Only St, Wichita, KS 67201' });
+      });
+      await armReal();
+      await typeName('GateSingle');
+      const r = await page.evaluate(() => {
+        const hits = document.getElementById('_newc-gate-hits');
+        hits.querySelector('button').click();
+        return { opened: window.__opened[window.__opened.length - 1], text: hits.textContent };
+      });
+      // Straight through on the first tap: no accordion, and no forced address,
+      // because the primary is what the estimator would have used anyway.
+      expect(r.opened[0]).toBe(55510004);
+      expect(r.opened[1]).toBeNull();
+      await page.evaluate(() => {
+        clients = clients.filter(c => !/^GateSingle/.test(c.name || ''));
+        if (window.__origOpen) window._doOpenEstimate = window.__origOpen;
+      });
     });
 
     test('the record it makes is committed the same way the full form commits one', async () => {

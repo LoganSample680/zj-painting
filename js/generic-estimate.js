@@ -1729,26 +1729,29 @@ function _byoAddItem(sec){
   const ov=document.createElement('div');ov.id='_byo-add-modal';
   ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9000;display:flex;align-items:center;justify-content:center;padding:16px;box-sizing:border-box';
   ov.innerHTML='<div style="background:var(--bg);border-radius:14px;width:100%;max-width:480px;padding:20px 16px 24px;max-height:90vh;overflow-y:auto">'+
-    '<div style="font-weight:800;font-size:16px;margin-bottom:16px">Add to '+escHtml(sec)+'</div>'+
+    '<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:14px">'+
+      '<div style="font-weight:800;font-size:16px">Add to '+escHtml(sec)+'</div>'+
+      '<div id="_bya-count" style="font-size:12px;font-weight:700;color:var(--text3)"></div>'+
+    '</div>'+
+    '<div id="_bya-book"></div>'+
     '<div class="f" style="margin-bottom:10px"><label>What is it?</label><input type="text" id="_bya-label" placeholder="e.g. Bedroom 3, walls only"></div>'+
     '<div class="f" style="margin-bottom:10px"><label>Price ($)</label><div class="input-prefix"><span>$</span><input type="text" inputmode="numeric" id="_bya-price" placeholder="0" oninput="_byaFormatPriceInput(this)"></div></div>'+
     '<div class="f" style="margin-bottom:6px"><label>Notes <span style="font-weight:400;color:var(--text-3)">(optional)</span></label><textarea id="_bya-notes" rows="3" placeholder="e.g. Two coats, ceilings included" style="width:100%;box-sizing:border-box;resize:vertical;font-family:inherit"></textarea></div>'+
-    '<div style="font-size:11px;color:var(--text-3);margin-bottom:14px">Tab from Notes to save &amp; add another</div>'+
-    '<div style="display:flex;gap:10px">'+
-      '<button onclick="document.getElementById(\'_byo-add-modal\')?.remove()" class="btn" style="flex:1">Cancel</button>'+
+    '<div style="display:flex;gap:10px;margin-top:14px">'+
+      '<button onclick="document.getElementById(\'_byo-add-modal\')?.remove()" class="btn" style="flex:1" id="_bya-close">Cancel</button>'+
       '<button data-sec="'+escHtml(sec)+'" onclick="_byaConfirm(this.dataset.sec)" class="btn btn-p" style="flex:2">Add item</button>'+
     '</div></div>';
   document.body.appendChild(ov);
   ov.addEventListener('click',e=>{if(e.target===ov)ov.remove();});
+  _byaRenderBook(sec);
   setTimeout(()=>{
     const labelEl=document.getElementById('_bya-label');
     const priceEl=document.getElementById('_bya-price');
     const notesEl=document.getElementById('_bya-notes');
     if(labelEl)labelEl.focus();
-    // Tab from label → price (default), Tab from price → notes (default)
-    // Tab or Enter from notes → save + open next
     if(notesEl){
-      // Enter now makes a newline in the notes textarea, only Tab saves & advances.
+      // Enter makes a newline in notes; only Tab saves and advances. On a phone
+      // there is no Tab key, which is what the Add item button is for.
       notesEl.addEventListener('keydown',e=>{
         if(e.key==='Tab'&&!e.shiftKey){
           e.preventDefault();
@@ -1756,7 +1759,6 @@ function _byoAddItem(sec){
         }
       });
     }
-    // Enter on label or price → move to next field
     if(labelEl){
       labelEl.addEventListener('keydown',e=>{
         if(e.key==='Enter'){e.preventDefault();priceEl?.focus();}
@@ -1769,6 +1771,45 @@ function _byoAddItem(sec){
     }
   },50);
 }
+// What he has charged before, at the top of the sheet, one tap each. This is
+// the whole answer to why a Build Your Own estimate cost ninety interactions
+// and a template one cost nineteen: the same work, except one of them made him
+// type it. A tap here adds the line and leaves the sheet open, so four items
+// is four taps and a Done, not four rounds of typing.
+function _byaRenderBook(sec){
+  const el=document.getElementById('_bya-book');if(!el)return;
+  const book=_pbList().slice(0,8);
+  if(!book.length){el.innerHTML='';return;}
+  el.innerHTML=
+    '<div style="font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.06em;color:var(--text3);margin-bottom:8px">What you usually charge</div>'+
+    '<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:14px">'+
+      book.map((b,i)=>'<button data-sec="'+escHtml(sec)+'" data-i="'+i+'" onclick="_byaAddFromBook(this.dataset.sec,+this.dataset.i)" '+
+        'style="display:inline-flex;flex-direction:column;align-items:flex-start;padding:7px 11px;border-radius:var(--r);border:1.5px solid var(--border2);background:var(--bg2);cursor:pointer;font-family:inherit;text-align:left;max-width:100%">'+
+        '<span style="font-size:12px;font-weight:700;color:var(--text);max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+escHtml(b.desc)+'</span>'+
+        '<span style="font-size:10px;color:var(--text3)">'+(typeof fmt==='function'?fmt(b.rate):'$'+b.rate)+'</span>'+
+      '</button>').join('')+
+    '</div>'+
+    '<div style="font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.06em;color:var(--text3);margin-bottom:8px">Or type a new one</div>';
+}
+function _byaAddFromBook(sec,i){
+  const b=_pbList()[i];if(!b)return;
+  const nextId=(_byoItems.reduce((m,x)=>Math.max(m,x.id),0))+1;
+  _byoItems.push({id:nextId,section:sec,label:b.desc,price:b.rate,notes:'',on:true});
+  _pbLearn(b.desc,b.rate,b.unit);   // used again, so it climbs
+  _byoRenderSections();_byoUpdateRail();_byoAutosave();
+  // The sheet stays open on purpose: he is usually adding several.
+  _byaBumpCount();
+  _byaRenderBook(sec);
+}
+function _byaBumpCount(){
+  const el=document.getElementById('_bya-count');
+  if(!el)return;
+  const n=(parseInt(el.dataset.n||'0',10)||0)+1;
+  el.dataset.n=String(n);
+  el.textContent=n+' added';
+  const close=document.getElementById('_bya-close');
+  if(close)close.textContent='Done';
+}
 function _byaConfirm(sec){
   const label=(document.getElementById('_bya-label')?.value||'').trim();
   const price=_byaPriceValue('_bya-price');
@@ -1776,6 +1817,7 @@ function _byaConfirm(sec){
   if(!label)return;
   const nextId=(_byoItems.reduce((m,x)=>Math.max(m,x.id),0))+1;
   _byoItems.push({id:nextId,section:sec,label,price,notes,on:true});
+  _pbLearn(label,price);
   document.getElementById('_byo-add-modal')?.remove();
   _byoRenderSections();_byoUpdateRail();_byoAutosave();
 }
@@ -1787,6 +1829,7 @@ function _byaConfirmAndNext(sec){
   if(label){
     const nextId=(_byoItems.reduce((m,x)=>Math.max(m,x.id),0))+1;
     _byoItems.push({id:nextId,section:sec,label,price,notes,on:true});
+    _pbLearn(label,price);
     _byoRenderSections();_byoUpdateRail();_byoAutosave();
   }
   // Open next item modal for the same section
@@ -2660,23 +2703,63 @@ function _geiConfirmFreeForm(job){
   renderGeiLines();calcGeiTotal();
 }
 
-function _geiAddFromBook(i){
-  const trade=_geiTrade||'general';
-  const book=(S.priceBook&&S.priceBook[trade])||[];
-  if(!book[i])return;
-  _geiLines.push({desc:book[i].desc,qty:1,unit:book[i].unit||'',rate:book[i].rate,total:book[i].rate});
-  renderGeiLines();calcGeiTotal();
+// ── The price book, which now fills itself ──────────────────────────────────
+//
+// It has existed for a long time and been useless for exactly as long: a
+// contractor could tap "Save to price book" on a line, the row landed in
+// S.priceBook[trade], and the function that read it back, _geiAddFromBook, had
+// no call site anywhere in the app. He could save prices for a year and never
+// once get one back.
+//
+// So it learns instead of being filed. Every line he deliberately adds is
+// remembered with what he charged, how many times he has used it and when, and
+// the ones he actually uses float to the top of the add sheet. The point is
+// that after two weeks of working, his own book is the fastest thing in here,
+// and he never typed a word into a settings screen to build it.
+//
+// Learned on a deliberate add, never on a keystroke: _byoAutosave fires on
+// field handlers, so learning there would fill the book with "Repl" and "Repla".
+const _PB_MAX=200;
+function _pbTrade(){return _geiTrade||(typeof getActiveTrade==='function'?getActiveTrade():'general')||'general';}
+function _pbList(trade){
+  // A stored book that is not an array (a bad sync, a hand-edited settings
+  // blob) must not take the add sheet down with it: the sheet is how he adds a
+  // line at all, and losing it costs him the estimate.
+  const raw=S.priceBook&&S.priceBook[trade||_pbTrade()];
+  const book=Array.isArray(raw)?raw:[];
+  // Most used, then most recent. A line he reaches for every week beats one he
+  // typed once in March, which is the whole reason for counting.
+  return book.slice().sort((a,b)=>((b.n||1)-(a.n||1))||String(b.last||'').localeCompare(String(a.last||'')));
 }
-
-function _geiSaveToPriceBook(i){
-  const line=_geiLines[i];if(!line||!line.desc||!line.rate)return;
-  const trade=_geiTrade||'general';
-  if(!S.priceBook)S.priceBook={};
-  if(!S.priceBook[trade])S.priceBook[trade]=[];
-  if(S.priceBook[trade].some(x=>x.desc===line.desc&&x.rate===line.rate)){showToast('Already in price book');return;}
-  S.priceBook[trade].push({desc:line.desc,unit:line.unit||'ea',rate:line.rate});
-  _settingsChanged();showToast('Saved to price book','🔖');
-  _geiRenderTemplates();
+function _pbLearnAll(){
+  try{
+    (_byoItems||[]).forEach(i=>_pbLearn(i.label,i.price));
+    // Labor lines are the crew rate, not a thing he sells, so they stay out.
+    (_geiLines||[]).forEach(l=>{if(!l._tmLabor)_pbLearn(l.desc,l.rate,l.unit);});
+  }catch(_e){}
+}
+function _pbLearn(desc,rate,unit){
+  const d=String(desc||'').trim();
+  const r=Number(rate)||0;
+  if(!d||d.length<3||r<=0)return;
+  const trade=_pbTrade();
+  if(!S.priceBook||typeof S.priceBook!=='object')S.priceBook={};
+  if(!Array.isArray(S.priceBook[trade]))S.priceBook[trade]=[];
+  const book=S.priceBook[trade];
+  const key=d.toLowerCase();
+  const hit=book.find(x=>String(x.desc||'').trim().toLowerCase()===key);
+  if(hit){
+    // The newest price wins: what he charges today is what he charges.
+    hit.rate=r;hit.unit=unit||hit.unit||'ea';hit.n=(hit.n||1)+1;hit.last=todayKey();
+  }else{
+    book.push({desc:d,unit:unit||'ea',rate:r,n:1,last:todayKey()});
+    if(book.length>_PB_MAX){
+      // Drop the least used, oldest first, so the book never becomes a haystack.
+      book.sort((a,b)=>((b.n||1)-(a.n||1))||String(b.last||'').localeCompare(String(a.last||'')));
+      book.length=_PB_MAX;
+    }
+  }
+  if(typeof _settingsChanged==='function')_settingsChanged();
 }
 
 
@@ -2719,7 +2802,7 @@ function renderGeiLines(){
           <div id="gei-line-total-${i}" style="font-size:18px;font-weight:800;color:var(--blue);line-height:1.2">${totalFmt}</div>
         </div>
       </div>
-      ${isLabor?'':`<div style="display:flex;justify-content:flex-end;margin-top:8px"><button onclick="_geiSaveToPriceBook(${i})" style="background:none;border:none;cursor:pointer;color:var(--text3);font-size:11px;font-weight:600;font-family:inherit;padding:0;display:flex;align-items:center;gap:3px">${svgIcon('🔖',{size:11})} Save to price book</button></div>`}
+      
     </div>`;
   }).join('');
 }
@@ -3011,6 +3094,10 @@ function _geiEnsureClientProperty(clientId,addr){
 function saveGenericEstimate(draft){
   const v=id=>document.getElementById(id)?.value||'';
   _geiEnsureClientProperty(_geiClientId,v('gei-addr'));
+  // Saving is the other deliberate moment worth learning from: it catches the
+  // T&M material lines, which are edited in a grid rather than added through a
+  // sheet, and any BYO line whose price was changed after it was added.
+  _pbLearnAll();
   const{total}=calcGeiTotal();
   const trade=_geiTrade||getActiveTrade();
   const taxPct=parseFloat(v('gei-tax-pct'))||0;

@@ -3794,4 +3794,149 @@ test.describe('generic-estimate.js: exhaustive coverage', () => {
   test('no console errors, generic-estimate.js', async () => {
     assertNoErrors(page, 'generic-estimate.js');
   });
+
+  // ── The price book that learns ──────────────────────────────────────────────
+  //
+  // It existed for a long time and was useless for exactly as long: you could
+  // file a line into it and nothing in the app ever read it back. It now learns
+  // from every deliberate add and is the first thing in the add sheet, which is
+  // the entire reason a Build Your Own estimate cost 90 interactions and a
+  // template one cost 19.
+  test.describe('price book', () => {
+    const reset = () => page.evaluate(() => {
+      S.priceBook = {};
+      _geiTrade = 'plumbing';
+      _byoItems = [];
+      document.getElementById('_byo-add-modal')?.remove();
+    });
+
+    test('learns a line the moment it is added, with what he charged', async () => {
+      await reset();
+      const r = await page.evaluate(() => {
+        _pbLearn('Replace 40 gal water heater', 1800);
+        const book = S.priceBook.plumbing;
+        return { n: book.length, desc: book[0].desc, rate: book[0].rate, count: book[0].n, hasDate: !!book[0].last };
+      });
+      expect(r.n).toBe(1);
+      expect(r.desc).toBe('Replace 40 gal water heater');
+      expect(r.rate).toBe(1800);
+      expect(r.count).toBe(1);
+      expect(r.hasDate).toBe(true);
+    });
+
+    test('the same line used again counts up and takes the newest price', async () => {
+      await reset();
+      const r = await page.evaluate(() => {
+        _pbLearn('Water heater swap', 1800);
+        _pbLearn('WATER HEATER SWAP', 1950);   // same line, different day, new price
+        const book = S.priceBook.plumbing;
+        return { rows: book.length, rate: book[0].rate, count: book[0].n };
+      });
+      expect(r.rows).toBe(1);       // one line, not two
+      expect(r.rate).toBe(1950);    // what he charges today is what he charges
+      expect(r.count).toBe(2);
+    });
+
+    test('refuses junk: no price, no description, a half-typed word', async () => {
+      await reset();
+      const r = await page.evaluate(() => {
+        _pbLearn('Replace water heater', 0);
+        _pbLearn('', 500);
+        _pbLearn('Re', 500);
+        _pbLearn(null, null);
+        _pbLearn(undefined, undefined);
+        return (S.priceBook.plumbing || []).length;
+      });
+      expect(r).toBe(0);
+    });
+
+    test('the most used float to the top, not the most recent', async () => {
+      await reset();
+      const r = await page.evaluate(() => {
+        _pbLearn('Used once', 100);
+        _pbLearn('Used three times', 200);
+        _pbLearn('Used three times', 200);
+        _pbLearn('Used three times', 200);
+        return _pbList().map(x => x.desc);
+      });
+      expect(r[0]).toBe('Used three times');
+    });
+
+    test('the add sheet offers them, and a tap adds the line without typing', async () => {
+      await reset();
+      const r = await page.evaluate(() => {
+        _pbLearn('Replace 40 gal water heater', 1800);
+        _pbLearn('Rebuild tub valve', 425);
+        _byoAddItem('Materials');
+        const chips = document.querySelectorAll('#_bya-book button');
+        const before = _byoItems.length;
+        chips[0].click();
+        const item = _byoItems[_byoItems.length - 1];
+        return {
+          offered: chips.length,
+          added: _byoItems.length - before,
+          label: item.label, price: item.price, section: item.section,
+          // The sheet stays open, because he is usually adding several.
+          stillOpen: !!document.getElementById('_byo-add-modal'),
+          counter: document.getElementById('_bya-count').textContent,
+        };
+      });
+      expect(r.offered).toBe(2);
+      expect(r.added).toBe(1);
+      expect(r.label).toBe('Replace 40 gal water heater');
+      expect(r.price).toBe(1800);
+      expect(r.section).toBe('Materials');
+      expect(r.stillOpen).toBe(true);
+      expect(r.counter).toContain('1 added');
+    });
+
+    test('an empty book shows no chips at all, never an empty heading', async () => {
+      await reset();
+      const r = await page.evaluate(() => {
+        _byoAddItem('Materials');
+        return { html: document.getElementById('_bya-book').innerHTML.trim(), chips: document.querySelectorAll('#_bya-book button').length };
+      });
+      expect(r.chips).toBe(0);
+      expect(r.html).toBe('');
+      await page.evaluate(() => document.getElementById('_byo-add-modal')?.remove());
+    });
+
+    test('typing a line by hand teaches it too', async () => {
+      await reset();
+      const r = await page.evaluate(() => {
+        _byoAddItem('Materials');
+        document.getElementById('_bya-label').value = 'Snake main line';
+        document.getElementById('_bya-price').value = '350';
+        _byaConfirm('Materials');
+        const book = S.priceBook.plumbing || [];
+        return { learned: book.length, desc: book[0] && book[0].desc, rate: book[0] && book[0].rate, closed: !document.getElementById('_byo-add-modal') };
+      });
+      expect(r.learned).toBe(1);
+      expect(r.desc).toBe('Snake main line');
+      expect(r.rate).toBe(350);
+      expect(r.closed).toBe(true);
+    });
+
+    test('the book never grows into a haystack', async () => {
+      await reset();
+      const r = await page.evaluate(() => {
+        for (let i = 0; i < 240; i++) _pbLearn('Line number ' + i, 100 + i);
+        return (S.priceBook.plumbing || []).length;
+      });
+      expect(r).toBeLessThanOrEqual(200);
+    });
+
+    test('a corrupted or missing book does not take the sheet down', async () => {
+      const r = await page.evaluate(() => {
+        const out = {};
+        try { S.priceBook = null; out.nullBook = _pbList().length; } catch (e) { out.nullBook = 'threw: ' + e.message; }
+        try { S.priceBook = { plumbing: 'not an array' }; _pbList(); out.badShape = 'ok'; } catch (e) { out.badShape = 'threw'; }
+        S.priceBook = {};
+        return out;
+      });
+      expect(r.nullBook).toBe(0);
+      expect(r.badShape).toBe('ok');
+    });
+  });
+
 });

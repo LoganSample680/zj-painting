@@ -8769,22 +8769,22 @@ test.describe('Generic estimate, panel, and industrial functions', () => {
     if (!result.skip) expect(result.ok).toBe(true);
   });
 
-  test('_geiAddFromBook: calls without throwing', async () => {
-    const result = await page.evaluate(() => {
-      if (typeof _geiAddFromBook !== 'function') return { skip: true };
-      try { _geiAddFromBook(0); return { ok: true }; }
-      catch (e) { return { ok: true, note: e.message }; }
-    });
-    if (!result.skip) expect(result.ok).toBe(true);
-  });
-
-  test('_geiSaveToPriceBook: calls without throwing', async () => {
-    const result = await page.evaluate(() => {
-      if (typeof _geiSaveToPriceBook !== 'function') return { skip: true };
-      try { _geiSaveToPriceBook(0); return { ok: true }; }
-      catch (e) { return { ok: true, note: e.message }; }
-    });
-    if (!result.skip) expect(result.ok).toBe(true);
+  // _geiAddFromBook and _geiSaveToPriceBook are gone (7). The book is no longer
+  // something he files into by hand and could never read back out: it learns
+  // from what he adds and is read by the add sheet. Asserting the old names are
+  // gone, not just that the new ones work, so a revert cannot quietly restore a
+  // write-only price book (7.1).
+  test('the write-only price book functions are gone', async () => {
+    const r = await page.evaluate(() => ({
+      addFromBook: typeof window._geiAddFromBook,
+      saveToBook: typeof window._geiSaveToPriceBook,
+      learn: typeof window._pbLearn,
+      list: typeof window._pbList,
+    }));
+    expect(r.addFromBook).toBe('undefined');
+    expect(r.saveToBook).toBe('undefined');
+    expect(r.learn).toBe('function');
+    expect(r.list).toBe('function');
   });
 
   test('_geiRateBlur: calls without throwing', async () => {

@@ -1868,10 +1868,14 @@ function obStepAccount(el){
     '<div class="f" style="margin-bottom:18px"><label style="display:block;font-size:12px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px">State</label>'+
     '<select id="ob-state" style="font-size:15px;padding:11px 14px;border-radius:9px;border:1.5px solid var(--border2);background:var(--bg2);color:var(--text);width:100%;box-sizing:border-box">'+_stateOpts+'</select></div>'+
     '<div id="ob-err" style="color:#A32D2D;font-size:12px;min-height:16px;margin-bottom:8px"></div>'+
-    '<div style="font-size:11px;color:var(--text3);line-height:1.6;margin-bottom:12px">By continuing you agree to our <a href="#" onclick="_obShowTos(event)" style="color:var(--blue);text-decoration:underline">Terms of Service</a>, a summary of what TradeDesk is and isn\'t (not tax, legal, or financial advice).</div>'+
+    // The two real documents, not a paraphrase in an alert. Apple asks for a
+    // reachable privacy policy, and a person signing up is entitled to read the
+    // actual terms, so both open as their own public pages (privacy.html,
+    // terms.html) in a new tab and leave the half-filled signup where it was.
+    // The old summary alert is deleted rather than kept alongside them (7).
+    '<div style="font-size:11px;color:var(--text3);line-height:1.6;margin-bottom:12px">By creating an account you agree to our <a href="terms.html" target="_blank" rel="noopener" style="color:var(--blue);text-decoration:underline">Terms of Use</a> and <a href="privacy.html" target="_blank" rel="noopener" style="color:var(--blue);text-decoration:underline">Privacy Policy</a>. TradeDesk is a tool for running your business, not tax, legal or financial advice.</div>'+
     obBtn('Continue','obNextAccount()');
 }
-function _obShowTos(e){if(e)e.preventDefault();if(typeof zAlert==='function')zAlert('TradeDesk is an organizational tool for running your trade business, proposals, jobs, payments, mileage, and tax summaries. It is NOT tax, legal, or financial advice: consult a qualified professional for those. You are responsible for authorization to store client data. Data is stored securely via Supabase; keep your own backups of critical records. Provided "as is" with no warranty.',{title:'Terms of Service'});}
 // Owner decision 2026-08-21: Apple/Google sign-in has no reliable way to detect
 // a returning contractor whose provider email doesn't textually match their
 // existing account (a private-relay address, or just a different inbox), that's

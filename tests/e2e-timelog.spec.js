@@ -62,6 +62,29 @@ test.describe('timelog.js: exhaustive coverage', () => {
     // runner, UTC in CI and Central on a Kansas laptop, which is the machine
     // deciding the result (CLAUDE.md 5.2.2).
     await page.evaluate(() => { S.bizTz = 'America/Chicago'; });
+    // A hole is only ever a QUESTION inside a working day (js/timelog.js
+    // _tlWorkWindow, owner 2026-09-05), and the default working week is Monday
+    // to Saturday. So a fixture pinned to "today" produces no gap rows at all
+    // every Sunday, which is the wall clock deciding the result: exactly the
+    // class CLAUDE.md 5.2.2 exists to stop, one axis over from the hour of the
+    // day. This names the nearest working day instead, which is today six days
+    // a week and yesterday on a Sunday, so it is never stale either.
+    await page.evaluate(() => {
+      window.__tlDay = () => {
+        const w = (typeof _geoWorkHours === 'function') ? _geoWorkHours() : null;
+        const days = (w && Array.isArray(w.days)) ? w.days : [1, 2, 3, 4, 5, 6];
+        const key = (t) => {
+          const d = new Date(t);
+          return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+        };
+        let t = Date.parse(todayKey() + 'T00:00:00');
+        for (let i = 0; i < 7; i++) {
+          if (days.indexOf(new Date(t).getDay()) >= 0) return key(t);
+          t -= 86400000;
+        }
+        return todayKey();
+      };
+    });
     await page.evaluate(`window.__seedTimelogFixtures = ${SEED_FIXTURES_FN.toString()}`);
     await seedFixtures();
   });
@@ -549,7 +572,7 @@ test.describe('timelog.js: exhaustive coverage', () => {
     // exactly the class §5.2.2 exists to keep out. The times are unchanged
     // and sit inside the working day, so the window rule does not decide
     // these either. Both new rules get their own tests below.
-    const D = () => page.evaluate(() => todayKey());
+    const D = () => page.evaluate(() => window.__tlDay());
     const JACK = (d) => ([
       { id: 'd1', personUid: 'jack', date: d, minutes: 3, unpaid: false, source: 'auto',
         startTime: d + 'T14:46:00Z', endTime: d + 'T14:49:00Z' },   // house -> Laurie's
@@ -597,7 +620,7 @@ test.describe('timelog.js: exhaustive coverage', () => {
       ]).filter(x => x.source === 'unaccounted'), { d, a, b, extra });
 
       test('inside work hours it is still asked', async () => {
-        const d = await page.evaluate(() => todayKey());
+        const d = await page.evaluate(() => window.__tlDay());
         const g = await hole(d, '13:00:00Z', '14:00:00Z', { c: '16:00:00Z', e: '17:00:00Z' });
         expect(g.length).toBe(1);
         expect(g[0].minutes).toBe(120);
@@ -826,7 +849,7 @@ test.describe('timelog.js: exhaustive coverage', () => {
 
     test('rounding seams and overlaps never manufacture a hole', async () => {
       const r = await page.evaluate(() => {
-        const D = todayKey();
+        const D = window.__tlDay();
         const base = (id, a, b, extra) => Object.assign({
           id, personUid: 'jack', date: D, unpaid: false, source: 'auto',
           minutes: Math.round((Date.parse(b) - Date.parse(a)) / 60000), startTime: a, endTime: b,
@@ -905,7 +928,7 @@ test.describe('timelog.js: exhaustive coverage', () => {
         try {
           window.saveAll = () => {}; window.supaSaveToCloud = () => {};
           window.showToast = () => {}; window.renderTimeLog = () => {};
-          const D = todayKey();
+          const D = window.__tlDay();
           const rows = _tlFillUnaccounted([
             { id: 'v1', personUid: null, date: D, minutes: 99, unpaid: false, source: 'auto',
               startTime: D + 'T15:35:00Z', endTime: D + 'T17:14:00Z' },
@@ -3172,7 +3195,7 @@ test.describe('timelog.js: exhaustive coverage', () => {
         try {
           window.saveAll = () => {}; window.supaSaveToCloud = () => {};
           window.showToast = () => {}; window.renderTimeLog = () => {};
-          const D = todayKey();
+          const D = window.__tlDay();
           const before = [
             { id: 'v1', personUid: null, date: D, minutes: 99, unpaid: false, source: 'auto',
               startTime: D + 'T15:35:00Z', endTime: D + 'T17:14:00Z' },
@@ -3433,7 +3456,7 @@ test.describe('timelog.js: exhaustive coverage', () => {
           const CID = 'contractor-uid';
           // His real shape: GPS rows carry the contractor uid, the manual
           // answer carries null the way every owner-logged entry does.
-          const D = todayKey();
+          const D = window.__tlDay();
           const gps = (a, b) => ({ personUid: CID, date: D, personName: 'L',
             startTime: a, endTime: b, source: 'auto' });
           const rows = [
@@ -3453,7 +3476,7 @@ test.describe('timelog.js: exhaustive coverage', () => {
 
       test('a crew member answering their own hole is still their own person', async () => {
         const r = await page.evaluate(() => {
-          const D = todayKey();
+          const D = window.__tlDay();
           const gap = (uid) => _tlFillUnaccounted([
             { personUid: 'crew-1', date: D, personName: 'A', source: 'auto',
               startTime: D + 'T13:00:00.000Z', endTime: D + 'T14:00:00.000Z' },

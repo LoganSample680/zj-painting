@@ -4068,4 +4068,102 @@ test.describe('generic-estimate.js: exhaustive coverage', () => {
     });
   });
 
+
+  // ── What it takes to send ───────────────────────────────────────────────────
+  //
+  // It used to take a line in Materials AND a line in Interior or Exterior. A
+  // plumber who had typed "Replace 40 gal water heater, $1,850" was refused at
+  // the send button, in painting vocabulary, after doing all the work of
+  // writing the bid. Every fast path in the app (seeded services, price-book
+  // chips, a spoken estimate) ended in that wall.
+  test.describe('sending needs a price, and nothing else', () => {
+    const armByo = () => page.evaluate(() => {
+      _geiIsFreeForm = true; _geiIsTM = false; _geiTrade = 'plumbing';
+      _geiScopeNoScope = true; _geiScopeChips = [];
+      window.__blocked = [];
+      window.zAlert = (m, o) => { window.__blocked.push((o && o.title) || m); };
+    });
+
+    test('one line in any section sends, in a trade that has no Interior', async () => {
+      await armByo();
+      const r = await page.evaluate(() => {
+        _byoItems = [{ id: 1, section: _byoWorkSection(), label: 'Replace 40 gal water heater', price: 1850, on: true }];
+        sendGenericProposal(true);   // preview path, no network
+        return { blocked: window.__blocked, section: _byoWorkSection() };
+      });
+      expect(r.section).toBe('Work');       // never Interior for a plumber
+      expect(r.blocked).toEqual([]);        // and never refused for it
+    });
+
+    test('an empty estimate still says so, once, in plain words', async () => {
+      await armByo();
+      const r = await page.evaluate(() => {
+        _byoItems = [];
+        sendGenericProposal();
+        return window.__blocked;
+      });
+      expect(r).toEqual(['Nothing to send yet']);
+    });
+
+    test('lines that are all switched off count as empty', async () => {
+      await armByo();
+      const r = await page.evaluate(() => {
+        _byoItems = [{ id: 1, section: 'Work', label: 'Water heater', price: 1850, on: false }];
+        sendGenericProposal();
+        return window.__blocked;
+      });
+      expect(r).toEqual(['Nothing to send yet']);
+    });
+
+    test('a time and materials job with no parts is an ordinary service call', async () => {
+      const r = await page.evaluate(() => {
+        _geiIsTM = true; _geiIsFreeForm = false; _geiTrade = 'plumbing';
+        _geiScopeNoScope = true; _geiScopeChips = [];
+        _tmRatePerMan = 95; _tmEstHours = 3;
+        _geiLines = [{ desc: 'Crew labor', rate: 95, qty: 3, _tmLabor: true }];  // labor only
+        window.__blocked = [];
+        window.zAlert = (m, o) => { window.__blocked.push((o && o.title) || m); };
+        sendGenericProposal(true);
+        return window.__blocked;
+      });
+      expect(r).toEqual([]);      // was "Materials required"
+    });
+
+    test('a time and materials job with no rate or hours is still refused, because that IS the bid', async () => {
+      const r = await page.evaluate(() => {
+        _geiIsTM = true; _geiIsFreeForm = false;
+        _geiScopeNoScope = true; _geiScopeChips = [];
+        _tmRatePerMan = 0; _tmEstHours = 0; _geiLines = [];
+        window.__blocked = [];
+        window.zAlert = (m, o) => { window.__blocked.push((o && o.title) || m); };
+        sendGenericProposal();
+        return window.__blocked;
+      });
+      expect(r).toEqual(['Time & labor required']);
+    });
+  });
+
+  test.describe('sections follow the trade', () => {
+    test('a plumber never sees Interior or Exterior', async () => {
+      const r = await page.evaluate(() => { _geiTrade = 'plumbing'; return _byoSections(); });
+      expect(r).toEqual(['Work', 'Materials', 'Add-ons']);
+    });
+    test('a painter keeps the two words that mean something to a painter', async () => {
+      const r = await page.evaluate(() => { _geiTrade = 'painting'; return _byoSections(); });
+      expect(r).toEqual(['Interior', 'Exterior', 'Materials', 'Add-ons']);
+    });
+    test('an old estimate whose lines sit in Interior still shows Interior', async () => {
+      const r = await page.evaluate(() => {
+        _geiTrade = 'plumbing';
+        _byoItems = [{ id: 1, section: 'Interior', label: 'Old line', price: 100, on: true }];
+        _byoCustomSections = [];
+        _byoRenderSections();
+        const html = document.getElementById('gei-byo-page')?.innerHTML || document.body.innerHTML;
+        _byoItems = [];
+        return html.includes('Interior');
+      });
+      expect(r).toBe(true);
+    });
+  });
+
 });

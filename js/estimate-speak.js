@@ -146,7 +146,11 @@ function tdSpeakEstimate(text){
   if(plan.services.length){
     window._scanEstimateSeed={
       clientId:plan.client.id,
-      lines:plan.services.map(s=>({desc:s.desc,qty:1,unit:'ea',rate:s.rate,total:s.rate,notes:'',_byoSection:'Materials'})),
+      // The trade's own work section, never Materials: "replace the water heater"
+      // is the job, not a part, and until the send gate stopped caring, landing
+      // it in the wrong section was also what got the whole bid refused.
+      lines:plan.services.map(s=>({desc:s.desc,qty:1,unit:'ea',rate:s.rate,total:s.rate,notes:'',
+        _byoSection:(typeof _byoWorkSection==='function'?_byoWorkSection():'Work')})),
     };
   }
   if(typeof currentClientId!=='undefined')currentClientId=plan.client.id;

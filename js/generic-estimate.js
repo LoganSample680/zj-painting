@@ -1103,7 +1103,26 @@ function _tmHidePage(){_geiHidePage('gei-tm-page');}
 
 // ── Build Your Own single-page layout ────────────────────────────────────────
 let _byoItems=[],_byoCustomSections=[],_byoCustomTerms='';
-const _BYO_DEFAULT_SECTIONS=['Interior','Exterior','Materials','Add-ons'];
+// Interior and Exterior are PAINTING words. An HVAC man swapping a condenser,
+// a plumber setting a water heater and an electrician pulling a panel all have
+// exactly one honest answer to "is this interior or exterior", which is "who
+// cares", and until now the send button refused to let them past without one.
+// So the sections follow the trade: painting keeps the two it actually uses,
+// everybody else gets Work.
+//
+// Old estimates are untouched: a bid whose items sit in "Interior" still shows
+// an Interior section, because any section an item names is added back to the
+// list below (extraFromItems).
+const _BYO_PAINT_SECTIONS=['Interior','Exterior','Materials','Add-ons'];
+const _BYO_TRADE_SECTIONS=['Work','Materials','Add-ons'];
+function _byoSections(){
+  const t=_geiTrade||(typeof getActiveTrade==='function'?getActiveTrade():'');
+  return t==='painting'?_BYO_PAINT_SECTIONS.slice():_BYO_TRADE_SECTIONS.slice();
+}
+// Where a line lands when something other than a person put it there (a spoken
+// estimate, a seeded hand-off): the trade's first work section, never Materials,
+// because "replace the water heater" is the job and not a part.
+function _byoWorkSection(){return _byoSections()[0];}
 const _RRP_BYO_SECTION='RRP: Lead-Safe Protocol';
 const _RRP_ITEMS=[
   {label:'Lead-safe setup & interior containment',hint:'Plastic sheeting 6 ft from work surfaces; sealed ducts, vents, door coverings (EPA §745.85)',price:0,_scope:'interior'},
@@ -1309,12 +1328,13 @@ function _geiItemRowHtml(opts){
 function _byoRenderSections(){
   _injectRrpItems();
   const wrap=document.getElementById('byo-sections');if(!wrap)return;
-  const extraFromItems=_byoItems.map(x=>x.section).filter(s=>!_BYO_DEFAULT_SECTIONS.includes(s));
+  const _defSecs=_byoSections();
+  const extraFromItems=_byoItems.map(x=>x.section).filter(s=>!_defSecs.includes(s));
   const allExtra=[..._byoCustomSections,...extraFromItems.filter(s=>!_byoCustomSections.includes(s))];
-  const sections=[..._BYO_DEFAULT_SECTIONS,...new Set(allExtra)];
+  const sections=[..._defSecs,...new Set(allExtra)];
   const secHtml=sections.map(sec=>{
     const rows=_byoItems.filter(it=>it.section===sec);
-    const isCustom=!_BYO_DEFAULT_SECTIONS.includes(sec);
+    const isCustom=!_defSecs.includes(sec);
     const rowHtml=rows.length?rows.map(it=>{
       const idx=_byoItems.indexOf(it);
       return _geiItemRowHtml({
@@ -1921,7 +1941,7 @@ function _byoAddSection(){
 function _byoConfirmSection(){
   const name=(document.getElementById('_byo-sec-name')?.value||'').trim();
   if(!name)return;
-  const all=[..._BYO_DEFAULT_SECTIONS,..._byoCustomSections];
+  const all=[..._byoSections(),..._byoCustomSections];
   if(all.map(s=>s.toLowerCase()).includes(name.toLowerCase())){
     const inp=document.getElementById('_byo-sec-name');
     if(inp){inp.style.borderColor='#A32D2D';inp.placeholder='That section already exists';}
@@ -1932,7 +1952,7 @@ function _byoConfirmSection(){
   _byoRenderSections();_byoAutosave();
 }
 function _byoDeleteSection(sec){
-  if(_BYO_DEFAULT_SECTIONS.includes(sec))return;
+  if(_byoSections().includes(sec))return;
   const hasItems=_byoItems.some(x=>x.section===sec);
   const doDelete=()=>{
     _byoCustomSections=_byoCustomSections.filter(s=>s!==sec);
@@ -3329,13 +3349,22 @@ async function sendGenericProposal(previewOnly){
     // Only block if there are no chips, no line items, and the contractor hasn't explicitly skipped.
     const _hasLineItems=_geiIsFreeForm?_byoItems.some(it=>it.on):_geiLines.length>0;
     if(!_geiScopeChips.length&&!_geiScopeNoScope&&!_hasLineItems){zAlert('Add scope items or tap "None" to skip scope on this proposal.',{title:'Scope required'});return;}
+    // A proposal needs a price. That is the whole list.
+    //
+    // It used to need a line in Materials AND a line in Interior or Exterior,
+    // which meant a plumber who had typed "Replace 40 gal water heater, $1,850"
+    // was refused at the send button, in painting vocabulary, after he had
+    // already done the work of writing the bid. That is the worst moment in an
+    // app to tell somebody no, and it made every fast path we have (the seeded
+    // services, the price-book chips, a spoken estimate) end in a wall.
     if(_geiIsTM){
+      // The rate and the hours ARE the bid on a time and materials job, so
+      // those stay. A service call with no parts is an ordinary T&M job and is
+      // no longer refused for having no materials.
       if(!_tmRatePerMan||!_tmEstHours){zAlert('Enter your hourly rate and estimated days in the Rates & crew section.',{title:'Time & labor required'});return;}
-      if(!_geiLines.some(l=>!l._tmLabor&&l.desc)){zAlert('Add at least one material or cost item in the Materials section.',{title:'Materials required'});return;}
     }else if(_geiIsFreeForm){
       const _byoOn=_byoItems.filter(it=>it.on);
-      if(!_byoOn.some(it=>it.section==='Materials')){zAlert('Add at least one item in the Materials section.',{title:'Materials required'});return;}
-      if(!_byoOn.some(it=>it.section==='Interior'||it.section==='Exterior')){zAlert('Add at least one line item in Interior or Exterior.',{title:'Work items required'});return;}
+      if(!_byoOn.length){zAlert('Add at least one line before you send this.',{title:'Nothing to send yet'});return;}
     }
     // Build minimal proposal for sign.html
     if(!navigator.onLine){zAlert('You\'re offline, the proposal link can\'t be activated right now.\n\nYour proposal is saved. Once you\'re back online, open this proposal and tap Send to send the link to your client.',{title:'No internet connection'});return;}

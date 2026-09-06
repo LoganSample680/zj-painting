@@ -920,7 +920,7 @@ function checkClientDupe(val){
     if(editClientId&&c.id===editClientId)return false;
     return (c.name||'').toLowerCase().replace(/\s+/g,' ')===name;
   });
-  if(match){warn.style.display='';warn.textContent='⚠ '+match.name+' is already in your records, is this a different client?';}
+  if(match){warn.style.display='';warn.textContent=match.name+' is already in your records. A different address makes this a different customer.';}
   else{warn.style.display='none';}
 }
 function openNewClient(){
@@ -1010,15 +1010,24 @@ function saveClient(){
   _submitting=true;setTimeout(()=>{_submitting=false;},1500);
   // Clear all field errors first
   ['cf-name','cf-phone','cf-street','cf-source','cf-partytype'].forEach(clearFErr);
-  // Who is this? drives whether the property is shown as theirs (homeowner) or as a
-  // job site they don't own (GC/PM/builder), and how getting-paid tools behave.
+  // ONE required field: the name (owner rule 2026-09-06). The record has to
+  // exist because it is the folder every document is filed in, and a folder
+  // needs a name. Everything else is something we would LIKE to know, and
+  // nothing we would like to know is worth stopping a contractor standing in a
+  // driveway trying to write a customer down.
+  //
+  // Who they are and where the lead came from used to block the save. Both are
+  // optional now and asked for later on the client card: an empty partyType
+  // already reads as "not a GC" everywhere it is consumed (accountOwnsSites in
+  // data.js, the third-party check in dashboard.js), which is the common case
+  // anyway, and the QR intake path has always created clients without either.
   const partyType=v('cf-partytype')||'';
-  if(!partyType){_submitting=false;showFErr('cf-partytype','err-cf-partytype','Tell us who this is, it changes how we handle the property and getting paid.');return;}
   const name=v('cf-name').trim();
   if(!name){_submitting=false;showFErr('cf-name','err-cf-name','Enter a name.');return;}
   const phone=v('cf-phone').trim();
-  if(!phone){_submitting=false;showFErr('cf-phone','err-cf-phone','Enter a phone number.');return;}
-  if(phone.replace(/\D/g,'').length<10){_submitting=false;showFErr('cf-phone','err-cf-phone','Enter a valid 10-digit phone number.');return;}
+  // Optional, but a half-typed number is a mistake worth catching now instead
+  // of at the moment he tries to text them.
+  if(phone&&phone.replace(/\D/g,'').length<10){_submitting=false;showFErr('cf-phone','err-cf-phone','That phone number is missing a few digits.');return;}
   // Address is optional, leads often come in without one; add later from profile
   const street=v('cf-street').trim();
   const city=v('cf-city').trim();
@@ -1026,15 +1035,33 @@ function saveClient(){
   const zip=v('cf-zip').trim();
   const addr=[street,city,[state,zip].filter(Boolean).join(' ')].filter(Boolean).join(', ');
   const source=v('cf-source')||'';
-  if(!source){_submitting=false;showFErr('cf-source','err-cf-source','Select a lead source, this tracks what\'s working.');return;}
   const isNew=!editClientId;
   if(isNew){
     const ph=phone.replace(/\D/g,'');
     const nameLow=name.toLowerCase().replace(/\s+/g,' ');
     const realPhone=ph.length===10&&!/^(\d)\1+$/.test(ph);
-    // Name match = hard block (almost certainly a re-entry of the same person)
-    const nameDupe=clients.find(x=>x.id!==editClientId&&(x.name||'').toLowerCase().replace(/\s+/g,' ')===nameLow);
-    if(nameDupe){_submitting=false;showFErr('cf-name','err-cf-name',nameDupe.name+' is already in your list. Is this a different person with the same name?');return;}
+    // A customer is a name AT AN ADDRESS (owner rule 2026-09-06), so that is what
+    // a duplicate is too. Two Mike Johnsons on two different streets are two
+    // customers and always were: comparing the name alone made the second one
+    // impossible to enter, and the message asked a question the form gave no way
+    // to answer. Same name at the same address, or at no address on either
+    // record (the genuinely ambiguous case), is worth a warning and never a
+    // wall, because a father and son at one house are a real pair of customers.
+    const _addrKey=r=>((r&&r.addr)||'').toLowerCase().replace(/\s+/g,' ').trim();
+    const thisAddr=addr.toLowerCase().replace(/\s+/g,' ').trim();
+    const nameDupe=clients.find(x=>x.id!==editClientId
+      &&(x.name||'').toLowerCase().replace(/\s+/g,' ')===nameLow
+      &&_addrKey(x)===thisAddr);
+    if(nameDupe&&!_allowNameDupe){
+      _submitting=false;
+      const errEl=document.getElementById('err-cf-name');
+      if(errEl){
+        errEl.innerHTML=escHtml(nameDupe.name)+(thisAddr?' is already on file at this address.':' is already on file with no address.')+
+          ' Different person? <button onclick="_allowNameDupe=true;saveClient()" style="background:none;border:none;color:var(--blue);font-weight:700;cursor:pointer;padding:0;font-size:inherit;font-family:inherit">save anyway \u2192</button>';
+        errEl.style.display='block';
+      }
+      return;
+    }
     // Phone match = soft warning, two people can share a number (family), allow override
     const phoneDupe=realPhone?clients.find(x=>x.id!==editClientId&&(x.phone||'').replace(/\D/g,'')===ph):null;
     if(phoneDupe&&!_allowPhoneDupe){
@@ -1056,7 +1083,7 @@ function saveClient(){
       }
     }
   }
-  _allowPhoneDupe=false;
+  _allowPhoneDupe=false;_allowNameDupe=false;
   const ref=v('cf-ref')||'';
   const occupation=v('cf-occupation')||'';
   const tier=v('cf-tier')||'';

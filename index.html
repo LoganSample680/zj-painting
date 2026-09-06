@@ -1780,17 +1780,26 @@ body.dark .cal-cell.other{background:var(--cream)}
         <button class="btn-del" id="cf-del" style="display:none" onclick="deleteClient()">Delete</button>
       </div>
 
-      <div style="font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.07em;color:var(--text3);margin-bottom:10px">Required</div>
+      <div style="font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.07em;color:var(--text3);margin-bottom:10px">Start here</div>
       <div class="fg fg2">
-        <div class="f"><label>Full name</label><input id="cf-name" placeholder="John &amp; Sarah Smith" oninput="checkClientDupe(this.value);clearFErr('cf-name')">
+        <div class="f"><label>Full name</label><input id="cf-name" placeholder="John &amp; Sarah Smith" oninput="checkClientDupe(this.value);clearFErr('cf-name');_allowNameDupe=false;">
           <div id="cf-dupe-warn" style="display:none;font-size:11px;color:var(--c-red);margin-top:4px;background:#FEE8E8;border-radius:var(--r);padding:6px 8px"></div>
           <div id="err-cf-name" style="display:none;font-size:11px;color:var(--c-red);margin-top:3px"></div>
         </div>
-        <div class="f"><label>Phone</label><input id="cf-phone" type="tel" placeholder="XXX-XXX-XXXX" maxlength="12" oninput="fmtPhone(this);clearFErr('cf-phone');_allowPhoneDupe=false;">
+        <div class="f"><label>Phone <span style="font-weight:400;color:var(--text3)">(optional)</span></label><input id="cf-phone" type="tel" placeholder="XXX-XXX-XXXX" maxlength="12" oninput="fmtPhone(this);clearFErr('cf-phone');_allowPhoneDupe=false;">
           <div id="err-cf-phone" style="display:none;font-size:11px;color:var(--c-red);margin-top:3px"></div>
         </div>
+        <div class="f" style="grid-column:1/-1;position:relative"><label>Street address</label><input id="cf-street" placeholder="1234 Maple St" autocomplete="off" oninput="clearFErr('cf-street');_updateAddrComputed();_addrSugSearch(this.value,'cf-addr-sugg','cf-street','cf-city','cf-state','cf-zip')" onblur="setTimeout(()=>{const b=document.getElementById('cf-addr-sugg');if(b)b.style.display='none'},150)">
+          <div id="cf-addr-sugg" style="display:none;position:absolute;left:0;right:0;top:100%;background:var(--bg2);border:1px solid var(--border2);border-radius:var(--r);box-shadow:0 6px 20px rgba(0,0,0,.12);z-index:200;max-height:240px;overflow-y:auto"></div>
+          <div id="err-cf-addr" style="display:none;font-size:11px;color:var(--c-red);margin-top:3px"></div>
+        </div>
+        <div class="f"><label>City</label><input id="cf-city" placeholder="Denver" autocomplete="address-level2" oninput="_updateAddrComputed()"></div>
+        <div class="f" style="display:grid;grid-template-columns:1fr 80px;gap:8px;min-width:0">
+          <div style="min-width:0"><label>State</label><input id="cf-state" placeholder="CO" maxlength="2" autocomplete="address-level1" oninput="this.value=this.value.toUpperCase();_updateAddrComputed()"></div>
+          <div style="min-width:0"><label>Zip</label><input id="cf-zip" placeholder="80203" maxlength="10" autocomplete="postal-code" oninput="_updateAddrComputed()"></div>
+        </div>
         <div class="f" style="grid-column:1/-1">
-          <label>Who are you working for? <span style="color:var(--c-red)">*</span></label>
+          <label>Who are you working for? <span style="font-weight:400;color:var(--text3)">(optional)</span></label>
           <select id="cf-partytype" onchange="clearFErr('cf-partytype')">
             <option value="">- Select who you're working for -</option>
             <option value="homeowner">Homeowner</option>
@@ -1802,7 +1811,7 @@ body.dark .cal-cell.other{background:var(--cream)}
           <div id="err-cf-partytype" style="display:none;font-size:11px;color:var(--c-red);margin-top:3px"></div>
         </div>
         <div class="f" style="grid-column:1/-1">
-          <label>Lead source</label>
+          <label>Lead source <span style="font-weight:400;color:var(--text3)">(optional)</span></label>
           <select id="cf-source" onchange="toggleRefField(this)">
             <option value="">- How did they find you? -</option>
             <option value="Unknown">Unknown</option>
@@ -1843,17 +1852,8 @@ body.dark .cal-cell.other{background:var(--cream)}
       </div>
 
       <div style="margin-top:20px;padding-top:16px;border-top:1px solid var(--border)">
-        <div style="font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.07em;color:var(--text3);margin-bottom:10px">Optional: add anytime</div>
+        <div style="font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.07em;color:var(--text3);margin-bottom:10px">The rest, whenever you get to it</div>
         <div class="fg fg2">
-          <div class="f" style="grid-column:1/-1;position:relative"><label>Street address</label><input id="cf-street" placeholder="1234 Maple St" autocomplete="off" oninput="clearFErr('cf-street');_updateAddrComputed();_addrSugSearch(this.value,'cf-addr-sugg','cf-street','cf-city','cf-state','cf-zip')" onblur="setTimeout(()=>{const b=document.getElementById('cf-addr-sugg');if(b)b.style.display='none'},150)">
-            <div id="cf-addr-sugg" style="display:none;position:absolute;left:0;right:0;top:100%;background:var(--bg2);border:1px solid var(--border2);border-radius:var(--r);box-shadow:0 6px 20px rgba(0,0,0,.12);z-index:200;max-height:240px;overflow-y:auto"></div>
-            <div id="err-cf-addr" style="display:none;font-size:11px;color:var(--c-red);margin-top:3px"></div>
-          </div>
-          <div class="f"><label>City</label><input id="cf-city" placeholder="Denver" autocomplete="address-level2" oninput="_updateAddrComputed()"></div>
-          <div class="f" style="display:grid;grid-template-columns:1fr 80px;gap:8px;min-width:0">
-            <div style="min-width:0"><label>State</label><input id="cf-state" placeholder="CO" maxlength="2" autocomplete="address-level1" oninput="this.value=this.value.toUpperCase();_updateAddrComputed()"></div>
-            <div style="min-width:0"><label>Zip</label><input id="cf-zip" placeholder="80203" maxlength="10" autocomplete="postal-code" oninput="_updateAddrComputed()"></div>
-          </div>
           <div class="f"><label>Email</label><input type="email" id="cf-email" placeholder="client@email.com" autocomplete="off"></div>
           <div class="f"><label>Property type</label><select id="cf-ptype"><option>Single family home</option><option>Townhouse/condo</option><option>Rental property</option><option>Commercial</option><option>New construction</option></select></div>
           <div class="f" id="cf-year-built-wrap"><label>Year built <span style="font-weight:400;color:var(--text3);font-size:10px">Pre-1978 = EPA disclosure</span></label>

@@ -2330,7 +2330,7 @@ test.describe('clients.js: exhaustive coverage', () => {
       expect(r.editId).toBeNull();
     });
 
-    test('clears the "Who is this?" party-type on a fresh lead (forces an explicit pick)', async () => {
+    test('clears the "Who is this?" party-type on a fresh lead (no carry-over from the last one)', async () => {
       const r = await page.evaluate(() => {
         const pt = document.getElementById('cf-partytype');
         if (pt) pt.value = 'gc';
@@ -2341,31 +2341,42 @@ test.describe('clients.js: exhaustive coverage', () => {
     });
   });
 
-  test.describe('party type (Who is this?) is required and persists', () => {
-    test('saveClient blocks when party type is not chosen, and stores it once set', async () => {
+  test.describe('party type (Who is this?) is optional and persists', () => {
+    // WAS required: an unchosen party type blocked the save outright. NOW
+    // optional (owner rule 2026-09-06): an empty partyType already reads as
+    // "not a GC" everywhere it is consumed (accountOwnsSites in data.js, the
+    // third-party check in dashboard.js), which is the common case, and the QR
+    // intake path has always created clients without it. It still persists
+    // exactly as before once someone does pick one, which is the half of this
+    // that has to keep working.
+    test('saveClient saves without a party type, and stores it once set', async () => {
       const r = await page.evaluate(() => {
         openNewClient();
         window.editClientId = null;
-        const before = clients.length;
         document.getElementById('cf-name').value = 'Party Type Test Co';
         document.getElementById('cf-phone').value = '316-555-0199';
-        document.getElementById('cf-source').value = document.getElementById('cf-source').options[1]?.value || 'Google';
+        document.getElementById('cf-source').value = '';
         document.getElementById('cf-partytype').value = ''; // not chosen
-        window._allowPhoneDupe = true;
+        _allowPhoneDupe = true;
         saveClient();
-        const blocked = clients.length === before &&
-          document.getElementById('err-cf-partytype')?.style.display !== 'none';
-        // now choose a type and save
+        const savedBlank = clients.find(c => c.name === 'Party Type Test Co');
+        const blankType = savedBlank ? (savedBlank.partyType || '') : null;
+        if (savedBlank) clients.splice(clients.indexOf(savedBlank), 1);
+        // and again with one chosen
+        openNewClient();
+        window.editClientId = null;
+        document.getElementById('cf-name').value = 'Party Type Test Co';
+        document.getElementById('cf-phone').value = '316-555-0199';
         document.getElementById('cf-partytype').value = 'gc';
-        window._submitting = false; window._allowPhoneDupe = true;
+        _submitting = false; _allowPhoneDupe = true; _allowNameDupe = true;
         saveClient();
         const saved = clients.find(c => c.name === 'Party Type Test Co');
         const partyType = saved ? saved.partyType : null;
         if (saved) clients.splice(clients.indexOf(saved), 1);
-        return { blocked, partyType };
+        return { blankType, partyType };
       });
-      expect(r.blocked).toBe(true);        // required: no save until chosen
-      expect(r.partyType).toBe('gc');      // persisted on the client record
+      expect(r.blankType).toBe('');   // saved, not blocked
+      expect(r.partyType).toBe('gc'); // still persisted on the client record
     });
 
     test('shows client-form-wrap', async () => {

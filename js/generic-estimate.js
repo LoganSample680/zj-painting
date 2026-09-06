@@ -1656,15 +1656,36 @@ function _empLoadedFor(email){
   const comp=(typeof _teamComp!=='undefined'&&_teamComp)?_teamComp[(email||'').toLowerCase()]:null;
   return (comp&&typeof _empLoadedHourly==='function')?_empLoadedHourly(comp):0;
 }
-// Crew payroll the owner pays out of this bid = job hours × the loaded rate of EACH assigned
-// crew member (so two people cost ~2× one). Solo operators (no crew assigned) → 0, since their
-// labor is already priced into the line items. Hours come automatically from the scope.
+// His own time, loaded, the same way Crew Cost already values it (finance.js
+// builds exactly this from S.ownerPayType/ownerPayRate). One helper so the
+// estimate and the books can never disagree about what an hour of his costs.
+function _ownerLoadedHourly(){
+  if(typeof _empLoadedHourly!=='function')return 0;
+  const rate=Number(S&&S.ownerPayRate)||0;
+  if(rate<=0)return 0;
+  return _empLoadedHourly({pay_type:S.ownerPayType||'hourly',pay_rate:rate})||0;
+}
+
+// What this bid costs him in labor.
+//
+// It used to return 0 for anybody with no crew assigned, on the grounds that a
+// solo operator's labor is "already priced into the line items". That confuses
+// revenue with cost. On a fixed price his own hours ARE the cost, and leaving
+// them out meant the gauge computed margin on materials alone and showed most
+// of this market a number far better than the truth. A calculator that
+// flatters him is worse than none: the day he works it out on paper he never
+// trusts the app again.
+//
+// Crew assigned: their loaded rates, unchanged. Nobody assigned: it is him.
 function _estLaborCost(){
-  if(!_hasEmployees()||!_estCrew.length)return 0;
   const hrs=_estLaborHours();
   if(hrs<=0)return 0;
-  const crewRate=_estCrew.reduce((s,email)=>s+_empLoadedFor(email),0);
-  return Math.round(hrs*crewRate);
+  if(_estCrew.length&&_hasEmployees()){
+    const crewRate=_estCrew.reduce((s,email)=>s+_empLoadedFor(email),0);
+    return Math.round(hrs*crewRate);
+  }
+  const own=_ownerLoadedHourly();
+  return own>0?Math.round(hrs*own):0;
 }
 // Toggle an employee on/off this job's crew, then refresh the expense + gauge.
 // Mode-aware: T&M refreshes through _tmInputChange, BYO through _byoUpdateRail.
@@ -1761,6 +1782,12 @@ function _updateMarginGauge(type,total){
   // margins that usually mean a cost got missed, green now tops out at 55%.
   else if(margin<75){color='#F59E0B';msg='High margin, double-check your cost numbers';}
   else{color='#F59E0B';msg='Very high margin, double-check your numbers';}
+  // The honest caveat. If this bid has hours on it and we have no idea what an
+  // hour of HIS time costs, the number on screen is materials-only and it is
+  // flattering him. Say so on the gauge rather than let him read it as profit.
+  if(!_estCrew.length&&_ownerLoadedHourly()<=0&&_estLaborHours()>0){
+    msg='Your own time is not costed yet. Add your pay rate in Settings for a true number.';
+  }
   const dot=document.getElementById(type+'-gauge-dot');
   const pct=document.getElementById(type+'-gauge-pct');
   const msgEl=document.getElementById(type+'-gauge-msg');

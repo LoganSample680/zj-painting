@@ -4393,4 +4393,94 @@ test.describe('generic-estimate.js: exhaustive coverage', () => {
     });
   });
 
+
+  // ── The profit gauge stops flattering him ───────────────────────────────────
+  //
+  // _estLaborCost returned 0 for anybody with no crew, on the grounds that a
+  // solo operator's labor is "already priced into the line items". That
+  // confuses revenue with cost: on a fixed price his own hours ARE the cost.
+  // Most of this market is solo, so most of this market was shown a margin
+  // computed on materials alone, which is far better than the truth. A
+  // calculator that flatters him is worse than none.
+  test.describe('profit: his own time is a cost', () => {
+    const setup = (o) => page.evaluate((x) => {
+      S.ownerPayType = 'hourly';
+      S.ownerPayRate = x.ownerRate;
+      S.laborBurden = x.burden;
+      _estCrew = [];
+      _geiIsTM = true;                 // T&M knows its hours exactly
+      _tmEstHours = x.hours;
+      return { hours: _estLaborHours(), cost: _estLaborCost(), loaded: _ownerLoadedHourly() };
+    }, o);
+
+    test('a solo job costs his hours at his loaded rate', async () => {
+      const r = await setup({ ownerRate: 50, burden: 1.3, hours: 8 });
+      expect(r.hours).toBe(8);
+      expect(r.loaded).toBe(65);       // 50 x 1.3 burden, same maths as Crew Cost
+      expect(r.cost).toBe(520);        // was 0, every time, for every solo contractor
+    });
+
+    test('no hours means no labor cost, as before', async () => {
+      const r = await setup({ ownerRate: 50, burden: 1.3, hours: 0 });
+      expect(r.cost).toBe(0);
+    });
+
+    test('a contractor who never set his pay rate is unchanged, not guessed at', async () => {
+      const r = await setup({ ownerRate: 0, burden: 1.3, hours: 8 });
+      // Better to cost nothing than to invent a rate. The gauge says so instead.
+      expect(r.cost).toBe(0);
+    });
+
+    test('and the gauge says the number is incomplete rather than looking good', async () => {
+      await setup({ ownerRate: 0, burden: 1.3, hours: 8 });
+      const msg = await page.evaluate(() => {
+        const c = document.getElementById('tm-expected-cost');
+        if (!c) return { skip: true };
+        c.value = '1000';
+        _updateMarginGauge('tm', 5000);          // 80% margin on materials alone
+        return document.getElementById('tm-gauge-msg')?.textContent || '';
+      });
+      if (msg.skip) return;
+      expect(msg).toMatch(/own time is not costed/i);
+    });
+
+    test('with his rate set, the gauge goes back to talking about margin', async () => {
+      await setup({ ownerRate: 50, burden: 1.3, hours: 8 });
+      const msg = await page.evaluate(() => {
+        const c = document.getElementById('tm-expected-cost');
+        if (!c) return { skip: true };
+        c.value = '1000';
+        _updateMarginGauge('tm', 5000);
+        return document.getElementById('tm-gauge-msg')?.textContent || '';
+      });
+      if (msg.skip) return;
+      expect(msg).not.toMatch(/own time is not costed/i);
+    });
+
+    test('crew assigned still costs the crew, not him', async () => {
+      const r = await page.evaluate(() => {
+        S.ownerPayRate = 50; S.laborBurden = 1;
+        _geiIsTM = true; _tmEstHours = 10;
+        window._hasEmployees = () => true;
+        window._empLoadedFor = () => 40;
+        _estCrew = ['a@x.com', 'b@x.com'];
+        const cost = _estLaborCost();
+        _estCrew = [];
+        return cost;
+      });
+      expect(r).toBe(800);            // two crew at 40, ten hours
+    });
+
+    test('junk pay settings never produce a junk cost', async () => {
+      const r = await page.evaluate(() => {
+        _geiIsTM = true; _tmEstHours = 5; _estCrew = [];
+        const out = [];
+        [null, undefined, -20, 'banana'].forEach(v => { S.ownerPayRate = v; out.push(_estLaborCost()); });
+        S.ownerPayRate = 0;
+        return out;
+      });
+      expect(r).toEqual([0, 0, 0, 0]);
+    });
+  });
+
 });

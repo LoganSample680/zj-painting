@@ -353,6 +353,44 @@ test.describe('layout integrity, mobile', () => {
   // "Scope of work", same names, same section labels, nothing new. Removed the
   // table entirely for BYO (room/material names now live in Scope of work only);
   // T&M keeps its item table since materials aren't listed anywhere else.
+  // The proposal names itself from its first line item so he can find it in his
+  // own list (_geiAutoName). That name is HIS, not the client's: printing it in
+  // the Project header would put the same words on the document twice, once as
+  // the title and once in Scope of work. A name he typed himself does print.
+  test('the auto name never reaches the client Project line, a name he typed does', async () => {
+    const r = await page.evaluate(async () => {
+      const c = { id: 79117, name: 'Auto Name Proposal Client', addr: '2 Auto Name Rd' };
+      clients = clients.filter(x => x.id !== 79117).concat([c]);
+      bids = bids.filter(x => x.client_id !== 79117);
+      const render = async () => {
+        await sendGenericProposal(true);
+        const ov = document.getElementById('_prop-preview-ov');
+        const html = ov ? ov.innerHTML : '';
+        ov?.remove();
+        return html;
+      };
+      openGenericEstimate(c, null, null, { mode: 'byo' });
+      _geiIsFreeForm = true;
+      _byoItems = [{ id: 1, section: 'Interior', label: 'Bedroom', price: 500, on: true }];
+      _byoUpdateRail();
+      const autoName = document.getElementById('gei-desc').value;
+      const autoHtml = await render();
+      _geiDescUserSet = true;
+      document.getElementById('gei-desc').value = 'Johnson remodel, phase 2';
+      const namedHtml = await render();
+      return {
+        autoName,
+        autoOccurrences: (autoHtml.match(/Bedroom/g) || []).length,
+        namedShows: namedHtml.includes('Johnson remodel, phase 2'),
+        namedOccurrences: (namedHtml.match(/Bedroom/g) || []).length
+      };
+    });
+    expect(r.autoName, 'the proposal still names itself for his own list').toBe('Bedroom');
+    expect(r.autoOccurrences, 'the auto name must not repeat the item in the Project header').toBe(1);
+    expect(r.namedShows, 'a name he typed himself is his document title').toBe(true);
+    expect(r.namedOccurrences).toBe(1);
+  });
+
   test('proposal shows only TOTAL + deposit, no per-room, per-material, tax, or NTE-cap price, no redundant Description table (BYO)', async () => {
     const r = await page.evaluate(async () => {
       const c = { id: 79107, name: 'Total Only BYO Client', addr: '1 Total Only Rd' };

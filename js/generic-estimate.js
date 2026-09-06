@@ -3852,7 +3852,12 @@ async function sendGenericProposal(previewOnly){
   const clientName=escHtml(v('gei-client'));const clientAddr=escHtml(v('gei-addr'));
   const _clientRec=_geiClientId?clients.find(c=>c.id===_geiClientId):null;
   const clientPhone=escHtml(_clientRec?.phone||'');
-  const jobDesc=escHtml(v('gei-desc'));const duration=escHtml(v('gei-duration'));
+  // The Project line is the CLIENT's header, so it only carries a name the
+  // contractor actually chose. The auto name (_geiAutoName) is derived from the
+  // first line item and exists so he can find the proposal in his own list,
+  // printing it here would put that item's words on the document twice: once as
+  // the title, once in Scope of work. Auto name -> the trade service label.
+  const jobDesc=escHtml(_geiDescUserSet?v('gei-desc'):'');const duration=escHtml(v('gei-duration'));
   const _tradeM=TRADE_META[trade]||null;
   const tradeName=(_tradeM&&_tradeM.label)||'Service';
   const estNum=_geiEditBidId?String(_geiEditBidId).slice(-6):'-';

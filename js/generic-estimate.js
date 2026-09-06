@@ -2322,10 +2322,17 @@ function _byoDuplicateBid(){
   saveGenericEstimate(true);
   const src=bids.find(x=>x.id===_geiEditBidId);
   if(!src){showToast('Proposal not found','⚠️');return;}
-  // Label the original "Option A" so both show distinct names in the bid list
+  // Label the original "Option A" so both show distinct names in the bid list.
+  // Option A/B is a CHOSEN name, not the auto one, so both sides are marked
+  // descUserSet: the auto name must never write over it, and the client's
+  // proposal must print it (the whole point of options is that the client can
+  // tell them apart).
   const baseName=(src.type||'Custom Proposal').replace(/\s*-\s*Option\s+[AB]$/i,'').trim();
   if(!/option [ab]$/i.test(src.type||'')){
     src.type=baseName+', Option A';
+    src.geiDesc=src.type;
+    src.descUserSet=true;
+    _geiDescUserSet=true;
     const descEl=document.getElementById('gei-desc');
     if(descEl)descEl.value=src.type;
     const titleEl=document.getElementById('byo-tbar-title');
@@ -2334,11 +2341,18 @@ function _byoDuplicateBid(){
   const copy=JSON.parse(JSON.stringify(src));
   copy.id=_newBidId();
   copy.type=baseName+', Option B';
+  copy.geiDesc=copy.type;
+  copy.descUserSet=true;
   copy.status='Draft';copy.draft=true;
   copy.signingToken=undefined;copy.proposalKey=undefined;copy.proposalSentDate=undefined;
   bids.unshift(copy);saveAll();
-  // Open the copy in the editor
-  _byoShowPage({id:copy.client_id,name:copy.client_name||copy.name||''},copy.id);
+  // Open the COPY. _byoShowPage takes no arguments and reads _geiEditBidId, so
+  // the old call here was a no-op that left the editor on Option A while the
+  // toast said "edit Option B now": every change he made after tapping the
+  // button landed on the wrong document. openGenericEstimate is the one path
+  // that actually switches which bid is open.
+  const _dupC=(typeof clients!=='undefined')?clients.find(x=>x&&x.id===copy.client_id):null;
+  openGenericEstimate(_dupC||{id:copy.client_id,name:copy.client_name||copy.name||''},copy.id,copy.trade_type||_geiTrade,{mode:'byo'});
   showToast('Duplicated: edit Option B now','📋');
 }
 function _showProposalPreviewOverlay(proposalHtml){

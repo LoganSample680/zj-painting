@@ -4760,6 +4760,39 @@ test.describe('generic-estimate.js: exhaustive coverage', () => {
       expect(r.after).toBe('Smith job, phase 1');
     });
 
+    test('Option A / Option B are chosen names: they stick, and they print', async () => {
+      const r = await page.evaluate(() => {
+        const c = { id: 90206, name: 'Option Client', addr: '16 Option Rd' };
+        clients = clients.filter(x => x.id !== 90206).concat([c]);
+        bids = bids.filter(x => x.client_id !== 90206);
+        openGenericEstimate(c, null, null, { mode: 'byo' });
+        goGeiStep(2);
+        _byoItems = [{ id: 1, section: 'Work', label: 'Panel upgrade', price: 2200, on: true }];
+        _byoUpdateRail();
+        const beforeName = document.getElementById('gei-desc').value;
+        const aId = _geiEditBidId;
+        _byoDuplicateBid();
+        const bId = _geiEditBidId;
+        // Editing Option B must not rename it back to the work
+        _byoItems.push({ id: 2, section: 'Work', label: 'Add EV charger', price: 900, on: true });
+        _byoUpdateRail();
+        const a = bids.find(x => x.id === aId);
+        const b = bids.find(x => x.id === bId);
+        return {
+          beforeName,
+          aType: a?.type, aUserSet: a?.descUserSet,
+          bType: b?.type, bUserSet: b?.descUserSet,
+          liveDesc: document.getElementById('gei-desc').value
+        };
+      });
+      expect(r.beforeName).toBe('Panel upgrade');
+      expect(r.aType).toBe('Panel upgrade, Option A');
+      expect(r.aUserSet).toBe(true);
+      expect(r.bType).toBe('Panel upgrade, Option B');
+      expect(r.bUserSet).toBe(true);
+      expect(r.liveDesc, 'adding work to Option B must not rename it').toBe('Panel upgrade, Option B');
+    });
+
     test('_geiAutoName survives junk state', async () => {
       const r = await page.evaluate(() => {
         const out = [];

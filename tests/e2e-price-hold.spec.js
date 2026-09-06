@@ -115,14 +115,22 @@ test.describe('the price hold', () => {
       week: _bidValidDaysLeft({ validUntil: addDays(todayKey(), 7) }),
       yesterday: _bidValidDaysLeft({ validUntil: addDays(todayKey(), -1) }),
       longGone: _bidValidDaysLeft({ validUntil: addDays(todayKey(), -45) }),
-      junk: _bidValidDaysLeft({ validUntil: 'not-a-date' })
+      // A stamp that is not a date key was never a promise, so the bid falls
+      // back to the projection (today + his window) rather than reporting a
+      // hold nobody can read. Behaviour changed 2026-09-06 with the key-shape
+      // guard: this used to lean on the Date parser to reject junk, and WebKit
+      // read "12345T12:00" as the year 12345.
+      junk: _bidValidDaysLeft({ validUntil: 'not-a-date' }),
+      junkStamp: _bidValidUntil({ validUntil: 'not-a-date' }),
+      projected: addDays(todayKey(), 30)
     }));
     expect(r.today).toBe(0);
     expect(r.tomorrow).toBe(1);
     expect(r.week).toBe(7);
     expect(r.yesterday).toBe(-1);
     expect(r.longGone).toBe(-45);
-    expect(r.junk).toBe(null);
+    expect(r.junk).toBe(30);
+    expect(r.junkStamp).toBe(r.projected);
   });
 
   test('_fmtValidUntil renders MM/DD/YYYY and never crashes on junk', async () => {

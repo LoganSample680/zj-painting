@@ -1837,24 +1837,32 @@ function _estValidDays(){
   const n=Number(typeof S!=='undefined'&&S?S.estValidDays:0);
   return (n>0&&n<=365)?Math.round(n):_EST_VALID_DEFAULT;
 }
+// A date key is YYYY-MM-DD or it is not a date. Checked by SHAPE, never by
+// handing junk to the Date parser and trusting it to say no: WebKit reads
+// "12345T12:00" as the year 12345 and prints 01/01/12345 where Chromium
+// returns Invalid Date. Every reader below goes through this.
+const _VALID_KEY_RE=/^\d{4}-\d{2}-\d{2}$/;
+function _isDateKey(k){return _VALID_KEY_RE.test(String(k||''));}
 // The date THIS bid's price holds until. A sent bid carries its own stamp, so
 // what the client received is what everyone sees forever after. An unsent draft
-// projects from today, because that is what it would be if he sent it now.
+// projects from today, because that is what it would be if he sent it now. A
+// stamp that is not a date key is not a promise, so it projects too.
 function _bidValidUntil(b){
-  if(b&&b.validUntil)return b.validUntil;
-  const from=(b&&(b.proposalSentDate||b.bid_date))||todayKey();
+  if(b&&_isDateKey(b.validUntil))return b.validUntil;
+  const from=(b&&_isDateKey(b.proposalSentDate)&&b.proposalSentDate)||(b&&_isDateKey(b.bid_date)&&b.bid_date)||todayKey();
   return addDays(from,_estValidDays());
 }
 // Days until the price expires. 0 = today, negative = already expired.
 function _bidValidDaysLeft(b){
   const k=_bidValidUntil(b);
-  if(!k)return null;
+  if(!_isDateKey(k))return null;
   const a=new Date(todayKey()+'T12:00'),z=new Date(k+'T12:00');
   if(isNaN(z))return null;
   return Math.round((z-a)/86400000);
 }
 function _fmtValidUntil(key){
-  const d=new Date(String(key||'')+'T12:00');
+  if(!_isDateKey(key))return'';
+  const d=new Date(String(key)+'T12:00');
   return isNaN(d)?'':d.toLocaleDateString('en-US',{year:'numeric',month:'2-digit',day:'2-digit'});
 }
 function _ownerLoadedHourly(){

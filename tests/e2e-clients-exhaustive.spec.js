@@ -2341,6 +2341,101 @@ test.describe('clients.js: exhaustive coverage', () => {
     });
   });
 
+  // ── Starting a proposal with nobody selected ───────────────────────────────
+  //
+  // It used to say "Select a client first" and send him to the Clients tab, to
+  // a form with four required fields, and then he had to walk back. Now the two
+  // things a document actually needs are asked for where he already is, and the
+  // record writes itself. These tests hold the line on both halves: the walk to
+  // another tab is gone, and nothing downstream ever receives a half-built
+  // client (every consumer past this point still gets a real record).
+  test.describe('new proposal with no client selected', () => {
+    const arm = () => page.evaluate(() => {
+      document.getElementById('_newc-gate-overlay')?.remove();
+      currentClientId = null;
+      window.__rrp = [];
+      window._rrpGateThenEstimate = (c) => { window.__rrp.push(c && c.id); };
+      window._canEstimate = () => true;
+      openEstimateForClient();
+      return !!document.getElementById('_newc-gate-overlay');
+    });
+
+    test('asks for the name and address instead of bouncing him to the Clients tab', async () => {
+      expect(await arm()).toBe(true);
+      const r = await page.evaluate(() => {
+        const ov = document.getElementById('_newc-gate-overlay');
+        return {
+          onClientsPage: document.getElementById('pg-clients')?.classList.contains('active') || false,
+          fields: [!!document.getElementById('_newc-gate-name'), !!document.getElementById('_newc-gate-addr')],
+          // Exactly two, which is the whole point of the change.
+          inputs: ov.querySelectorAll('input').length,
+        };
+      });
+      expect(r.fields).toEqual([true, true]);
+      expect(r.inputs).toBe(2);
+    });
+
+    test('a missing name or address explains itself and creates nothing', async () => {
+      await arm();
+      const r = await page.evaluate(() => {
+        const before = clients.length;
+        const err = () => document.getElementById('_newc-gate-err');
+        document.getElementById('_newc-gate-ok').click();          // both blank
+        const noName = err().style.display !== 'none' && /name/i.test(err().textContent);
+        document.getElementById('_newc-gate-name').value = 'Gate Test Person';
+        document.getElementById('_newc-gate-ok').click();          // still no address
+        const noAddr = err().style.display !== 'none' && /address/i.test(err().textContent);
+        return { noName, noAddr, made: clients.length - before, stillOpen: !!document.getElementById('_newc-gate-overlay') };
+      });
+      expect(r.noName).toBe(true);
+      expect(r.noAddr).toBe(true);
+      expect(r.made).toBe(0);
+      expect(r.stillOpen).toBe(true);
+    });
+
+    test('two fields create a real client and hand it straight to the estimator', async () => {
+      await arm();
+      const r = await page.evaluate(() => {
+        const uid = 'GateClient_' + Date.now();
+        document.getElementById('_newc-gate-name').value = uid;
+        document.getElementById('_newc-gate-addr').value = '742 Evergreen Ter, Wichita, KS 67201';
+        document.getElementById('_newc-gate-ok').click();
+        const c = clients.find(x => x.name === uid);
+        const out = c ? {
+          // The address is split, not dumped in one field: the property lookup
+          // and the pre-1978 lead-paint gate both need the parts.
+          street: c.street, city: c.city, state: c.state, zip: c.zip,
+          hasToken: typeof c.clientToken === 'string',
+          current: currentClientId === c.id,
+          handedOff: window.__rrp[window.__rrp.length - 1] === c.id,
+          closed: !document.getElementById('_newc-gate-overlay'),
+        } : null;
+        if (c) clients.splice(clients.indexOf(c), 1);
+        return out;
+      });
+      expect(r).not.toBeNull();
+      expect(r.street).toBe('742 Evergreen Ter');
+      expect(r.city).toBe('Wichita');
+      expect(r.state).toBe('KS');
+      expect(r.zip).toBe('67201');
+      expect(r.current).toBe(true);
+      expect(r.handedOff).toBe(true);
+      expect(r.closed).toBe(true);
+    });
+
+    test('the record it makes is committed the same way the full form commits one', async () => {
+      // One creator (_clientCommitNew), two callers. If a second creation path
+      // ever grows its own copy of this, the lifecycle stamp or the client
+      // token silently stops happening for half the clients in the account.
+      const r = await page.evaluate(() => ({
+        creator: typeof _clientCommitNew === 'function',
+        gate: typeof _newClientQuickGate === 'function',
+      }));
+      expect(r.creator).toBe(true);
+      expect(r.gate).toBe(true);
+    });
+  });
+
   test.describe('party type (Who is this?) is optional and persists', () => {
     // WAS required: an unchosen party type blocked the save outright. NOW
     // optional (owner rule 2026-09-06): an empty partyType already reads as

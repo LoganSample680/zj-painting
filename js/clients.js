@@ -26,7 +26,9 @@ function openEstimateForClient(){
   // request-access popup, never the estimator.
   if(!_canEstimate()){ _showEstimateRequestModal(); return; }
   const c=getClientById(currentClientId);
-  if(!c){showWorkflowGate('Select a client first before starting a proposal.','Choose Client','function(){goPg(\'pg-clients\');}');return;}
+  // No client picked: ask for the name and the address here rather than sending
+  // him to the Clients tab to fill in a form and walk back (see the gate).
+  if(!c){_newClientQuickGate();return;}
   const r=getClientRisk(c.id);
   if(r==='blacklisted'){zAlert('This client is blacklisted. Proposals are blocked.',{title:svgIcon('🚫')+' Blocked'});return;}
   if(r==='high_risk'){
@@ -316,6 +318,90 @@ function _showRrpModal(c,onProceed){
       '<button onclick="typeof _closeStylePicker===\'function\'&&_closeStylePicker();document.getElementById(\'_rrp-gate-overlay\')?.remove();goPg(\'pg-licensing\');setTimeout(()=>openAddLicense(\'epa_firm\'),200)" style="width:100%;padding:12px;border-radius:var(--r);border:none;background:#92400e;color:#fff;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;margin-bottom:8px">Add my RRP cert → Licensing</button>'+
       '<button onclick="document.getElementById(\'_rrp-gate-overlay\')?.remove()" style="width:100%;padding:10px;border-radius:var(--r);border:1px solid var(--border2);background:none;color:var(--text3);font-size:13px;cursor:pointer;font-family:inherit">Cancel</button>';
 
+  };
+}
+// The single place a brand-new client record becomes real. saveClient() calls
+// it with the record it built from the full form; the quick gate below calls it
+// with a record built from two fields. Anything that has to happen for EVERY new
+// client (the lifecycle stamp, the client token, the hub upload) belongs here
+// and nowhere else, so a second creation path can never quietly skip one.
+function _clientCommitNew(c){
+  clients.push(c);
+  // Top of the funnel: every duration downstream is measured from here.
+  try{if(typeof logLifecycle==='function')logLifecycle('lead_created',{clientId:c.id,meta:{source:c.source||null}});}catch(_e){}
+  _ensureClientToken(c.id);
+  // Auto-generate hub immediately so onboarding link works on first send
+  if(supaEnabled()&&_supaUser)_uploadClientHub(c.id).catch(()=>{});
+  return c;
+}
+
+// Starting a proposal with nobody selected (owner direction 2026-09-06: find
+// the friction and kill it, but stay smart enough to fill in the blanks).
+//
+// It used to bounce him to the Clients tab, where four fields were mandatory
+// before he could save, and then he had to walk back to the proposal. He is
+// standing in a driveway. So the two things a document genuinely needs, the
+// name it is filed under and the property it is for, are asked for right here
+// and the record writes itself. Everything downstream (the RRP gate, the
+// multi-property check, the resume chooser, TrueBid's measuring tools) then
+// gets a real client exactly as it always has, which is why this is two fields
+// on one screen rather than a null-client mode threaded through all of it.
+//
+// Same shell as the address gate directly below, on purpose (7.3): this IS
+// that gate, asked one field earlier.
+function _newClientQuickGate(){
+  document.getElementById('_newc-gate-overlay')?.remove();
+  const ov=document.createElement('div');ov.className='zmodal-overlay';ov.id='_newc-gate-overlay';
+  const box=document.createElement('div');box.className='zmodal';
+  box.style.animation='td-pg-enter .22s cubic-bezier(.22,1,.36,1) both';
+  box.innerHTML=
+    '<div style="font-size:18px;margin-bottom:6px">'+svgIcon('👤')+' Who is this for?</div>'+
+    '<div style="font-size:13px;color:var(--text2);margin-bottom:14px;line-height:1.5">Just the name and the address. Everything else can wait.</div>'+
+    '<input id="_newc-gate-name" type="text" placeholder="Name" autocomplete="off" '+
+      'style="width:100%;box-sizing:border-box;padding:11px 12px;border:1.5px solid var(--border2);border-radius:var(--r);font-size:15px;font-family:inherit;background:var(--bg2);color:var(--text);margin-bottom:10px">'+
+    '<div style="position:relative;margin-bottom:6px">'+
+      '<input id="_newc-gate-addr" type="text" placeholder="123 Main St, City, ST" autocomplete="off" '+
+        'style="width:100%;box-sizing:border-box;padding:11px 12px;border:1.5px solid var(--border2);border-radius:var(--r);font-size:15px;font-family:inherit;background:var(--bg2);color:var(--text)">'+
+    '</div>'+
+    '<div id="_newc-gate-err" style="display:none;font-size:12px;color:#A32D2D;margin-bottom:8px"></div>'+
+    '<button id="_newc-gate-ok" style="width:100%;padding:14px;border-radius:var(--r);border:none;background:var(--blue);color:#fff;font-size:15px;font-weight:700;cursor:pointer;font-family:inherit;margin:8px 0">Start proposal</button>'+
+    '<button onclick="document.getElementById(\'_newc-gate-overlay\')?.remove()" style="width:100%;padding:10px;border-radius:var(--r);border:1px solid var(--border2);background:none;color:var(--text3);font-size:14px;cursor:pointer;font-family:inherit">Cancel</button>';
+  ov.appendChild(box);document.body.appendChild(ov);
+  ov.addEventListener('click',e=>{if(e.target===ov)ov.remove();});
+  const nameEl=document.getElementById('_newc-gate-name');
+  const addrEl=document.getElementById('_newc-gate-addr');
+  // Same address autocomplete the address gate uses, so a typed street still
+  // fills in the city, state and zip the property lookup needs.
+  if(addrEl&&typeof _addrAutoFull==='function')_addrAutoFull(addrEl,null);
+  nameEl?.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();addrEl?.focus();}});
+  addrEl?.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();document.getElementById('_newc-gate-ok')?.click();}});
+  setTimeout(()=>nameEl?.focus(),100);
+  document.getElementById('_newc-gate-ok').onclick=()=>{
+    const name=(nameEl?.value||'').trim();
+    const addr=(addrEl?.value||'').trim();
+    const err=document.getElementById('_newc-gate-err');
+    if(!name){if(err){err.textContent='A name, so the paperwork has somewhere to live.';err.style.display='block';}nameEl?.focus();return;}
+    if(!addr){if(err){err.textContent='An address, so we know what property this is.';err.style.display='block';}addrEl?.focus();return;}
+    const p=_parseAddrParts(addr);
+    const c=_clientCommitNew({id:Date.now(),name,phone:'',email:'',
+      addr,street:p.street||'',city:p.city||'',state:p.state||'',zip:p.zip||'',
+      ptype:'Single family home',partyType:'',source:'',ref:'',notes:'',
+      created:todayKey(),createdAt:new Date().toISOString(),
+      yearBuilt:null,sqft:null,estimatedValue:null,propertyType:null,stories:null,
+      exteriorMaterial:null,lastSaleDate:null,lastSalePrice:null,lotSize:null,
+      roofType:null,garage:null,bedrooms:null,bathrooms:null,isRental:null,
+      assessorUrl:null,propDataSource:null,propDataExact:null,propDataFetchedAt:null,
+      extraAddresses:[],clientToken:'',clientHubKey:''});
+    saveAll();
+    // The blanks fill themselves in from here: year built (which decides the
+    // pre-1978 lead-paint gate), property data, and the geofence warm-up all
+    // key off the address he just typed.
+    if(p.street&&p.city&&typeof _lookupPropertyData==='function')
+      _lookupPropertyData(c.id,{street:p.street,city:p.city,state:p.state||'',zip:p.zip||''});
+    if(typeof _eagerGeocodeClient==='function')_eagerGeocodeClient(c.id,addr).catch(()=>{});
+    ov.remove();
+    currentClientId=c.id;
+    _rrpGateThenEstimate(c);
   };
 }
 function _gateAddressThenEstimate(c){
@@ -1106,14 +1192,7 @@ function saveClient(){
     propDataFetchedAt:_existingClient?.propDataFetchedAt||null,
     extraAddresses:_existingClient?.extraAddresses||[],clientToken:_existingClient?.clientToken||'',clientHubKey:_existingClient?.clientHubKey||''};
   if(editClientId){const i=clients.findIndex(x=>x.id===editClientId);if(i>=0)clients[i]=c;}
-  else{
-    clients.push(c);
-    // Top of the funnel: every duration downstream is measured from here.
-    try{if(typeof logLifecycle==='function')logLifecycle('lead_created',{clientId:c.id,meta:{source:c.source||null}});}catch(_e){}
-    _ensureClientToken(c.id);
-    // Auto-generate hub immediately so onboarding link works on first send
-    if(supaEnabled()&&_supaUser)_uploadClientHub(c.id).catch(()=>{});
-  }
+  else _clientCommitNew(c);
   saveAll();
   const _prevAddr=_existingClient?.addr||'';
   const _noPropData=!_existingClient?.propDataFetchedAt;

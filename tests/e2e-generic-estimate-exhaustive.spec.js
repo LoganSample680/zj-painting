@@ -5245,6 +5245,66 @@ test.describe('generic-estimate.js: exhaustive coverage', () => {
       expect(r).toEqual(['ok', 'ok', 'ok', 'ok', 'ok', 'ok', 'ok', 'ok']);
     });
 
+    // THE WHOLE CLOSE, WITH THE RADIO OFF (owner 2026-09-06: "does the
+    // e-signature require connectivity to work?"). A basement, a mechanical
+    // room, a rural crawlspace: the signature is the one thing that cannot
+    // wait for a bar of signal.
+    test('the entire in-person signing works with no connectivity', async () => {
+      const r = await page.evaluate(async () => {
+        const onlineDesc = Object.getOwnPropertyDescriptor(Navigator.prototype, 'onLine');
+        Object.defineProperty(navigator, 'onLine', { get: () => false, configurable: true });
+        const realFrom = _supa.from.bind(_supa);
+        const realStorage = _supa.storage;
+        // Every network door slammed, the way a dead spot slams them.
+        _supa.from = () => { throw new Error('offline'); };
+        try { _supa.storage = { from: () => { throw new Error('offline'); } }; } catch (_e) {}
+        try {
+          const c = { id: 90407, name: 'Basement Client', addr: '15 Table Rd', phone: '3165550177', clientToken: 'tok-90407' };
+          clients = clients.filter(x => x.id !== 90407).concat([c]);
+          bids = bids.filter(x => x.client_id !== 90407);
+          openGenericEstimate(c, null, null, { mode: 'byo' });
+          goGeiStep(2);
+          _byoItems = [{ id: 1, section: 'Work', label: 'Water heater replacement', price: 1400, on: true }];
+          _byoUpdateRail();
+          const id = _geiEditBidId;
+
+          _geiSignInPerson();
+          const doc = document.getElementById('gei-ip-doc');
+          const builtDoc = !!(doc && doc.textContent.includes('Water heater replacement'));
+          const hasPad = !!document.querySelector('#_gei-ip-ov canvas');
+
+          document.getElementById('gei-ip-pname').value = 'Basement Signer';
+          await _geiConfirmInPerson();
+          const confirmText = document.getElementById('_gei-ip-ov').textContent;
+          document.getElementById('_gei-ip-ov').remove();
+
+          const b = bids.find(x => x.id === id);
+          return {
+            builtDoc, hasPad,
+            confirmed: /contract has been signed/i.test(confirmText),
+            status: b.status,
+            signedAt: !!b.signedAt,
+            queued: !!b.sigPending,
+            snapshot: !!(b.proposalHtml || '').includes('Water heater replacement'),
+            // and the link he texts them is still a real one
+            hubUrl: _geiHubUrlFor(b)
+          };
+        } finally {
+          _supa.from = realFrom;
+          try { _supa.storage = realStorage; } catch (_e) {}
+          if (onlineDesc) Object.defineProperty(navigator, 'onLine', onlineDesc);
+        }
+      });
+      expect(r.builtDoc, 'the document renders from memory, nothing is fetched').toBe(true);
+      expect(r.hasPad).toBe(true);
+      expect(r.confirmed).toBe(true);
+      expect(r.status).toBe('Closed Won');
+      expect(r.signedAt).toBe(true);
+      expect(r.queued, 'the signature waits on the bid for signal').toBe(true);
+      expect(r.snapshot, 'the document they signed is kept, offline included').toBe(true);
+      expect(r.hubUrl).toContain('client.html?t=');
+    });
+
     test('no console errors across the in-person close', async () => {
       assertNoErrors(page, 'in-person close');
     });

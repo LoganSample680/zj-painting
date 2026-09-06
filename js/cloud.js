@@ -634,7 +634,7 @@ const _supaMode=(()=>{try{return localStorage.getItem('zp3_supa_mode');}catch(_e
 // `let` so the supaInit auto-fallback can flip it to the proxy before the client is built.
 let SUPA_URL = (_supaMode==='proxy') ? _SUPA_PROXY_URL : _SUPA_DIRECT_URL;
 const SUPA_KEY = 'sb_publishable_kaahEa5tFydocUuYi8plHg_K78HPyvJ';
-const APP_VERSION='09.06.26.12';
+const APP_VERSION='09.06.26.13';
 let _supa=null,_supaUser=null,_syncTimer=null,_syncStatus='local',_supaCloudLoaded=false,_lastLocalSaveAt=0;
 let _syncBroadcastChannel=null,_realtimeSubscribed=false,_loadInProgress=false,_activeLoadPromise=null,_broadcastReloadTimer=null,_broadcastPending=false,_reconcileTimer=null,_writeCacheTimer=null,_rtRenderTimer=null;
 // True only for the window between an in-tab sign-in landing on the dashboard
@@ -7950,6 +7950,31 @@ function editSentBid(bidId){
   }
   delete b.signingToken;delete b.signingKey;b.draft=true;
   saveAll();openGenericEstimate(getClientById(b.client_id),bidId,b.trade_type||'general');
+}
+// Put the price back in date. One tap from the dashboard when a proposal is
+// about to expire or already has, instead of rebuilding the estimate to get a
+// fresh window. The stored proposal the client is looking at is patched too:
+// an extension that only exists on the contractor's phone is a lie on one side
+// of the deal, and the portal chip would still show the old hold.
+async function _extendBidPrice(bidId,days){
+  const b=bids.find(x=>x.id===bidId);
+  if(!b)return;
+  const n=Math.min(365,Math.max(1,Math.round(Number(days)||(typeof _estValidDays==='function'?_estValidDays():30))));
+  b.validUntil=addDays(todayKey(),n);
+  saveAll();
+  try{
+    if(b.proposalKey&&_supa){
+      const dl=await _supa.storage.from('proposals').download(b.proposalKey);
+      if(dl&&dl.data){
+        const j=JSON.parse(await dl.data.text());
+        j.validUntil=b.validUntil;
+        await _supa.storage.from('proposals').upload(b.proposalKey,JSON.stringify(j),{contentType:'application/json',upsert:true,cacheControl:'0'});
+      }
+    }
+    if(b.client_id&&typeof _uploadClientHub==='function')_uploadClientHub(b.client_id).catch(()=>{});
+  }catch(_e){}
+  if(typeof showToast==='function')showToast('Price held through '+(typeof _fmtValidUntil==='function'?_fmtValidUntil(b.validUntil):b.validUntil),'⏳');
+  if(typeof renderDash==='function')setTimeout(renderDash,300);
 }
 function resendProposalLink(bidId){
   const b=bids.find(x=>x.id===bidId);

@@ -1823,6 +1823,40 @@ function _geiSetDriveCost(on){
 // His own time, loaded, the same way Crew Cost already values it (finance.js
 // builds exactly this from S.ownerPayType/ownerPayRate). One helper so the
 // estimate and the books can never disagree about what an hour of his costs.
+// ── How long his price holds ────────────────────────────────────────────────
+// The proposal has always printed "Valid until: <date>", and it meant nothing:
+// generic-estimate computed send-date+30 at RENDER time, sign.html computed
+// createdAt+30 of its own, and bids.js computed bid_date+30 of its own. Three
+// clocks, three answers, none of them stored, so reopening a three-week-old
+// proposal silently handed the client another fresh 30 days and nothing on the
+// contractor's side ever knew a price had gone stale.
+//
+// One number, stamped once, at send. Everything else reads it.
+const _EST_VALID_DEFAULT=30;
+function _estValidDays(){
+  const n=Number(typeof S!=='undefined'&&S?S.estValidDays:0);
+  return (n>0&&n<=365)?Math.round(n):_EST_VALID_DEFAULT;
+}
+// The date THIS bid's price holds until. A sent bid carries its own stamp, so
+// what the client received is what everyone sees forever after. An unsent draft
+// projects from today, because that is what it would be if he sent it now.
+function _bidValidUntil(b){
+  if(b&&b.validUntil)return b.validUntil;
+  const from=(b&&(b.proposalSentDate||b.bid_date))||todayKey();
+  return addDays(from,_estValidDays());
+}
+// Days until the price expires. 0 = today, negative = already expired.
+function _bidValidDaysLeft(b){
+  const k=_bidValidUntil(b);
+  if(!k)return null;
+  const a=new Date(todayKey()+'T12:00'),z=new Date(k+'T12:00');
+  if(isNaN(z))return null;
+  return Math.round((z-a)/86400000);
+}
+function _fmtValidUntil(key){
+  const d=new Date(String(key||'')+'T12:00');
+  return isNaN(d)?'':d.toLocaleDateString('en-US',{year:'numeric',month:'2-digit',day:'2-digit'});
+}
 function _ownerLoadedHourly(){
   if(typeof _empLoadedHourly!=='function')return 0;
   const rate=Number(S&&S.ownerPayRate)||0;
@@ -3877,7 +3911,14 @@ async function sendGenericProposal(previewOnly){
   const estNum=_geiEditBidId?String(_geiEditBidId).slice(-6):'-';
   const _geiNow=new Date();
   const dateStr=_geiNow.toLocaleDateString('en-US',{year:'numeric',month:'2-digit',day:'2-digit'});
-  const _geiExpD=new Date(_geiNow.getTime()+30*86400000).toLocaleDateString('en-US',{year:'numeric',month:'2-digit',day:'2-digit'});
+  // The price-hold date is decided ONCE, here, and written onto the bid before
+  // the document is built, so the printed date, the snapshot the client signs,
+  // the portal chip and the dashboard all read the same stamp (see
+  // _bidValidUntil). A preview never stamps: nothing has been promised yet.
+  const _bidForValid=_geiEditBidId?bids.find(x=>x.id===_geiEditBidId):null;
+  const _validUntilKey=(_bidForValid&&_bidForValid.validUntil)||addDays(todayKey(),_estValidDays());
+  if(!previewOnly&&_bidForValid&&!_bidForValid.validUntil)_bidForValid.validUntil=_validUntilKey;
+  const _geiExpD=_fmtValidUntil(_validUntilKey);
   const totalFmt='$'+total.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
   const _tmDepPct=_geiDepositPct();
   // Deposit is a % of the client-facing TOTAL (incl. tax): the label says "(N%)" next
@@ -4065,6 +4106,10 @@ async function sendGenericProposal(previewOnly){
     proposalHtml,termsHtml:_fullTermsHtml,clientAddr:v('gei-addr'),
     amount:total,deposit:_tmDepAmt,
     createdAt:new Date().toISOString(),status:'pending',
+    // The price-hold date travels WITH the proposal, so the portal stops
+    // recomputing its own +30 from createdAt and an extended price actually
+    // reads as extended on the client's screen.
+    validUntil:_validUntilKey,
     notifyEmail:_supaUser.email,businessPhone:S.bphone||'',
     stripeConnectEnabled:_stripeEnabled,
     // Which manual pay options the client sees at signing (Settings → How you get

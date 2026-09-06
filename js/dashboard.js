@@ -1971,6 +1971,32 @@ function getNextCollAction(stage){
 
 function emitEvent(type,clientId,extra){const arr=typeof _tdGetEvents==='function'?_tdGetEvents():(window._tdEvArr||(window._tdEvArr=[]));arr.push({id:Date.now()+'_'+Math.random().toString(36).slice(2,6),type,ts:new Date().toISOString(),client_id:clientId,...(extra||{})});if(arr.length>600)arr.splice(0,arr.length-600);}
 function autoLogContact(clientId,note){const c=getClientById(clientId);if(!c)return;c.last_contact_date=todayKey();const pb=bids.find(b=>b.client_id===clientId&&b.status==='Pending');if(pb){pb.last_followup_date=todayKey();if(!pb.followup||pb.followup<=todayKey())pb.followup=addDays(todayKey(),7);}emitEvent(note||'contact',clientId);try{saveAll();}catch(e){}}
+// Did the client actually open this proposal? We already record hub opens and
+// proposal opens per bid; this is just the yes/no the follow-up copy needs.
+function _bidWasOpened(b){
+  const id=String(b&&b.id);
+  const hub=(typeof _proposalViewsByBidHubClient!=='undefined'&&_proposalViewsByBidHubClient)?_proposalViewsByBidHubClient[id]:null;
+  const cli=(typeof _proposalViewsByBidClient!=='undefined'&&_proposalViewsByBidClient)?_proposalViewsByBidClient[id]:null;
+  return !!(hub||cli);
+}
+// The follow-up text, chosen from what we already know instead of a fixed
+// script. Sending "did you get a chance to look at it?" to somebody who opened
+// it four times reads as though nobody is paying attention, and it wastes the
+// one message he gets. Order is deliberate: a deadline closes harder than a
+// question, so the price-hold lines outrank the opened/unopened ones.
+function _followupMsg(b,c,stage){
+  const fn=(((c&&c.name)||'').split(' ')[0])||'there';
+  const left=(typeof _bidValidDaysLeft==='function')?_bidValidDaysLeft(b):null;
+  const until=(typeof _fmtValidUntil==='function'&&typeof _bidValidUntil==='function')?_fmtValidUntil(_bidValidUntil(b)):'';
+  if(left!=null&&until){
+    if(left<0)return'Hey '+fn+', the price I quoted ran out on '+until+'. Say the word and I\'ll put the same numbers back in front of you.';
+    if(left===0)return'Hey '+fn+', today is the last day the price I quoted holds. Want me to lock it in?';
+    if(left<=3)return'Hey '+fn+', heads up: the price I quoted holds through '+until+'. Happy to lock it in if you want to move.';
+  }
+  if(!_bidWasOpened(b))return'Hey '+fn+', did the proposal come through OK? If the link gives you any trouble I\'ll resend it.';
+  if(stage>=3)return'Hey '+fn+', I have an opening coming up that would fit your project. Want me to hold it?';
+  return'Hi '+fn+', saw you had a look at the proposal. Anything on there you want me to walk through or adjust?';
+}
 function markFollowupSent(bidId){const b=bids.find(x=>x.id===bidId);if(!b)return;b.last_followup_date=todayKey();b.followupStage=(b.followupStage||1)+1;const nextDays=b.followupStage>=3?14:7;b.followup=addDays(todayKey(),nextDays);b.noResponseCount=(b.noResponseCount||0)+1;saveAll();setTimeout(renderDash,600);}
 function _snoozeFollowup(bidId,days){const b=bids.find(x=>x.id===bidId);if(!b)return;b.followup=addDays(todayKey(),days||2);saveAll();setTimeout(renderDash,300);showToast('Follow-up snoozed '+days+' days','⏰');}
 function openExpenseForJob(jobId,clientId){const j=jobs.find(x=>x.id===jobId);goPg('pg-tracker');setTimeout(()=>{const sel=document.getElementById('exp-job');if(sel){for(let i=0;i<sel.options.length;i++){if(sel.options[i].value==jobId){sel.selectedIndex=i;break;}}}const expSec=document.getElementById('add-exp-form')||document.getElementById('exp-add-section');if(expSec)expSec.scrollIntoView({behavior:'smooth'});},200);}
@@ -2849,8 +2875,7 @@ function renderTodayFeed(){
     const c=getClientById(b.client_id);if(!c)return;
     const fn=c.name.split(' ')[0];
     const stage=b.followupStage||1;
-    const msgs=['Hey '+fn+', just checking in, did you get a chance to look over the proposal? Happy to answer any questions.','Hi '+fn+', wanted to follow up on the proposal I sent over. Let me know if you\'d like to move forward or have any questions.','Hey '+fn+', I have an opening coming up that might work great for your project. Would love to get it scheduled, let me know!'];
-    const smsBody=encodeURIComponent(msgs[Math.min(stage-1,msgs.length-1)]);
+    const smsBody=encodeURIComponent(_followupMsg(b,c,stage));
     const daysOut=Math.floor((new Date(tk+'T12:00')-new Date(b.followup+'T12:00'))/86400000);
     pendingItems.push(
       '<div class="tf-card">'+
@@ -2876,6 +2901,18 @@ function renderTodayFeed(){
     const days=b.bid_date?Math.floor((new Date(tk+'T12:00')-new Date(b.bid_date+'T12:00'))/86400000):0;
     const urgColor=days>=14?'#A32D2D':days>=7?'var(--amber)':'var(--text3)';
     const daysStr=days===0?'Sent today':days===1?'1 day waiting':days+'d waiting';
+    // What the price is doing. The proposal has always promised a hold date;
+    // until now nothing on his side ever told him it was about to run out, so
+    // the deadline that closes the deal expired silently and unused.
+    const _vLeft=(typeof _bidValidDaysLeft==='function')?_bidValidDaysLeft(b):null;
+    const _vUntil=(typeof _fmtValidUntil==='function'&&typeof _bidValidUntil==='function')?_fmtValidUntil(_bidValidUntil(b)):'';
+    let _validLine='',_showExtend=false;
+    if(_vLeft!=null&&_vUntil){
+      if(_vLeft<0){_validLine='<div style="font-size:11px;font-weight:700;color:#A32D2D;margin-top:3px">Price expired '+(_vLeft===-1?'yesterday':(-_vLeft)+' days ago')+'</div>';_showExtend=true;}
+      else if(_vLeft===0){_validLine='<div style="font-size:11px;font-weight:700;color:#A32D2D;margin-top:3px">Price expires today</div>';_showExtend=true;}
+      else if(_vLeft<=5){_validLine='<div style="font-size:11px;font-weight:700;color:var(--amber);margin-top:3px">Price expires in '+_vLeft+' day'+(_vLeft===1?'':'s')+' ('+_vUntil+')</div>';_showExtend=true;}
+      else{_validLine='<div style="font-size:11px;color:var(--text3);margin-top:3px">Price holds through '+_vUntil+'</div>';}
+    }
     // Show three distinct open timestamps + view counts per bid
     const _hubTs=(typeof _proposalViewsByBidHubClient!=='undefined'&&_proposalViewsByBidHubClient)?_proposalViewsByBidHubClient[String(b.id)]:null;
     const _clientTs=(typeof _proposalViewsByBidClient!=='undefined'&&_proposalViewsByBidClient)?_proposalViewsByBidClient[String(b.id)]:null;
@@ -2925,11 +2962,13 @@ function renderTodayFeed(){
           (_pStreet?'<div class="tf-sub tf-1line" style="color:var(--text-3);margin-top:2px">'+escHtml(_pStreet)+'</div>':'')+
           // Age/urgency is the loud line, the #1 unmet contractor need on sent quotes.
           (daysStr?'<div class="tf-when" style="color:'+urgColor+'">'+escHtml(daysStr)+'</div>':'')+
+          _validLine+
           viewedBadge+
         '</div>'+
         '<div class="tf-acts">'+
           (b.proposalHtml?'<button onclick="viewSavedProposal('+b.id+')" class="btn btn-sm" style="font-size:11px">View</button>':'')+
           '<button onclick="resendProposalLink('+b.id+')" class="btn btn-sm" style="font-size:11px">Resend</button>'+
+          (_showExtend?'<button onclick="_extendBidPrice('+b.id+')" class="btn btn-sm" style="font-size:11px;border-color:var(--amber);color:#856404;background:var(--amber-lt)">Extend price</button>':'')+
           '<button onclick="openCloseOutEstimate('+b.id+')" class="btn btn-sm" style="font-size:11px;border-color:#A32D2D;color:#A32D2D">Close out</button>'+
         '</div>'+
       '</div>'

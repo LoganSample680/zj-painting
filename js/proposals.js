@@ -674,6 +674,11 @@ function _commitProposalSent(){
     try{if(typeof logLifecycle==='function')logLifecycle('proposal_sent',{bidId:bid.id,clientId:bid.client_id});}catch(_e){}
     if(!bid.followupStage)bid.followupStage=1;
     bid.followup=addDays(todayKey(),3);
+    // The price-hold date is stamped at the moment it is promised. Paths that
+    // build their own document (generic-estimate) have already set it; this is
+    // the backstop for every other send, and it is never re-stamped, or a
+    // resend would quietly hand the client another full window.
+    if(!bid.validUntil)bid.validUntil=addDays(todayKey(),typeof _estValidDays==='function'?_estValidDays():30);
     // Snapshot the exact proposal HTML the client will sign, required for legal record
     const proposalEl=document.getElementById('est-proposal');
     if(proposalEl&&proposalEl.innerHTML.trim())bid.proposalHtml=proposalEl.innerHTML;

@@ -574,7 +574,7 @@ function openGenericEstimate(c,bidId,_tradePick,opts){
   _geiEditBidId=bidId||null;
   _geiClientTaxRate=null;
   const _facts=_geiFacts(c);
-  _geiLines=[];_byoItems=[];_byoCustomSections=[];_byoCustomTerms='';_geiEmergency=false;_panelSched=null;_geiStep=1;_geiScopeChips=[];_geiScopeNoScope=false;_estCrew=[];_geiExclusions=[];
+  _geiLines=[];_byoItems=[];_byoCustomSections=[];_byoCustomTerms='';_geiEmergency=false;_panelSched=null;_geiStep=1;_geiScopeChips=[];_geiScopeNoScope=false;_estCrew=[];_geiExclusions=[];_attachSkipped=[];
   // Resolved, not blanked. An emergency is the one thing nobody can know in
   // advance, so that one still starts off.
   _geiIsCommercial=_facts.commercial;
@@ -1691,19 +1691,10 @@ function _pkgSuggestions(trade){
 function _pkgApply(key){
   const pick=_pkgSuggestions().find(x=>x.key===key);
   if(!pick)return;
-  const secs=_byoSections();
-  const defSec=secs[0]||'Work';
-  let nid=(_byoItems.reduce((m,x)=>Math.max(m,x.id||0),0))+1;
-  pick.lines.forEach(l=>{
-    if(_byoItems.some(x=>_pbKey(x.label)===_pbKey(l.label)))return;   // never double up
-    const bk=(typeof _pbFind==='function')?_pbFind(l.label,_pbTrade()):null;
-    const rate=(bk&&Number(bk.rate)>0)?bk.rate:l.rate;
-    const sec=(/material/i.test(l.label)&&secs.find(x=>/material/i.test(x)))||defSec;
-    _byoItems.push(_byoNormItem({id:nid++,section:sec,label:l.label,qty:1,
-      unit:(bk&&bk.unit)||l.unit||'ea',rate,price:rate,
-      notes:(bk&&bk.notes)||l.notes||'',on:true}));
-  });
-  _byoRenderSections();_byoUpdateRail();_byoAutosave();
+  // _geiAddRememberedLine is the one path (book price, book words, never a
+  // double-up), shared with the attach suggestions below.
+  pick.lines.forEach(l=>{_geiAddRememberedLine(l);});
+  _geiRefreshLines();
   if(typeof showToast==='function')showToast(pick.label+' added, adjust the counts','⚡');
 }
 function _pkgCardHTML(){
@@ -1723,6 +1714,163 @@ function _pkgCardHTML(){
         '<span style="font-size:13px;font-weight:800;color:var(--blue);flex-shrink:0">Use →</span>'+
       '</button>').join('')+
     '</div>'+
+  '</div>';
+}
+
+// ── What goes with what ─────────────────────────────────────────────────────
+//
+// Owner 2026-09-07: "whoever got a tankless unit also gets the isolation
+// valves (service valves, maintenance valves, flush kits, etc)."
+//
+// The package card above answers "what do I sell on a job like this" and only
+// shows on an EMPTY estimate. This answers a different question, and it is the
+// one that costs money: the estimate already has the tankless on it, the
+// valves are missing, and nobody notices until the truck is at the house. A
+// forgotten $180 line is not a rounding error on a callback, it is a return
+// trip and an argument about whether it was in the price.
+//
+// Same source as the packages, for the same reasons: his own bids. No catalog
+// to maintain, no trade knowledge baked in that goes stale, and it can never
+// suggest work he does not do. The rule is plain association: of his past jobs
+// that carried this line, most of them also carried that one.
+//
+// The measure is WITH the anchor against WITHOUT it, not against how often the
+// line shows up overall, and the difference is not academic. A trip charge on
+// five of six jobs is on every tankless job too, so by any "appears a lot with
+// it" test it looks like an attach. Asked the honest question, does he add it
+// BECAUSE of the tankless, it falls straight out: 100% with, 67% without, no
+// jump. The isolation valves are 100% with and 0% without. That is the whole
+// rule, and it is also why an overall-frequency ceiling was rejected: the
+// valves sit on exactly half his jobs, which any such ceiling would have cut.
+const _ATTACH_MIN=2;        // he has done the anchor at least twice: once is not a habit
+const _ATTACH_SHARE=0.6;    // and brought the companion on most of those
+const _ATTACH_JUMP=0.5;     // and clearly more often than on jobs without it
+const _ATTACH_SCAN=200;     // most recent bids only, this runs on every re-render
+let _attachSkipped=[];      // "not this time", for this estimate only
+// Every line on the estimate right now, both shapes, so the anchor can be a
+// BYO item or a T&M material category.
+function _attachCurrent(){
+  const out=new Map();
+  if(typeof _byoItems!=='undefined'&&Array.isArray(_byoItems))_byoItems.forEach(it=>{
+    if(!it||it._rrp||!it.label)return;const k=_pbKey(it.label);if(k&&!out.has(k))out.set(k,String(it.label).trim());
+  });
+  if(typeof _geiLines!=='undefined'&&Array.isArray(_geiLines))_geiLines.forEach(l=>{
+    if(!l||l._tmLabor||l._rrp||!l.desc)return;const k=_pbKey(l.desc);if(k&&!out.has(k))out.set(k,String(l.desc).trim());
+  });
+  return out;
+}
+function _attachSuggestions(trade){
+  const cur=_attachCurrent();
+  if(!cur.size)return [];
+  const hist=_pkgHistory(trade).slice(0,_ATTACH_SCAN);
+  if(hist.length<_ATTACH_MIN)return [];
+  // One key->line map per past bid, built once. Everything below is set math
+  // over these, not another pass through the bids.
+  const past=hist.map(b=>{
+    const m=new Map();
+    _pkgBidLines(b).forEach(l=>{const k=_pbKey(l.label);if(k&&!m.has(k))m.set(k,l);});
+    return m;
+  });
+  const skip=new Set(_attachSkipped||[]);
+  const cand=new Map();
+  cur.forEach((anchorLabel,anchorKey)=>{
+    const withAnchor=past.filter(m=>m.has(anchorKey));
+    if(withAnchor.length<_ATTACH_MIN)return;
+    const without=past.filter(m=>!m.has(anchorKey));
+    const tally=new Map();
+    withAnchor.forEach(m=>m.forEach((l,k)=>{
+      if(k===anchorKey||cur.has(k)||skip.has(k))return;
+      const e=tally.get(k)||{n:0,l};e.n++;e.l=e.l||l;tally.set(k,e);
+    }));
+    tally.forEach((e,k)=>{
+      const share=e.n/withAnchor.length;
+      if(share<_ATTACH_SHARE)return;
+      // Nothing to compare against means we cannot tell the two apart yet, so
+      // the share alone has to carry it.
+      if(without.length){
+        const other=without.filter(m=>m.has(k)).length/without.length;
+        if(share-other<_ATTACH_JUMP)return;   // he sells it anyway, that is not an attach
+      }
+      const prev=cand.get(k);
+      if(prev&&prev.share>=share)return;
+      cand.set(k,{key:k,line:e.l,share,n:e.n,of:withAnchor.length,anchorLabel});
+    });
+  });
+  return [...cand.values()].sort((a,b)=>b.share-a.share||b.n-a.n).slice(0,4);
+}
+// One place that turns a remembered line into a line on THIS estimate, so a
+// package and an attach can never price or word it differently. The BOOK wins
+// on rate, unit and description wherever it knows the line: a suggestion
+// carries his CURRENT price, never whatever it was on the job it came from.
+function _geiAddRememberedLine(l){
+  if(!l||!l.label)return false;
+  const key=_pbKey(l.label);
+  if(!key)return false;
+  const bk=(typeof _pbFind==='function')?_pbFind(l.label,_pbTrade()):null;
+  const rate=(bk&&Number(bk.rate)>0)?bk.rate:(Number(l.rate)||0);
+  const notes=(bk&&bk.notes)||l.notes||'';
+  if(typeof _geiIsFreeForm!=='undefined'&&_geiIsFreeForm){
+    if(_byoItems.some(x=>x&&_pbKey(x.label)===key))return false;
+    const secs=_byoSections();
+    const sec=(/material/i.test(l.label)&&secs.find(x=>/material/i.test(x)))||secs[0]||'Work';
+    const nid=(_byoItems.reduce((m,x)=>Math.max(m,x.id||0),0))+1;
+    _byoItems.push(_byoNormItem({id:nid,section:sec,label:l.label,qty:1,
+      unit:(bk&&bk.unit)||l.unit||'ea',rate,price:rate,notes,on:true}));
+    return true;
+  }
+  if(_geiLines.some(x=>x&&!x._tmLabor&&_pbKey(x.desc)===key))return false;
+  // T&M material categories are a lot, priced as one number, the shape
+  // _tmMatCatSave writes. Matching it is what keeps the row editable.
+  _geiLines.push({desc:String(l.label).trim(),notes,qty:1,unit:'lot',rate,total:rate});
+  return true;
+}
+function _geiRefreshLines(){
+  if(typeof _geiIsFreeForm!=='undefined'&&_geiIsFreeForm){
+    _byoRenderSections();_byoUpdateRail();
+    if(typeof _byoAutosave==='function')_byoAutosave();
+    return;
+  }
+  if(typeof _tmRenderMatList==='function')_tmRenderMatList();
+  if(typeof _tmInputChange==='function')_tmInputChange();
+}
+function _attachAdd(key){
+  const pick=_attachSuggestions().find(x=>x.key===key);
+  if(!pick){_geiRefreshLines();return;}
+  const ok=_geiAddRememberedLine(pick.line);
+  _geiRefreshLines();
+  if(ok&&typeof showToast==='function')showToast(pick.line.label+' added','⚡');
+}
+function _attachAddAll(){
+  const sugg=_attachSuggestions();
+  let n=0;
+  sugg.forEach(s=>{if(_geiAddRememberedLine(s.line))n++;});
+  _geiRefreshLines();
+  if(n&&typeof showToast==='function')showToast(n+' line'+(n===1?'':'s')+' added','⚡');
+}
+// "Not this time" is per estimate and not remembered: next job the history may
+// say something different, and a permanently muted suggestion is how a tool
+// stops telling you the thing you needed to hear.
+function _attachSkip(key){
+  if(!_attachSkipped.includes(key))_attachSkipped.push(key);
+  _geiRefreshLines();
+}
+function _attachCardHTML(){
+  const sugg=_attachSuggestions();
+  if(!sugg.length)return '';
+  const rows=sugg.map((s,i)=>
+    '<div style="display:flex;align-items:center;gap:8px;padding:10px 0'+(i?';border-top:1px solid var(--border)':'')+'">'+
+      '<div style="flex:1;min-width:0">'+
+        '<div style="font-size:13px;font-weight:700;color:var(--text);overflow-wrap:anywhere">'+escHtml(s.line.label)+'</div>'+
+        '<div style="font-size:11px;color:var(--text3);margin-top:2px;overflow-wrap:anywhere">with '+escHtml(s.anchorLabel)+' on '+s.n+' of your last '+s.of+'</div>'+
+      '</div>'+
+      '<button onclick="_attachAdd('+escHtml(JSON.stringify(s.key))+')" class="btn btn-sm btn-p" style="flex-shrink:0;font-size:12px;padding:8px 14px">Add</button>'+
+      '<button onclick="_attachSkip('+escHtml(JSON.stringify(s.key))+')" aria-label="Not this time" title="Not this time" style="flex-shrink:0;background:none;border:none;color:var(--text3);font-size:18px;line-height:1;padding:4px 2px;cursor:pointer;font-family:inherit">×</button>'+
+    '</div>').join('');
+  return '<div class="card card-pad-0" style="margin-bottom:12px;box-shadow:var(--shadow-card),inset 3px 0 0 var(--amber,#B7791F)">'+
+    '<div class="card-hd"><div class="card-hd-title">'+svgIcon('🔗',{size:14})+' Usually goes with this</div>'+
+      (sugg.length>1?'<button onclick="_attachAddAll()" class="btn btn-sm" style="font-size:11px;padding:6px 10px">Add all</button>':'')+
+    '</div>'+
+    '<div style="padding:2px 14px 12px">'+rows+'</div>'+
   '</div>';
 }
 
@@ -1770,7 +1918,10 @@ function _byoRenderSections(){
   // The package card sits ABOVE the sections and only on an empty estimate: it
   // is the fastest way in, and once there is a line on the bid it has done its
   // job and gets out of the way.
-  wrap.innerHTML=_pkgCardHTML()+secHtml+addSecBtn+tcCard;
+  // The attach card goes directly under the work and ABOVE "+ Add section":
+  // it is about the lines that are already on the estimate, and putting a
+  // rarely-used structural control between them buried it three cards down.
+  wrap.innerHTML=_pkgCardHTML()+secHtml+_attachCardHTML()+addSecBtn+tcCard;
 }
 function _byoToggle(idx){
   if(_byoItems[idx]&&!_byoItems[idx].required){_byoItems[idx].on=!_byoItems[idx].on;_byoRenderSections();_byoUpdateRail();_byoAutosave();}
@@ -3166,16 +3317,19 @@ function _tmRenderMatList(){
   const el=document.getElementById('tm-mat-list');if(!el)return;
   const mats=_geiLines.map((l,i)=>({l,i})).filter(x=>!x.l._tmLabor);
   if(!mats.length){
-    el.innerHTML='<div class="tm-mat-empty">No material categories yet, tap "+ Add category" to start.</div>';
+    el.innerHTML='<div class="tm-mat-empty">No material categories yet, tap "+ Add category" to start.</div>'+_attachCardHTML();
     return;
   }
+  // Same card as BYO (§7.3): a T&M job forgets the isolation valves exactly the
+  // same way a fixed-price one does, and one renderer is what keeps the two
+  // from drifting apart again.
   el.innerHTML=mats.map(({l,i})=>{
     const rawTotal=l.total||((l.qty||0)*(l.rate||0));
     return _geiItemRowHtml({
       label:l.desc||'Untitled',notes:l.notes||'',price:rawTotal||0,
       editFn:'_tmEditMatCat('+i+')',delFn:'_tmDelMatCat('+i+')',delTitle:'Remove category'
     });
-  }).join('');
+  }).join('')+_attachCardHTML();
 }
 function _tmAddMatCat(){ _tmMatCatModal(-1); }
 function _tmEditMatCat(idx){ _tmMatCatModal(idx); }

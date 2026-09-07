@@ -35,7 +35,7 @@ test.describe('presentation mode', () => {
     clients = clients.filter(c => c.id !== cid).concat([{ id: cid, name: 'Vasquez', addr: '9 Present Ln', phone: '3165550009' }]);
     bids = bids.filter(b => ![88101, 88102, 88103].includes(b.id)).concat([
       { id: 88101, client_id: cid, client_name: 'Vasquez', type: 'Reroof, Option A', amount: 12400, status: 'Pending', draft: false, optionGroup: 88101, optionLabel: 'A', proposalSentDate: '2026-09-05', signingToken: 'pm-tok-a', isFreeForm: true, byoItems: [{ id: 1, section: 'Work', label: 'Tear-off and reroof', qty: 1, unit: 'square', rate: 12400, price: 12400, on: true }] },
-      { id: 88102, client_id: cid, client_name: 'Vasquez', type: 'Reroof with new decking, Option B', amount: 15900, status: 'Pending', draft: false, optionGroup: 88101, optionLabel: 'B', proposalSentDate: '2026-09-05', isFreeForm: true },
+      { id: 88102, client_id: cid, client_name: 'Vasquez', type: 'Reroof with new decking, Option B', amount: 15900, status: 'Pending', draft: false, optionGroup: 88101, optionLabel: 'B', proposalSentDate: '2026-09-05', signingToken: 'pm-tok-b', isFreeForm: true },
       { id: 88103, client_id: cid, client_name: 'Vasquez', type: 'Reroof, standing seam, Option C', amount: 28750, status: 'Draft', draft: true, optionGroup: 88101, optionLabel: 'C', isFreeForm: true }
     ]);
     bids.forEach(b => { if ([88101, 88102, 88103].includes(b.id)) delete b.optionRecommended; });
@@ -429,12 +429,19 @@ test.describe('presentation mode', () => {
     expect(html, 'it names WHICH option, not just that something is missing').toContain('Option B');
     expect(html).toContain('Replace deck sheathing, 7/16 OSB');
     expect(html).toContain('Ridge vent, continuous');
+    // Telling a client what they are missing and leaving them to text about it
+    // is how a proposal turns into an evening of back and forth. The answer is
+    // a tap onto that option's own document.
+    expect(html, 'the way in, not an invitation to call').toContain('Switch to Option B');
+    expect(html).toContain('sign.html?t=pm-tok-b');
+    expect(html, 'nothing that reads as "text me and we will sort it out"').not.toContain('Say the word');
     const notIdx = html.indexOf('Not in this option');
     const shared = html.indexOf('Tear off existing shingles', notIdx);
     expect(shared === -1 || shared > html.length, 'work both options share is not a difference').toBe(true);
   });
 
   test('the dearer option has nothing missing, so the block does not print', async () => {
+    await seed(); await seedRoofLines();
     const html = await page.evaluate(async () => {
       _presentClose();
       _geiEditBidId = 88102; _geiClientId = 88001; _geiIsFreeForm = true; _geiIsTM = false;
@@ -539,6 +546,37 @@ test.describe('presentation mode', () => {
     expect(r.one, 'one option shares nothing with anything').toBe(0);
     expect(r.empty).toBe(0);
     expect(r.count, 'the chooser never opens for fewer than two').toEqual(['Two', 'Three', 'Your']);
+  });
+
+  test('an option with no signing link yet is named but not linked', async () => {
+    await seed(); await seedRoofLines();
+    const html = await page.evaluate(async () => {
+      delete bids.find(b => b.id === 88102).signingToken;
+      _presentClose();
+      _geiEditBidId = 88101; _geiClientId = 88001; _geiIsFreeForm = true; _geiIsTM = false;
+      _byoItems = bids.find(b => b.id === 88101).byoItems.map(x => _byoNormItem({ ...x }));
+      _geiScopeChips = []; _geiExclusions = [];
+      _byoUpdateRail();
+      const out = await sendGenericProposal(true, { silent: true });
+      bids.find(b => b.id === 88102).signingToken = 't-b';
+      return out;
+    });
+    expect(html, 'the difference is still worth telling them').toContain('Replace deck sheathing, 7/16 OSB');
+    expect(html, 'but a dead link is worse than none').not.toContain('Switch to Option B');
+  });
+
+  test('the exclusions line states the process, it does not open a negotiation', async () => {
+    const html = await page.evaluate(async () => {
+      _presentClose();
+      _geiEditBidId = 88500; _geiClientId = 88001; _geiIsFreeForm = true; _geiIsTM = false;
+      _byoItems = [_byoNormItem({ id: 1, section: 'Work', label: 'Patch flashing', qty: 1, rate: 900, on: true })];
+      _geiScopeChips = []; _geiExclusions = ['Gutter replacement'];
+      _byoUpdateRail();
+      return await sendGenericProposal(true, { silent: true });
+    });
+    expect(html).toContain('Not included');
+    expect(html, 'the written-change-order sentence is the industry standard and stays').toContain('written change order before that work starts');
+    expect(html, '"can be added" reads as an offer to price it over text right now').not.toContain('can be added by written change order');
   });
 
   test('no console errors', async () => {

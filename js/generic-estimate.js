@@ -2964,6 +2964,14 @@ function _byoPreviewClient(){_geiPreviewClient();}
 // So the bids stay separate and gain a shared group id. The proposal prints
 // the whole group with its prices, whichever option the client opened, and
 // signing one retires the others. Nothing about the Bettis flow moves.
+// The client's own link to one option's document. One builder, used by the
+// options list on the proposal AND by the difference block, so wherever a
+// sibling option is named the client can actually get to it.
+function _geiSignUrlFor(x){
+  const base=(typeof _clientBaseUrl==='function')?_clientBaseUrl():'';
+  const uid=(typeof _supaUser!=='undefined'&&_supaUser)?_supaUser.id:'';
+  return (x&&x.signingToken&&base)?(base+'sign.html?t='+encodeURIComponent(x.signingToken)+'&u='+encodeURIComponent(uid)+'&b='+x.id):'';
+}
 function _optionGroupOf(b){return b?(b.optionGroup||null):null;}
 // Every proposal in one group, oldest first, so A stays A.
 function _optionSiblings(b){
@@ -5020,9 +5028,7 @@ async function sendGenericProposal(previewOnly,opts){
       // read what it buys is worse than not listing it: they can see there is a
       // cheaper option and cannot find out what it leaves out. Each sibling that
       // has a signing link becomes a link; the one they are reading does not.
-      const _oBase=(typeof _clientBaseUrl==='function')?_clientBaseUrl():'';
-      const _oUid=(typeof _supaUser!=='undefined'&&_supaUser)?_supaUser.id:'';
-      const _oUrl=x=>(x&&x.signingToken&&_oBase)?(_oBase+'sign.html?t='+encodeURIComponent(x.signingToken)+'&u='+encodeURIComponent(_oUid)+'&b='+x.id):'';
+      const _oUrl=_geiSignUrlFor;
       const _rows=_offered.map(x=>{
         const _me=_thisBid&&x.id===_thisBid.id;
         const _amt=_me?total:(Number(x.amount)||0);
@@ -5057,7 +5063,7 @@ async function sendGenericProposal(previewOnly,opts){
   // instead of in the terms accordion where nobody looks until there is an
   // argument.
   const _exclSection=_geiExclusions.length
-    ?`<div style="padding:14px 18px;border-bottom:1px solid #e2e8f0"><div style="font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:.1em;color:#94a3b8;margin-bottom:8px">Not included</div><ul style="margin:0;padding-left:18px">${_geiExclusions.map(x=>`<li style="font-size:11.5px;color:#4a5568;line-height:1.7;overflow-wrap:anywhere">${escHtml(x)}</li>`).join('')}</ul><div style="font-size:10.5px;color:#718096;margin-top:8px">Anything above can be added by written change order.</div></div>`
+    ?`<div style="padding:14px 18px;border-bottom:1px solid #e2e8f0"><div style="font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:.1em;color:#94a3b8;margin-bottom:8px">Not included</div><ul style="margin:0;padding-left:18px">${_geiExclusions.map(x=>`<li style="font-size:11.5px;color:#4a5568;line-height:1.7;overflow-wrap:anywhere">${escHtml(x)}</li>`).join('')}</ul><div style="font-size:10.5px;color:#718096;margin-top:8px">If any of this turns out to be needed, it is priced and approved in a written change order before that work starts.</div></div>`
     :'';
 
   // ── What the other options add ──────────────────────────────────────────
@@ -5086,9 +5092,15 @@ async function sendGenericProposal(previewOnly,opts){
         const _seen=new Set();
         const _li=_extra.filter(l=>{const k=_pbKey(l.label);if(_seen.has(k))return false;_seen.add(k);return true;})
           .slice(0,6).map(l=>`<li style="font-size:11.5px;color:#4a5568;line-height:1.7;overflow-wrap:anywhere">${escHtml(l.label)}</li>`).join('');
-        return `<div style="margin-bottom:10px"><div style="font-size:11.5px;font-weight:800;color:${_pAccent};margin-bottom:4px">${escHtml(_nm)}${_amt?` <span style="font-weight:700;color:#718096">(${'$'+_amt.toLocaleString('en-US',{maximumFractionDigits:0})})</span>`:''} also includes</div><ul style="margin:0;padding-left:18px">${_li}</ul></div>`;
+        // The option NAME is the way into it. Telling a client what they are
+        // missing and leaving them to text about it is how a proposal turns
+        // into an evening of back and forth: the answer has to be a tap that
+        // lands them on that option's own document, where they can sign it.
+        const _u=_geiSignUrlFor(x);
+        const _hd=`${escHtml(_nm)}${_amt?` <span style="font-weight:700;color:#718096">(${'$'+_amt.toLocaleString('en-US',{maximumFractionDigits:0})})</span>`:''} also includes`;
+        return `<div style="margin-bottom:10px"><div style="font-size:11.5px;font-weight:800;color:${_pAccent};margin-bottom:4px">${_hd}</div><ul style="margin:0 0 6px;padding-left:18px">${_li}</ul>${_u?`<a href="${escHtml(_u)}" target="_top" style="display:inline-block;font-size:11.5px;font-weight:800;color:${_pAccent};text-decoration:none;border:1.5px solid ${_pAccent};border-radius:6px;padding:6px 12px">Switch to ${escHtml(_nm)} &rarr;</a>`:''}</div>`;
       }).filter(Boolean).join('');
-      if(_blocks)_optDiffSection=`<div style="padding:14px 18px;border-bottom:1px solid #e2e8f0;background:#fbfcfe"><div style="font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:.1em;color:#94a3b8;margin-bottom:8px">Not in this option</div>${_blocks}<div style="font-size:10.5px;color:#718096">Say the word and we will move you onto it before we start.</div></div>`;
+      if(_blocks)_optDiffSection=`<div style="padding:14px 18px;border-bottom:1px solid #e2e8f0;background:#fbfcfe"><div style="font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:.1em;color:#94a3b8;margin-bottom:8px">Not in this option</div>${_blocks}<div style="font-size:10.5px;color:#718096">Nothing to sign twice: signing another option replaces this one.</div></div>`;
     }
   }
 

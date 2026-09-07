@@ -266,6 +266,97 @@ test.describe('the description the client reads', () => {
     expect(html).not.toContain('Scope of work');
   });
 
+  // ── BYO describes the job once ─────────────────────────────────────────────
+  // Owner 2026-09-07: "why am I still seeing scope of work selections in BYO?
+  // Thought we made that smart off descriptions?" The reader got smart and the
+  // input never got removed.
+
+  test('a clean BYO estimate has no scope chip card at all', async () => {
+    const r = await page.evaluate(() => {
+      _geiScopeChips = [];
+      _geiRenderScopeCard('byo');
+      const card = document.getElementById('byo-scopecard-wrap');
+      return { mode: _geiScopeCardMode('byo'), html: card.innerHTML, hidden: card.style.display === 'none' };
+    });
+    expect(r.mode).toBe('off');
+    expect(r.html).toBe('');
+    expect(r.hidden, 'an empty bordered card is worse than no card').toBe(true);
+  });
+
+  test('T&M keeps it, because nothing else in a T&M estimate says what the crew does', async () => {
+    const r = await page.evaluate(() => {
+      _geiScopeChips = [];
+      _geiRenderScopeCard('tm');
+      const card = document.getElementById('tm-scopecard-wrap');
+      return { mode: _geiScopeCardMode('tm'), add: card.innerHTML.includes('+ Add scope'), wrap: !!document.getElementById('tm-scope-wrap') };
+    });
+    expect(r.mode).toBe('full');
+    expect(r.add).toBe(true);
+    expect(r.wrap).toBe(true);
+  });
+
+  test('a BYO draft that already has chips keeps them removable, never addable', async () => {
+    const r = await page.evaluate(() => {
+      _geiScopeChips = ['Two coats', 'Prep and caulk'];
+      _geiRenderScopeCard('byo');
+      _renderScopeChips('byo-scope-wrap');
+      const card = document.getElementById('byo-scopecard-wrap');
+      return {
+        mode: _geiScopeCardMode('byo'),
+        add: card.innerHTML.includes('+ Add scope'),
+        explains: card.innerHTML.includes('are the scope on this proposal now'),
+        listed: card.innerHTML.includes('Two coats') && card.innerHTML.includes('Prep and caulk')
+      };
+    });
+    expect(r.mode).toBe('legacy');
+    expect(r.add, 'nothing new can be added').toBe(false);
+    expect(r.explains, 'it says why it is going away').toBe(true);
+    expect(r.listed, 'they still print, so they have to still be visible').toBe(true);
+  });
+
+  test('removing the last legacy chip takes the card with it', async () => {
+    const r = await page.evaluate(() => {
+      _geiScopeChips = ['Two coats'];
+      _geiIsFreeForm = true; _geiIsTM = false;
+      _geiRenderScopeCard('byo');
+      const before = _geiScopeCardMode('byo');
+      _toggleScopeChip('Two coats');
+      const card = document.getElementById('byo-scopecard-wrap');
+      return { before, after: _geiScopeCardMode('byo'), html: card.innerHTML, chips: _geiScopeChips.length };
+    });
+    expect(r.before).toBe('legacy');
+    expect(r.chips).toBe(0);
+    expect(r.after).toBe('off');
+    expect(r.html, 'no stranded empty card').toBe('');
+  });
+
+  test('a legacy chip still prints on the proposal, so removing it is a real choice', async () => {
+    const html = await page.evaluate(async () => {
+      _geiEditBidId = null; _geiClientId = null;
+      _geiIsFreeForm = true; _geiIsTM = false;
+      _geiScopeChips = ['Two coats'];
+      _byoItems = [_byoNormItem({ id: 1, section: 'Work', label: 'Repaint living room', qty: 1, unit: 'ea', rate: 1200, notes: 'Walls and trim', on: true })];
+      _geiLines = []; _geiExclusions = [];
+      _byoUpdateRail();
+      return await sendGenericProposal(true, { silent: true });
+    });
+    expect(html).toContain('Scope of work');
+    expect(html, 'the line and its description are the scope').toContain('Repaint living room');
+    expect(html).toContain('Walls and trim');
+    expect(html, 'and an old chip is still on the document until he takes it off').toContain('Two coats');
+  });
+
+  test('_geiScopeCardMode holds on anything it is handed', async () => {
+    const r = await page.evaluate(() => {
+      _geiScopeChips = [];
+      return { byo: _geiScopeCardMode('byo'), tm: _geiScopeCardMode('tm'), junk: _geiScopeCardMode('nope'), nul: _geiScopeCardMode(null) };
+    });
+    expect(r.byo).toBe('off');
+    expect(r.tm).toBe('full');
+    expect(r.junk, 'anything that is not byo keeps the picker').toBe('full');
+    expect(r.nul).toBe('full');
+  });
+
   test('no console errors across the description loop', async () => {
     await assertNoErrors(page);
   });

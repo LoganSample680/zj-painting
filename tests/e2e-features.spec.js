@@ -3903,19 +3903,32 @@ test.describe('Scope-of-work chips', () => {
     expect(r.length).toBe(0);
   });
 
-  test('tm-scope-wrap and byo-scope-wrap elements exist in DOM', async () => {
-    // Both wrap divs are now rendered into tm-scopecard-wrap/byo-scopecard-wrap by
-    // _geiRenderScopeCard (called from _tmShowPage/_byoShowPage) rather than existing
-    // statically in the HTML, render them first, same as a real page visit would.
+  test('T&M always has a scope wrap; BYO only has one if it carries legacy chips', async () => {
+    // WAS: both wraps always rendered. NOW (owner 2026-09-07): BYO's line items
+    // and their descriptions ARE the scope on the proposal, so asking him to
+    // pick chips as well is describing the same job twice. T&M prices material
+    // categories and an hourly rate, so nothing there says what the crew is
+    // doing and the chips stay. A BYO draft that already carries chips keeps a
+    // remove-only card, or they would print on a live proposal with no way to
+    // take them off.
     const r = await page.evaluate(() => {
-      if (typeof _geiRenderScopeCard === 'function') { _geiRenderScopeCard('tm'); _geiRenderScopeCard('byo'); }
-      return {
-        tmScopeWrap: !!document.getElementById('tm-scope-wrap'),
-        byoScopeWrap: !!document.getElementById('byo-scope-wrap'),
+      const keep = [..._geiScopeChips];
+      _geiScopeChips = [];
+      _geiRenderScopeCard('tm'); _geiRenderScopeCard('byo');
+      const clean = { tm: !!document.getElementById('tm-scope-wrap'), byo: !!document.getElementById('byo-scope-wrap') };
+      _geiScopeChips = ['Two coats'];
+      _geiRenderScopeCard('byo');
+      const legacy = {
+        wrap: !!document.getElementById('byo-scope-wrap'),
+        addBtn: (document.getElementById('byo-scopecard-wrap')?.innerHTML || '').includes('+ Add scope')
       };
+      _geiScopeChips = keep;
+      return { clean, legacy };
     });
-    expect(r.tmScopeWrap).toBe(true);
-    expect(r.byoScopeWrap).toBe(true);
+    expect(r.clean.tm).toBe(true);
+    expect(r.clean.byo, 'a clean BYO estimate has no chip picker at all').toBe(false);
+    expect(r.legacy.wrap, 'chips already saved stay removable').toBe(true);
+    expect(r.legacy.addBtn, 'removable, never addable').toBe(false);
   });
 
   test('_renderScopeChips renders selected scope as line items, not pills', async () => {

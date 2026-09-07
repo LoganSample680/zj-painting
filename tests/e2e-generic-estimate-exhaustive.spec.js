@@ -2454,13 +2454,20 @@ test.describe('generic-estimate.js: exhaustive coverage', () => {
             sub: (document.getElementById(prefix + '-page-sub')?.textContent || '') !== '-',
           };
         };
+        _geiScopeChips = [];
         return { tm: probe('tm'), byo: probe('byo') };
       });
+      // Every part is shared by both modes except the scope chip picker, which
+      // BYO deliberately no longer has: its line items and their descriptions
+      // are the scope (owner 2026-09-07). T&M has no itemised work at all, so
+      // there the chips are the only scope there is.
       for (const mode of ['tm', 'byo']) {
-        for (const part of ['title', 'scope', 'gauge', 'deposit', 'actions', 'sub']) {
+        for (const part of ['title', 'gauge', 'deposit', 'actions', 'sub']) {
           expect(r[mode][part], `${mode} ${part}`).toBe(true);
         }
       }
+      expect(r.tm.scope, 'T&M keeps the chip picker').toBe(true);
+      expect(r.byo.scope, 'BYO describes the job once, on the lines').toBe(false);
     });
 
     test('_tmHidePage/_byoHidePage still hide their page and restore the legacy toolbar (shared _geiHidePage)', async () => {

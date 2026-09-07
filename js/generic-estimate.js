@@ -955,13 +955,37 @@ function _geiRenderTopBar(prefix,defaultTitle,editFnName){
       '<button class="btn btn-ghost" onclick="_geiBack()">Cancel</button>'+
     '</div>';
 }
+// BYO's LINES are the scope. Every item carries a title and a description, and
+// the proposal prints both as the Scope of work, so a separate chip picker asks
+// him to describe the same job a second time and costs taps on the flow that
+// has to be the fastest thing in the app. Owner 2026-09-07: "why am I still
+// seeing scope of work selections in BYO? Thought we made that smart off
+// descriptions?" He is right, the reader got smart and the input never got
+// removed.
+//
+// T&M keeps it, and that is not an inconsistency. A T&M estimate prices
+// material CATEGORIES and an hourly rate: nothing in it says what the crew is
+// actually going to do. There the chips are the only scope there is.
+//
+// A BYO draft written before tonight can still carry chips, and they still
+// print on its proposal. Hiding the card outright would strand them on a live
+// document with no way to take them off (§7.2), so an estimate that HAS them
+// keeps a remove-only card and no way to add more.
+function _geiScopeCardMode(prefix){
+  if(prefix!=='byo')return 'full';
+  return (typeof _geiScopeChips!=='undefined'&&_geiScopeChips&&_geiScopeChips.length)?'legacy':'off';
+}
 function _geiRenderScopeCard(prefix){
   const wrap=document.getElementById(prefix+'-scopecard-wrap');if(!wrap)return;
+  const mode=_geiScopeCardMode(prefix);
+  if(mode==='off'){wrap.innerHTML='';wrap.style.display='none';return;}
+  wrap.style.display='';
   wrap.innerHTML=
     '<div class="card-hd">'+
       '<div class="card-hd-title">Scope of work</div>'+
-      '<div style="display:flex;gap:6px"><button class="btn btn-sm" onclick="_openScopeSheet(\''+prefix+'-scope-wrap\')">+ Add scope</button></div>'+
+      (mode==='full'?'<div style="display:flex;gap:6px"><button class="btn btn-sm" onclick="_openScopeSheet(\''+prefix+'-scope-wrap\')">+ Add scope</button></div>':'')+
     '</div>'+
+    (mode==='legacy'?'<div style="padding:11px 16px 2px;font-size:11.5px;color:var(--text-3);line-height:1.5">Your line items and their descriptions are the scope on this proposal now. These older entries still print, remove any you do not want.</div>':'')+
     '<div id="'+prefix+'-scope-wrap"></div>';
 }
 function _geiRenderProfitGauge(prefix,costOninput){
@@ -1380,6 +1404,7 @@ function _toggleScopeChip(label){
   _geiScopeNoScope=false;
   const idx=_geiScopeChips.indexOf(label);
   if(idx>=0)_geiScopeChips.splice(idx,1);else _geiScopeChips.push(label);
+  _geiRenderScopeCard('byo');   // the last legacy chip taking the card with it
   ['tm-scope-wrap','byo-scope-wrap'].forEach(id=>_renderScopeChips(id));
   _updateScopeSheetBtn(label);
   // Scope drives the auto crew-labor estimate, refresh the rail + gauge.
@@ -1389,6 +1414,7 @@ function _toggleScopeChip(label){
 function _toggleScopeNone(){
   _geiScopeNoScope=!_geiScopeNoScope;
   if(_geiScopeNoScope)_geiScopeChips=[];
+  _geiRenderScopeCard('byo');
   ['tm-scope-wrap','byo-scope-wrap'].forEach(id=>_renderScopeChips(id));
   _byoAutosave();
 }

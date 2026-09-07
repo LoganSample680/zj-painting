@@ -198,7 +198,9 @@ function buildCites(doc){
     const left = s.slice(0, cut).trim();
     const right = s.slice(cut + skip).trim();
     // A leading section number is the citation; the rest is the description.
-    const m = right.match(/^((?:Table\s+)?\d[\w.()\/ -]*?)(?:,\s*(.*))?$/);
+    // A citation opens with a section number or with the word the book uses for
+    // one: "220.41", "Table 310.16", "Chapter 9 Table 4". Anything else is prose.
+    const m = right.match(/^((?:(?:Table|Chapter|Annex|Article|Part)\s+)*\d[\w.()\/ -]*?)(?:,\s*(.*))?$/);
     const cite = m ? m[1].trim() : '';
     const desc = m ? (m[2] || '').trim() : right;
     // "a.b and .c" and "a.b + a.c" and "a.b / a.c" all mean several paths.
@@ -209,7 +211,8 @@ function buildCites(doc){
       let raw = p.trim();
       if (i === 0) parent = raw.replace(/\.[^.]*$/, '');
       else if (raw.indexOf('.') < 0 && parent) raw = parent + '.' + raw;
-      const path = raw.replace(/\[\*?\]/g, '.*').replace(/^\.+|[.\s]+$/g, '');
+      const path = raw.replace(/\[\*\]/g, '.*').replace(/\[\]/g, '')
+                      .replace(/^\.+|[.\s]+$/g, '');
       const seg = path.split('.');
       if (seg[0] === 'data') seg.shift();
       if (seg.length) out.push({ seg, cite, desc });
@@ -241,10 +244,43 @@ function citeFor(segs){
 // "square-4x1.25" and a dot-split path silently addresses the wrong leaf.
 function flatten(node, seg, out){
   if (node === null){ out.push({ seg: seg.slice(), path: seg.join('.') }); return; }
-  if (Array.isArray(node)){ node.forEach((v, i) => flatten(v, seg.concat(String(i)), out)); return; }
-  if (node && typeof node === 'object'){
-    Object.keys(node).forEach(k => flatten(node[k], seg.concat(k), out));
+  if (Array.isArray(node)){
+    node.forEach((v, i) => flatten(v, seg.concat(String(i)), out));
+    // The "add another row" slot sits after the rows and never goes away, so
+    // finishing a row lands on it and the next row is one keystroke off.
+    out.push({ seg: seg.slice(), path: seg.join('.'), grow: 'array' });
+    return;
   }
+  if (node && typeof node === 'object'){
+    const keys = Object.keys(node);
+    keys.forEach(k => flatten(node[k], seg.concat(k), out));
+    // An open map: the book decides its keys (vent sizes, run lengths), so the
+    // tool never invents them either. Only maps that ship empty are open ones.
+    if (!keys.length) out.push({ seg: seg.slice(), path: seg.join('.'), grow: 'object' });
+  }
+}
+
+// What one row of a table looks like. The field names come from the dataset's
+// own todo line ("rows of {sizeIn, maxDfu}"); when the file also ships a shapes
+// block, a shape whose fields match is preferred because it carries the nested
+// structure the prose cannot.
+function rowShape(segs){
+  const desc = citeFor(segs);
+  const text = (desc.cite || '') + ' ' + (desc.desc || '');
+  const m = text.match(/\{([^{}]+)\}/);
+  if (!m) return null;
+  const fields = m[1].split(',').map(x => x.trim().split(':')[0].trim()).filter(Boolean);
+  if (!fields.length) return null;
+  const shapes = (DOC && DOC.shapes) || {};
+  for (const k of Object.keys(shapes)){
+    const sk = Object.keys(shapes[k] || {});
+    if (sk.length === fields.length && sk.every(x => fields.indexOf(x) >= 0)){
+      return JSON.parse(JSON.stringify(shapes[k]));
+    }
+  }
+  const row = {};
+  fields.forEach(f => { row[f] = null; });
+  return row;
 }
 
 function getAt(seg){
@@ -312,6 +348,7 @@ function counts(){
   FLAT.forEach(f => {
     const g = f.group;
     by[g] = by[g] || { done:0, all:0 };
+    if (f.grow) return;               // an affordance, not a value to count
     by[g].all++;
     if (getAt(f.seg) !== null) by[g].done++;
   });
@@ -331,7 +368,8 @@ function renderGroups(){
     b.onclick = () => { GRP = b.dataset.g; CUR = FLAT.findIndex(f => f.group === GRP && getAt(f.seg) === null);
       if (CUR < 0) CUR = FLAT.findIndex(f => f.group === GRP); render(); };
   });
-  const total = FLAT.length, done = FLAT.filter(f => getAt(f.seg) !== null).length;
+  const vals = FLAT.filter(f => !f.grow);
+  const total = vals.length, done = vals.filter(f => getAt(f.seg) !== null).length;
   $('bar').style.width = total ? Math.round(done / total * 100) + '%' : '0%';
   $('which').textContent = DOC.family.toUpperCase() + ' ' + DOC.edition + '  ·  ' +
     done + ' of ' + total + ' filled';
@@ -341,12 +379,16 @@ function renderNow(){
   const f = FLAT[CUR];
   if (!f){ $('now').innerHTML = '<div class="lbl">Nothing selected</div>'; return; }
   const c = citeFor(f.seg);
-  const val = getAt(f.seg);
-  $('now').innerHTML =
+  const head =
     (c.cite ? '<span class="cite">' + esc(c.cite) + '</span>' : '') +
     '<div class="lbl">' + esc(labelFor(f.seg)) + '</div>' +
     (c.desc ? '<div class="desc">' + esc(c.desc) + '</div>' : '') +
-    '<div class="path">' + esc(f.path) + '</div>' +
+    '<div class="path">' + esc(f.path) + '</div>';
+
+  if (f.grow) return renderGrow(f, head);
+
+  const val = getAt(f.seg);
+  $('now').innerHTML = head +
     '<div class="entry"><input type="text" id="inp" autocomplete="off" spellcheck="false" ' +
       'placeholder="value from the book" value="' + esc(val === null ? '' : String(val)) + '"></div>' +
     '<div class="hint"><kbd>Enter</kbd> save and next  ·  <kbd>Shift</kbd>+<kbd>Enter</kbd> back  ·  ' +
@@ -359,16 +401,98 @@ function renderNow(){
   };
 }
 
+// A table with no rows, or a map with no keys. Nothing can be typed until it
+// has members, so this slot grows it and the members then fill like anything
+// else. Deliberately one row at a time: the book says how many rows there are.
+function renderGrow(f, head){
+  const isArr = f.grow === 'array';
+  const shape = isArr ? rowShape(f.seg) : null;
+  const fields = shape ? Object.keys(shape) : [];
+  $('now').innerHTML = head +
+    '<div class="desc" style="margin-top:10px">' +
+      (isArr
+        ? ((getAt(f.seg) || []).length + ' row(s) so far. ' + (fields.length
+            ? 'Each row is ' + esc(fields.join(', ')) + '. Add one per row in the book.'
+            : 'The file does not say what a row looks like, so name the fields and they become the row.'))
+        : 'Empty map. The book decides the keys here, so name one and it becomes a value to fill.') +
+    '</div>' +
+    '<div class="entry">' +
+      (isArr && fields.length ? '' :
+        '<input type="text" id="inp" autocomplete="off" spellcheck="false" placeholder="' +
+        (isArr ? 'field names, comma separated' : 'key name, exactly as the book prints it') + '">') +
+      '<button class="btn primary" id="grow" style="height:46px;padding:0 18px">' +
+        (isArr ? 'Add row' : 'Add key') + '</button>' +
+      '<button class="btn" id="ungrow" style="height:46px">Remove last</button>' +
+    '</div>' +
+    '<div class="hint">Rows and keys you add become ordinary blanks in the list below.</div>';
+  const inp = $('inp');
+  if (inp){ inp.focus(); inp.onkeydown = e => { if (e.key === 'Enter'){ e.preventDefault(); grow(f, inp.value); } }; }
+  $('grow').onclick = () => grow(f, inp ? inp.value : '');
+  if (!inp) $('grow').focus();      // so Enter adds the next row, hands on keys
+  $('ungrow').onclick = () => ungrow(f);
+}
+
+function grow(f, raw){
+  const node = getAt(f.seg);
+  if (f.grow === 'array'){
+    let shape = rowShape(f.seg);
+    if (!shape){
+      const names = String(raw).split(',').map(x => x.trim()).filter(Boolean);
+      if (!names.length) return;
+      shape = {}; names.forEach(n => { shape[n] = null; });
+    }
+    node.push(JSON.parse(JSON.stringify(shape)));
+  } else {
+    const k = String(raw).trim();
+    if (!k || Object.prototype.hasOwnProperty.call(node, k)) return;
+    node[k] = null;
+  }
+  reflow(f.path, false);
+}
+
+function ungrow(f){
+  const node = getAt(f.seg);
+  if (Array.isArray(node)) node.pop();
+  else { const k = Object.keys(node).pop(); if (k !== undefined) delete node[k]; }
+  // Stay put: removing is usually the first of several, and jumping into the
+  // row above would put the cursor on a value nobody asked to edit.
+  reflow(f.path, true);
+}
+
+// Adding a row changes what there is to fill, so the working list is rebuilt.
+// Land on the first blank the growth created, or back on the slot itself.
+function reflow(path, stay){
+  const grp = GRP;
+  rebuild();
+  GRP = grp;
+  const slot = FLAT.findIndex(x => x.path === path);
+  const first = stay ? -1
+    : FLAT.findIndex(x => x.path.indexOf(path + '.') === 0 && !x.grow && getAt(x.seg) === null);
+  CUR = first >= 0 ? first : Math.max(0, slot);
+  render();
+}
+
+function rebuild(){
+  FLAT = [];
+  const body = bodyOf(DOC);
+  Object.keys(body).forEach(k => flatten(body[k], [k], FLAT));
+  FLAT.forEach(x => { x.group = groupOf(x.seg); });
+  GROUPS = [...new Set(FLAT.map(x => x.group))];
+}
+
 function renderRows(){
   const list = FLAT.map((f, i) => ({ f, i })).filter(x => x.f.group === GRP);
   $('listhd').textContent = GRP || 'Section';
   $('rows').innerHTML = list.map(x => {
     const v = getAt(x.f.seg);
     const c = citeFor(x.f.seg);
+    const shown = x.f.grow
+      ? (Array.isArray(v) ? 'no rows' : 'no keys')
+      : (v === null ? 'blank' : String(v));
     return '<tr data-i="' + x.i + '"' + (x.i === CUR ? ' class="cur"' : '') + '>' +
       '<td>' + esc(labelFor(x.f.seg)) + '</td>' +
-      '<td style="color:var(--ink-3);font:600 11px var(--mono)">' + esc(c.cite || '—') + '</td>' +
-      '<td class="v' + (v === null ? ' empty' : '') + '">' + (v === null ? 'blank' : esc(String(v))) + '</td></tr>';
+      '<td style="color:var(--ink-3);font:600 11px var(--mono)">' + esc(c.cite || '\u2014') + '</td>' +
+      '<td class="v' + (v === null || x.f.grow ? ' empty' : '') + '">' + esc(shown) + '</td></tr>';
   }).join('');
   [...document.querySelectorAll('tr[data-i]')].forEach(tr => {
     tr.onclick = () => { CUR = Number(tr.dataset.i); render(); };
@@ -380,7 +504,7 @@ function renderRows(){
 function render(){ renderGroups(); renderNow(); renderRows(); renderWarn(); autosave(); }
 
 function renderWarn(){
-  const unfilled = FLAT.filter(f => getAt(f.seg) === null).length;
+  const unfilled = FLAT.filter(f => !f.grow && getAt(f.seg) === null).length;
   const w = $('warn');
   if (DOC.verified && unfilled){
     w.hidden = false;
@@ -433,11 +557,7 @@ function load(text){
   } catch (e) {}
   DOC = d;
   CITES = buildCites(DOC);
-  FLAT = [];
-  const body = bodyOf(DOC);
-  Object.keys(body).forEach(k => flatten(body[k], [k], FLAT));
-  FLAT.forEach(f => { f.group = groupOf(f.seg); });
-  GROUPS = [...new Set(FLAT.map(f => f.group))];
+  rebuild();
   GRP = GROUPS[0]; CUR = 0;
   $('landing').hidden = true; $('app').hidden = false; $('save').disabled = false;
   $('sn').value = DOC.verifiedBy || '';
@@ -456,7 +576,9 @@ function countFilled(d){
   const nulls = [];
   const body = bodyOf(d);
   Object.keys(body).forEach(k => flatten(body[k], [k], nulls));
-  return leaves - nulls.length;
+  // Grow slots are not leaves and were never counted above, so they must not
+  // be subtracted here either, or an empty table reads as a value gone missing.
+  return leaves - nulls.filter(x => !x.grow).length;
 }
 
 function esc(s){

@@ -34,6 +34,15 @@ async function boot(page, file) {
   return errors;
 }
 
+/** Put the cursor on a named slot, wherever it has moved to. */
+async function slot(page, path) {
+  await page.evaluate(p => {
+    const i = FLAT.findIndex(f => f.path === p);
+    if (i < 0) throw new Error('no slot ' + p);
+    CUR = i; GRP = FLAT[i].group; render();
+  }, path);
+}
+
 /** Type a value into the current field and commit it. */
 async function enter(page, value) {
   await page.fill('#inp', value);
@@ -63,9 +72,95 @@ test.describe('Code value entry tool', () => {
   test('a fresh dataset reports every value as unfilled', async ({ page }) => {
     await boot(page);
     // The dot bug made 13 leaves read as already done. Zero is the only right answer.
-    const n = await page.evaluate(() => FLAT.filter(f => getAt(f.seg) !== null).length);
+    // A grow slot is an empty table, which is not null and is not filled either,
+    // so it is excluded here exactly as the progress counter excludes it.
+    const n = await page.evaluate(() => FLAT.filter(f => !f.grow && getAt(f.seg) !== null).length);
     expect(n).toBe(0);
     expect(await page.textContent('#which')).toContain('0 of');
+  });
+
+  test('an empty table is grown from the row shape its own todo line declares', async ({ page }) => {
+    await boot(page);
+    // Table 310.15(B)(1) ships as an empty array, and nothing can be typed into
+    // one. Its todo line says "rows {minC, maxC, f60, f75, f90}", so the tool
+    // takes the fields from the file rather than from anything it knows.
+    const i = await page.evaluate(() => FLAT.findIndex(f => f.path === 'data.tempCorrectionRows'));
+    expect(i).toBeGreaterThanOrEqual(0);
+    expect(await page.evaluate(n => FLAT[n].grow, i)).toBe('array');
+
+    await page.evaluate(n => { CUR = n; GRP = FLAT[n].group; render(); }, i);
+    await expect(page.locator('#grow')).toBeVisible();
+
+    const before = await page.evaluate(() => FLAT.length);
+    await page.click('#grow');
+    const after = await page.evaluate(() => ({ rows: DOC.data.tempCorrectionRows, flat: FLAT.length }));
+    expect(after.rows.length).toBe(1);
+    expect(Object.keys(after.rows[0]).sort()).toEqual(['f60', 'f75', 'f90', 'maxC', 'minC']);
+    // The new fields are blanks, never zeros.
+    expect(Object.values(after.rows[0]).every(v => v === null)).toBe(true);
+    expect(after.flat).toBeGreaterThan(before);
+  });
+
+  test('a table whose shape the file does not declare asks instead of guessing', async ({ page }) => {
+    await boot(page);
+    // Table 220.55's todo line names the table but not its columns. Inventing
+    // them is exactly the failure this whole subsystem exists to prevent, so
+    // the tool asks for the field names and adds nothing until it has them.
+    const i = await page.evaluate(() => FLAT.findIndex(f => f.path === 'data.dwelling.cooking.colARows'));
+    await page.evaluate(n => { CUR = n; GRP = FLAT[n].group; render(); }, i);
+    await expect(page.locator('#inp')).toBeVisible();
+
+    await page.click('#grow');
+    expect(await page.evaluate(() => DOC.data.dwelling.cooking.colARows.length)).toBe(0);
+
+    await page.fill('#inp', 'kw, pct');
+    await page.click('#grow');
+    const rows = await page.evaluate(() => DOC.data.dwelling.cooking.colARows);
+    expect(rows.length).toBe(1);
+    expect(Object.keys(rows[0])).toEqual(['kw', 'pct']);
+  });
+
+  test('a row added by mistake can be taken back off', async ({ page }) => {
+    await boot(page);
+    await slot(page, 'data.tempCorrectionRows');
+    await page.click('#grow');
+    await slot(page, 'data.tempCorrectionRows');
+    await page.click('#grow');
+    expect(await page.evaluate(() => DOC.data.tempCorrectionRows.length)).toBe(2);
+
+    await slot(page, 'data.tempCorrectionRows');
+    await page.click('#ungrow');
+    await page.click('#ungrow');
+    expect(await page.evaluate(() => DOC.data.tempCorrectionRows.length)).toBe(0);
+    // And the slot survives its own table emptying out, or the table could
+    // never be started again.
+    expect(await page.evaluate(() => FLAT.some(f => f.path === 'data.tempCorrectionRows'))).toBe(true);
+  });
+
+  test('adding a row lands on that row, so the next thing typed is the row', async ({ page }) => {
+    await boot(page);
+    await slot(page, 'data.tempCorrectionRows');
+    await page.click('#grow');
+    // Not back on the slot: on the first blank of the row just created.
+    expect(await page.textContent('.path')).toBe('data.tempCorrectionRows.0.minC');
+    await enter(page, '21');
+    expect(await page.evaluate(() => DOC.data.tempCorrectionRows[0].minC)).toBe(21);
+  });
+
+  test('an open map takes the keys the book prints, not keys the tool guessed', async ({ page }) => {
+    await boot(page, IPC);
+    // vent rows carry maxLengthFtByVentSize, whose keys are vent sizes: the book
+    // decides them, so the tool must not pretend to know them.
+    const i = await page.evaluate(() => FLAT.findIndex(f => f.path === 'vent.table'));
+    await page.evaluate(n => { CUR = n; GRP = FLAT[n].group; render(); }, i);
+    await page.click('#grow');
+    const open = await page.evaluate(() => FLAT.find(f => f.grow === 'object' && f.path.indexOf('vent.table.0') === 0));
+    expect(open).toBeTruthy();
+    await page.evaluate(p => { CUR = FLAT.findIndex(f => f.path === p); render(); }, open.path);
+    await page.fill('#inp', '1.5');
+    await page.click('#grow');
+    const map = await page.evaluate(() => DOC.vent.table[0].maxLengthFtByVentSize);
+    expect(map).toEqual({ '1.5': null });
   });
 
   test('every null leaf in the file is reachable in the tool', async ({ page }) => {
@@ -77,10 +172,13 @@ test.describe('Code value entry tool', () => {
         if (Array.isArray(n)) { n.forEach(walk); return; }
         Object.keys(n).forEach(k => walk(n[k]));
       })(DOC.data);
-      return { leaves, flat: FLAT.length, groups: GROUPS.length };
+      return { leaves, flat: FLAT.length, grow: FLAT.filter(f => f.grow).length, groups: GROUPS.length };
     });
-    // Every leaf is null in a fresh dataset, so the two counts must agree.
-    expect(r.flat).toBe(r.leaves);
+    // Every leaf is null in a fresh dataset, so the counts agree once the grow
+    // slots are set aside: an empty table holds no leaves but is still one thing
+    // the tool has to offer.
+    expect(r.flat - r.grow).toBe(r.leaves);
+    expect(r.grow).toBeGreaterThan(0);
     expect(r.groups).toBeGreaterThan(0);
   });
 
@@ -118,6 +216,20 @@ test.describe('Code value entry tool', () => {
 
     await page.click('.grp:has-text("ampacity")');
     expect(await page.textContent('.cite')).toContain('310.16');
+  });
+
+  test('all but a handful of values name the section they come from', async ({ page }) => {
+    await boot(page);
+    // Whoever types this is holding the book and needs to know which table to
+    // turn to. A citation regex that quietly stops matching one family of paths
+    // costs them nothing visible and hours of hunting: 796 conduit-fill values
+    // lost theirs to a pattern that required a leading digit, and "Chapter 9
+    // Table 4" does not have one.
+    const r = await page.evaluate(() => {
+      const vals = FLAT.filter(f => !f.grow);
+      return { total: vals.length, cited: vals.filter(f => citeFor(f.seg).cite).length };
+    });
+    expect(r.total - r.cited).toBeLessThanOrEqual(5);
   });
 
   test('a leaf reads as its coordinate in the book, not as a JSON path', async ({ page }) => {

@@ -65,6 +65,12 @@ wanted, so a partly filled dataset answers the questions it can and stays quiet
 on the ones it cannot. That means you can sign the parts you checked without
 waiting to finish the book.
 
+A table that ships as an empty array (Table 220.55, the 310.15 correction and
+adjustment tables, the drain and vent sizing tables) grows a row at a time, and
+the row's fields come from the `todo` line that describes it, or from `shapes`
+when the file ships one. Where the file declares neither, the tool asks for the
+field names rather than inventing them.
+
 `tests/e2e-code-entry.spec.js` guards the tool. The case it exists for: box
 sizes are keyed `device-3x2x2.25`, and an earlier build split paths on the dot,
 so it invented thirteen new keys instead of filling the thirteen real ones and

@@ -2574,7 +2574,17 @@ function showJobDebrief(jobId){
   // only ever filled for painting and every other trade's estimate had nothing
   // of his own to learn from. A job that sold real work now debriefs against
   // that work (getJobScopes, which reads the bid's own lines).
-  const soldScopes=scopeRooms.length?[]:getJobScopes(jobId);
+  // Only the work this job can actually account for: scopes the BID sold
+  // (line:<pbKey>, from _jobScopesFromBid) plus anything the crew really
+  // clocked into. getJobScopes falls back to _CLOCK_DEFAULT_SCOPES when a bid
+  // names nothing, and debriefing a plumbing job against "tape / prime /
+  // two coats" is worse than not debriefing it: it asks for hours nobody
+  // worked and would teach the price book painting tasks off a plumbing job.
+  // A job that sold nothing and clocked nothing still goes straight to
+  // complete, exactly as before.
+  const clockedMins=getJobScopeBreakdown(jobId);
+  const soldScopes=scopeRooms.length?[]:getJobScopes(jobId)
+    .filter(s=>/^line:/.test(String(s&&s.id||''))||(clockedMins[s.id]||0)>0);
   if(!scopeRooms.length&&!soldScopes.length){confirmMarkComplete(jobId);return;}
   const ov=document.createElement('div');ov.className='zmodal-overlay';
   const box=document.createElement('div');box.className='zmodal';

@@ -186,6 +186,32 @@ test.describe('the clock sees the work he sold', () => {
     expect(r.saysWork).toBe(true);
   });
 
+  // Shard 4, 2026-09-07: making every trade debrief also made a bid that sold
+  // NOTHING debrief against getJobScopes' generic painting fallback
+  // (_CLOCK_DEFAULT_SCOPES: tape, prime, two coats), which blocked
+  // markJobDone -> complete behind a modal nobody asked for and would have
+  // taught the price book painting tasks off a plumbing job. A job with no
+  // sold work and no clocked time goes straight to complete, as it always did.
+  test('a bid that names no work still completes without a debrief', async () => {
+    const r = await page.evaluate(() => {
+      const cid = 990101, bId = 990102, jId = 990103;
+      bids = bids.filter(b => b.id !== bId).concat([{ id: bId, client_id: cid, client_name: 'Bare', amount: 1000, status: 'Closed Won' }]);
+      jobs = jobs.filter(j => j.id !== jId).concat([{ id: jId, bid_id: bId, client_id: cid, name: 'Bare', start: todayKey(), status: 'upcoming' }]);
+      timeEntries = (timeEntries || []).filter(e => e.job_id !== jId);
+      let completed = 0;
+      const real = window.confirmMarkComplete;
+      window.confirmMarkComplete = () => { completed++; };
+      try { showJobDebrief(jId); } finally { window.confirmMarkComplete = real; }
+      const ov = document.querySelector('.zmodal-overlay');
+      const opened = !!ov;
+      document.querySelectorAll('.zmodal-overlay').forEach(o => o.remove());
+      return { opened, completed, defaults: getJobScopes(jId).map(s => s.id) };
+    });
+    expect(r.opened, 'a bid selling nothing must not debrief against painting defaults').toBe(false);
+    expect(r.completed).toBe(1);
+    expect(r.defaults.length, 'the CLOCK still offers defaults, only the debrief ignores them').toBeGreaterThan(0);
+  });
+
   test('the hours he types land on S.scopeHistory under the line key, and never in the shared pool', async () => {
     const r = await page.evaluate((jl) => {
       const sent = [];

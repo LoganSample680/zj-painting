@@ -1445,13 +1445,62 @@ function _editEstTitle(titleId,btnId){
 function _editByoTitle(){_editEstTitle('byo-tbar-title','byo-edit-title-btn');}
 function _editTMTitle(){_editEstTitle('tm-tbar-title','tm-edit-title-btn');}
 function _editScopeTitle(){_editEstTitle('gei-trade-title','scope-edit-title-btn');}
+// ── A line is a QUANTITY at a RATE ──────────────────────────────────────────
+//
+// A BYO item used to carry one flat price and nothing else. Twelve interior
+// doors at $95 meant the contractor did 12 x 95 in his head and typed 1140, and
+// the price book then learned that an interior door costs $1,140 EACH, because
+// _pbLearn was handed the line total and told it was a rate. Every
+// multiple-quantity line he ever wrote was poisoning his own book, and the
+// hours ride on the same key, so the profit gauge drank it too.
+//
+// price stays the LINE TOTAL. Every existing reader (the rail, the materials
+// subtotal, the pro-rata hours split, _estPricedLines) means the total by it and
+// keeps working untouched. qty and rate are what is new, and rate is what the
+// book learns.
+//
+// One normalizer, called from _byoRenderSections, which runs after every change:
+// no add path can forget it, and an item saved before this shipped is read as
+// one at its old price. Nothing to migrate, nothing to sweep.
+// Round half UP at the cent, the way money rounds. Math.round alone does not:
+// 2.5 x 3.33 is 8.325, which floats to 832.4999999999999 and rounds DOWN to
+// $8.32, a penny off on the client's line for no reason a human could explain.
+function _geiCents(n){
+  const v=Number(n)||0;
+  return Math.round(v*100+(v>=0?1e-9:-1e-9))/100;
+}
+function _byoNormItem(it){
+  if(!it||typeof it!=='object')return it;
+  const q=Number(it.qty);
+  it.qty=(q>0)?q:1;
+  it.unit=it.unit||'ea';
+  if(!(Number(it.rate)>0)){
+    // Pre-quantity item: its price WAS the whole line. Read it at one, and read
+    // it EXACTLY. Dividing by a qty it never had would cut a signed line to a
+    // twelfth of its value; multiplying by one would inflate it just as far.
+    // Either way the number a client already agreed to would move, so a row
+    // with no rate is one line at its stored price and nothing else.
+    it.rate=Number(it.price)||0;
+    it.qty=1;
+  }
+  it.price=_geiCents(it.qty*it.rate);
+  return it;
+}
+function _byoNormAll(){(_byoItems||[]).forEach(_byoNormItem);}
+// "12 × $95.00" when there is a count worth showing, empty at a quantity of one.
+function _byoQtyLabel(it){
+  if(!it||!(Number(it.qty)>1))return '';
+  const u=(it.unit&&it.unit!=='ea')?' '+it.unit:'';
+  return it.qty+u+' × '+((typeof fmt==='function')?fmt(it.rate):'$'+it.rate);
+}
+
 // Shared item-row renderer, one row shape for BYO items (checkbox toggle +
 // edit/delete) and T&M material categories (no checkbox, add/edit/delete only):
 // title + price + actions on one header line; notes (if present) run full-width
 // below that line instead of being squeezed into a narrow left column next to
 // empty grey space under the price/action buttons.
 function _geiItemRowHtml(opts){
-  const{label,notes,price,editFn,delFn,delTitle,checked,rowOnclick,extraClass}=opts;
+  const{label,notes,price,qtyLabel,editFn,delFn,delTitle,checked,rowOnclick,extraClass}=opts;
   const checkHtml=checked!==undefined?'<div class="byo-check'+(checked?' on':'')+'">'+(checked?svgIcon('✓',{size:14}):'')+'</div>':'';
   return '<div class="byo-row'+(checked?' on':'')+(extraClass?' '+extraClass:'')+'"'+(rowOnclick?' onclick="'+rowOnclick+'"':'')+'>'+
     '<div class="byo-row-hd">'+
@@ -1462,6 +1511,10 @@ function _geiItemRowHtml(opts){
         _geiRowActionBtns(editFn,delFn,delTitle)+
       '</div>'+
     '</div>'+
+    // The arithmetic, shown. He typed a count and a rate; this is the app
+    // saying what it did with them, so a wrong total is caught here and not on
+    // the client's copy.
+    (qtyLabel?'<div class="byo-meta" style="font-size:11px;color:var(--text3);font-variant-numeric:tabular-nums">'+escHtml(qtyLabel)+'</div>':'')+
     // A described line shows its words. An undescribed one says so, in the
     // list, where he can see at a glance which lines will reach the client as
     // a bare title. Quiet, not red: this is a nudge, not an error.
@@ -1472,6 +1525,7 @@ function _geiItemRowHtml(opts){
 }
 function _byoRenderSections(){
   _injectRrpItems();
+  _byoNormAll();
   const wrap=document.getElementById('byo-sections');if(!wrap)return;
   const _defSecs=_byoSections();
   const extraFromItems=_byoItems.map(x=>x.section).filter(s=>!_defSecs.includes(s));
@@ -1484,7 +1538,7 @@ function _byoRenderSections(){
       const idx=_byoItems.indexOf(it);
       return _geiItemRowHtml({
         checked:it.on,rowOnclick:'_byoToggle('+idx+')',
-        label:it.label,notes:(it.notes&&!it._rrp)?it.notes:'',price:it.price,
+        label:it.label,notes:(it.notes&&!it._rrp)?it.notes:'',price:it.price,qtyLabel:_byoQtyLabel(it),
         editFn:'_byoEditItem('+idx+')',delFn:'_byoDelItem('+idx+')'
       });
     }).join(''):
@@ -2178,7 +2232,7 @@ function _byoAddItem(sec){
     '<div id="_bya-book"></div>'+
     '<div class="f" style="margin-bottom:4px"><label>Title <span style="font-weight:400;color:var(--text3)">, the client sees this</span></label><input type="text" id="_bya-label" placeholder="e.g. Bedroom 3, walls only" autocomplete="off"></div>'+
     '<div id="_bya-sugg" style="margin-bottom:10px"></div>'+
-    '<div class="f" style="margin-bottom:10px"><label>Price ($)</label><div class="input-prefix"><span>$</span><input type="text" inputmode="numeric" id="_bya-price" placeholder="0" oninput="_byaFormatPriceInput(this)"></div></div>'+
+    _byaQtyRateHTML(1,'ea','')+
     _byaDescFieldHTML('')+
     '<div style="display:flex;gap:10px;margin-top:14px">'+
       '<button onclick="document.getElementById(\'_byo-add-modal\')?.remove()" class="btn" style="flex:1" id="_bya-close">Cancel</button>'+
@@ -2186,7 +2240,7 @@ function _byoAddItem(sec){
     '</div></div>';
   document.body.appendChild(ov);
   ov.addEventListener('click',e=>{if(e.target===ov)ov.remove();});
-  _byaDescHint();
+  _byaDescHint();_byaLineMath();_byaLineMath();
   _byaRenderBook(sec);
   // The search is wired synchronously: the field exists the moment the sheet is
   // in the DOM, and a listener that only attaches 50ms later misses whatever he
@@ -2269,6 +2323,44 @@ function _byaSuggest(sec){
 // flow we measure and ratchet down (CLAUDE.md 12.2), and a field people are
 // forced past gets junk typed into it. It is encouraged, and the price book
 // makes it free from the second job on.
+// Count, unit and rate on one row, with the line total spelled out underneath.
+// ONE block, both modals, same reason the description field is shared: two
+// copies of a money input is two chances for them to disagree.
+//
+// The rate field keeps the id _bya-price. It is the same box it always was and
+// it still holds a per-line number at a quantity of one, so nothing that reads
+// it has to change and every existing test still finds it.
+const _BYA_UNITS=['ea','sq ft','lin ft','hr','day','lot','room','gal'];
+function _byaQtyRateHTML(qty,unit,rate){
+  const q=(Number(qty)>0)?Number(qty):1;
+  return '<div class="f" style="margin-bottom:6px">'+
+    '<label>How many, and what each</label>'+
+    '<div style="display:flex;gap:8px;align-items:center">'+
+      '<input type="text" inputmode="decimal" id="_bya-qty" value="'+q+'" oninput="_byaLineMath()" aria-label="Quantity" '+
+        'style="width:72px;flex-shrink:0;text-align:center;font-weight:700">'+
+      '<select id="_bya-unit" onchange="_byaLineMath()" aria-label="Unit" style="width:96px;flex-shrink:0;font-family:inherit">'+
+        _BYA_UNITS.map(u=>'<option value="'+u+'"'+(u===(unit||'ea')?' selected':'')+'>'+u+'</option>').join('')+
+      '</select>'+
+      '<div class="input-prefix" style="flex:1;min-width:0"><span>$</span>'+
+        '<input type="text" inputmode="numeric" id="_bya-price" value="'+(rate?Number(rate).toLocaleString('en-US'):'')+'" placeholder="0" oninput="_byaFormatPriceInput(this);_byaLineMath()" aria-label="Rate"></div>'+
+    '</div>'+
+    '<div id="_bya-line-total" style="font-size:12px;font-weight:700;color:var(--text3);margin-top:6px;font-variant-numeric:tabular-nums"></div>'+
+  '</div>';
+}
+// The multiply, done out loud. Silent at a quantity of one, where there is no
+// arithmetic to show and a line saying "1 × $95 = $95" is just noise.
+function _byaLineMath(){
+  const el=document.getElementById('_bya-line-total');if(!el)return;
+  const q=parseFloat((document.getElementById('_bya-qty')?.value||'').replace(/,/g,''))||0;
+  const r=_byaPriceValue('_bya-price');
+  const u=document.getElementById('_bya-unit')?.value||'ea';
+  if(!(q>1)||!(r>0)){el.textContent='';return;}
+  const t=_geiCents(q*r);
+  el.textContent=q+' '+u+' × '+((typeof fmt==='function')?fmt(r):'$'+r)+' = '+((typeof fmt==='function')?fmt(t):'$'+t);
+}
+function _byaQtyValue(){const v=parseFloat((document.getElementById('_bya-qty')?.value||'').replace(/,/g,''));return (v>0)?v:1;}
+function _byaUnitValue(){return document.getElementById('_bya-unit')?.value||'ea';}
+
 function _byaDescFieldHTML(val){
   return '<div class="f" style="margin-bottom:6px">'+
     '<label>Description <span style="font-weight:400;color:var(--text3)">, what it consists of</span></label>'+
@@ -2294,7 +2386,7 @@ function _byaAddFromBook(sec,i){
   // The book's own words come with it. This is the whole payoff: the second
   // time he sells a water heater swap, the client's proposal already explains
   // what a water heater swap consists of, and he typed nothing.
-  _byoItems.push({id:nextId,section:sec,label:b.desc,price:b.rate,notes:b.notes||'',on:true});
+  _byoItems.push(_byoNormItem({id:nextId,section:sec,label:b.desc,qty:1,unit:b.unit||'ea',rate:b.rate,price:b.rate,notes:b.notes||'',on:true}));
   _pbLearn(b.desc,b.rate,b.unit);   // used again, so it climbs
   _byoRenderSections();_byoUpdateRail();_byoAutosave();
   // The sheet stays open on purpose: he is usually adding several.
@@ -2312,24 +2404,28 @@ function _byaBumpCount(){
 }
 function _byaConfirm(sec){
   const label=(document.getElementById('_bya-label')?.value||'').trim();
-  const price=_byaPriceValue('_bya-price');
+  const rate=_byaPriceValue('_bya-price');
+  const qty=_byaQtyValue(),unit=_byaUnitValue();
   const notes=(document.getElementById('_bya-notes')?.value||'').trim();
   if(!label)return;
   const nextId=(_byoItems.reduce((m,x)=>Math.max(m,x.id),0))+1;
-  _byoItems.push({id:nextId,section:sec,label,price,notes,on:true});
-  _pbLearn(label,price,null,notes);
+  _byoItems.push(_byoNormItem({id:nextId,section:sec,label,qty,unit,rate,price:qty*rate,notes,on:true}));
+  // THE RATE, never the line total. Handing the book 12 doors' worth of money
+  // and calling it the price of a door is the bug this whole change exists for.
+  _pbLearn(label,rate,unit,notes);
   document.getElementById('_byo-add-modal')?.remove();
   _byoRenderSections();_byoUpdateRail();_byoAutosave();
 }
 function _byaConfirmAndNext(sec){
   // Save current item (if label is filled) then immediately open a fresh modal for same section
   const label=(document.getElementById('_bya-label')?.value||'').trim();
-  const price=_byaPriceValue('_bya-price');
+  const rate=_byaPriceValue('_bya-price');
+  const qty=_byaQtyValue(),unit=_byaUnitValue();
   const notes=(document.getElementById('_bya-notes')?.value||'').trim();
   if(label){
     const nextId=(_byoItems.reduce((m,x)=>Math.max(m,x.id),0))+1;
-    _byoItems.push({id:nextId,section:sec,label,price,notes,on:true});
-    _pbLearn(label,price,null,notes);
+    _byoItems.push(_byoNormItem({id:nextId,section:sec,label,qty,unit,rate,price:qty*rate,notes,on:true}));
+    _pbLearn(label,rate,unit,notes);
     _byoRenderSections();_byoUpdateRail();_byoAutosave();
   }
   // Open next item modal for the same section
@@ -2343,7 +2439,7 @@ function _byoEditItem(idx){
   ov.innerHTML='<div style="background:var(--bg);border-radius:14px;width:100%;max-width:480px;padding:20px 16px 24px;max-height:90vh;overflow-y:auto">'+
     '<div style="font-weight:800;font-size:16px;margin-bottom:16px">Edit item</div>'+
     '<div class="f" style="margin-bottom:10px"><label>Title <span style="font-weight:400;color:var(--text3)">, the client sees this</span></label><input type="text" id="_bya-label" value="'+escHtml(it.label)+'" placeholder="e.g. Bedroom 3, walls only"></div>'+
-    '<div class="f" style="margin-bottom:10px"><label>Price ($)</label><div class="input-prefix"><span>$</span><input type="text" inputmode="numeric" id="_bya-price" value="'+(it.price?Number(it.price).toLocaleString('en-US'):'')+'" placeholder="0" oninput="_byaFormatPriceInput(this)"></div></div>'+
+    _byaQtyRateHTML(it.qty,it.unit,(Number(it.rate)>0?it.rate:it.price))+
     _byaDescFieldHTML(it.notes||'')+
     '<div style="display:flex;gap:10px">'+
       '<button onclick="document.getElementById(\'_byo-add-modal\')?.remove()" class="btn" style="flex:1">Cancel</button>'+
@@ -2367,13 +2463,15 @@ function _byoEditItem(idx){
 function _byaEditConfirm(idx){
   const it=_byoItems[idx];if(!it)return;
   const label=(document.getElementById('_bya-label')?.value||'').trim();
-  const price=_byaPriceValue('_bya-price');
+  const rate=_byaPriceValue('_bya-price');
+  const qty=_byaQtyValue(),unit=_byaUnitValue();
   const notes=(document.getElementById('_bya-notes')?.value||'').trim();
   if(!label)return;
-  it.label=label;it.price=price;it.notes=notes;
+  it.label=label;it.qty=qty;it.unit=unit;it.rate=rate;it.notes=notes;
+  _byoNormItem(it);
   // Editing an item is the other moment he writes the words. Teach the book
   // here too, or a description added on the second pass is lost to the next job.
-  _pbLearn(label,price,null,notes);
+  _pbLearn(label,rate,unit,notes);
   document.getElementById('_byo-add-modal')?.remove();
   _byoRenderSections();_byoUpdateRail();_byoAutosave();
 }
@@ -3359,7 +3457,7 @@ function _pbLearnAll(){
     // meant those two estimate types could never teach the book what their
     // work consists of. An empty one is still harmless: _pbLearn refuses to
     // erase a stored description with a blank.
-    (_byoItems||[]).forEach(i=>_pbLearn(i.label,i.price,null,i.notes));
+    (_byoItems||[]).forEach(i=>_pbLearn(i.label,(Number(i.rate)>0?i.rate:i.price),i.unit,i.notes));
     // Labor lines are the crew rate, not a thing he sells, so they stay out.
     (_geiLines||[]).forEach(l=>{if(!l._tmLabor)_pbLearn(l.desc,l.rate,l.unit,l.notes);});
   }catch(_e){}
@@ -4126,7 +4224,14 @@ async function sendGenericProposal(previewOnly,opts){
       // one-word line ("1. Room") next to fully-described scope items reads as an
       // unfinished document to the client.
       const _fallbackDesc=/material/i.test(sec)?'Included in project total':'Labor and materials per agreed scope';
-      const rows='<ol style="margin:4px 0 0;padding-left:18px">'+its.map(it=>`<li style="font-size:11.5px;color:#4a5568;line-height:1.7;overflow-wrap:anywhere">${escHtml(it.label)}<span style="font-size:10.5px;color:#718096">, ${escHtml(it.notes||_fallbackDesc)}</span></li>`).join('')+'</ol>';
+      // The count is part of the scope, not a pricing detail: "12 doors" and
+      // "1 door" are different jobs and the client should read which one they
+      // agreed to. The RATE stays off the proposal, same one-price rule the
+      // document already follows.
+      const rows='<ol style="margin:4px 0 0;padding-left:18px">'+its.map(it=>{
+        const _q=(Number(it.qty)>1)?` <span style="font-size:10.5px;color:#718096">(${escHtml(String(it.qty))}${it.unit&&it.unit!=='ea'?' '+escHtml(it.unit):''})</span>`:'';
+        return `<li style="font-size:11.5px;color:#4a5568;line-height:1.7;overflow-wrap:anywhere">${escHtml(it.label)}${_q}<span style="font-size:10.5px;color:#718096">, ${escHtml(it.notes||_fallbackDesc)}</span></li>`;
+      }).join('')+'</ol>';
       // Sub-section headers match the document's one header style (accent, same
       // scale as "Scope of work"): the old hardcoded gray read as a different
       // font family entirely and made the section look mismatched.

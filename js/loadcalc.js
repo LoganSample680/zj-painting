@@ -707,7 +707,14 @@ function loadcalcEstimate(input) {
   const coolSensible = (ua * Math.max(0, dtCool) + infilCoolSens + solar +
     occupants * _lcPos(pSens) + _lcPos(appl)) * _lcPos(ductMult);
   const coolLatent = infilCoolLat + occupants * _lcPos(pLat);
-  const coolTotal = coolSensible + coolLatent;
+  // Round the two halves FIRST and add the rounded halves, so the sensible and
+  // latent numbers on screen always add up to the total on screen. Rounding
+  // all three independently puts them out by a BTU, and a contractor reading a
+  // proposal where the parts do not sum to the total is right to stop trusting
+  // the whole page.
+  const coolSensibleR = _lcRound(coolSensible);
+  const coolLatentR = _lcRound(coolLatent);
+  const coolTotal = coolSensibleR + coolLatentR;
 
   // ── Equipment size range ──────────────────────────────────────────────────
   // Cooling: the smallest nominal size that covers the load, and the next one
@@ -750,7 +757,7 @@ function loadcalcEstimate(input) {
   if (tonLow != null) {
     items.push({ label: 'Cooling equipment, ' + tonLow + (tonHigh ? ' to ' + tonHigh : '') + ' ton',
       qty: 1, unit: 'ea',
-      why: 'Estimated cooling load ' + _lcRound(coolTotal).toLocaleString() + ' BTU/h (' + equipment.coolingTonsNeeded + ' ton) at ' + coolDB + ' F outdoor, ' + indoorCool + ' F indoor' });
+      why: 'Estimated cooling load ' + coolTotal.toLocaleString() + ' BTU/h (' + equipment.coolingTonsNeeded + ' ton) at ' + coolDB + ' F outdoor, ' + indoorCool + ' F indoor' });
   }
   if (heatingBtuh > 0) {
     items.push({ label: 'Heating equipment, ' + _lcRound(heatingBtuh).toLocaleString() + ' to ' + _lcRound(heatingBtuh * 1.15).toLocaleString() + ' BTU/h output',
@@ -773,9 +780,9 @@ function loadcalcEstimate(input) {
     unit: 'BTU/h',
     value: {
       heatingBtuh: _lcRound(heatingBtuh),
-      coolingSensibleBtuh: _lcRound(coolSensible),
-      coolingLatentBtuh: _lcRound(coolLatent),
-      coolingTotalBtuh: _lcRound(coolTotal),
+      coolingSensibleBtuh: coolSensibleR,
+      coolingLatentBtuh: coolLatentR,
+      coolingTotalBtuh: coolTotal,
       equipment: equipment
     },
     inputs: {

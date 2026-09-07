@@ -117,6 +117,19 @@ test.describe('a job running long becomes a change order', () => {
     expect(o.isOver, 'guessing a promise would put a number in front of a client no estimate supported').toBe(false);
   });
 
+  test('T&M prices its own crew, and the payroll picker does not outrank it', async () => {
+    await seed({ entries: [{ minutes: 60 }] });
+    const o = await page.evaluate(({ bid, jid }) => {
+      const b = bids.find(x => x.id === bid);
+      // One name assigned in the picker, three men priced into the T&M rate.
+      b.isTM = true; b.tmEstHours = 8; b.tmCrewCount = 3; b.tmRatePerMan = 80;
+      b.estCrew = ['solo@x.com']; b.estHours = 8;
+      return _jobOverrun(jid);
+    }, { bid: OR_BID, jid: OR_JOB });
+    expect(o.estCrew, 'the client agreed to pay for three, not for whoever was assigned').toBe(3);
+    expect(o.rate).toBe(80);
+  });
+
   test('T&M falls back to its own hours and per-man rate', async () => {
     await page.evaluate(({ bid, jid }) => {
       const b = bids.find(x => x.id === bid);
@@ -335,12 +348,18 @@ test.describe('a job running long becomes a change order', () => {
     expect(after, 'nagging him after the conversation happened is how a useful card becomes noise').toBe(false);
   });
 
-  test('the estimate stamps the promise it is later measured against', async () => {
-    const stamped = await page.evaluate(() => {
-      const src = String(_byoAutosave || '');
-      return /b\.estHours\s*=/.test(src) && /b\.estCrewSize\s*=/.test(src);
+  test('every save path stamps the promise, not just the autosave', async () => {
+    const r = await page.evaluate(() => {
+      const auto = String(_byoAutosave || '');
+      const save = String(saveGenericEstimate || '');
+      const has = s => /estHours\s*[:=]/.test(s) && /estCrewSize\s*[:=]/.test(s);
+      // saveGenericEstimate has two branches: editing the pre-created draft
+      // stub, and creating a bid outright. Both have to carry it.
+      return { auto: has(auto), save: has(save), saveBranches: (save.match(/estHours\s*[:=]/g) || []).length };
     });
-    expect(stamped, 'without a stamped promise the comparison drifts as the price book learns').toBe(true);
+    expect(r.auto, 'without a stamped promise the comparison drifts as the price book learns').toBe(true);
+    expect(r.save, 'relying on an autosave having happened first is how a bid reaches a job with nothing to measure it against').toBe(true);
+    expect(r.saveBranches).toBe(2);
   });
 
   test('no console errors across the overrun loop', async () => {

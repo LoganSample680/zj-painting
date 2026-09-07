@@ -3775,6 +3775,12 @@ function saveGenericEstimate(draft){
       b.trade_type=trade;b.deposit=_deposit;b.isFreeForm=_geiIsFreeForm||false;
       b.scopeChips=[..._geiScopeChips];
       b.scopeNoScope=_geiScopeNoScope||false;
+      // The promise, stamped on the deliberate save too, not only on autosave
+      // (_byoAutosave). Relying on an autosave having happened first is how a
+      // bid reaches a job with nothing to measure it against.
+      b.estHours=_estLaborHours();
+      b.estCrew=[..._estCrew];
+      b.estCrewSize=_estCrew.length||1;
       if(_geiIsFreeForm&&_byoItems.length)b.byoItems=JSON.parse(JSON.stringify(_byoItems));
       if(_geiIsFreeForm){b.byoCustomSections=_byoSecsSave;b.byoCustomTerms=_byoTermsSave;}
       if(_panelSched)b.panelSched=JSON.parse(JSON.stringify(_panelSched));else delete b.panelSched;
@@ -3801,6 +3807,7 @@ function saveGenericEstimate(draft){
       geiDuration:v('gei-duration')||'',geiNewWork:_geiNewWork||false,
       scopeChips:[..._geiScopeChips],
       scopeNoScope:_geiScopeNoScope||false,
+      estHours:_estLaborHours(),estCrew:[..._estCrew],estCrewSize:_estCrew.length||1,
       trade_type:trade,...(_panelSched?{panelSched:JSON.parse(JSON.stringify(_panelSched))}:{}),..._tmFields,
     };
     bids.unshift(newBid);_geiEditBidId=newBid.id;saveAll();

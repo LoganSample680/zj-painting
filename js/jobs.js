@@ -100,7 +100,13 @@ function _jobOverrun(jobId){
   if(!j)return null;
   const bid=(j.bid_id&&typeof bids!=='undefined')?bids.find(b=>b.id===j.bid_id):null;
   const estHrs=Math.max(0,Number(bid&&(bid.estHours||bid.tmEstHours))||0);
-  const estCrew=Math.max(1,(bid&&Array.isArray(bid.estCrew)&&bid.estCrew.length)||Number(bid&&bid.tmCrewCount)||1);
+  // T&M PRICES ITS CREW. tmCrewCount is the number the client agreed to pay
+  // for, so it outranks the payroll picker (estCrew), which is who he happened
+  // to assign and can be one name on a three-man T&M job. Everyone else has no
+  // priced crew count, so the picker is the only thing that ever said one.
+  const estCrew=Math.max(1,(bid&&bid.isTM&&Number(bid.tmCrewCount))
+    ||(bid&&Array.isArray(bid.estCrew)&&bid.estCrew.length)
+    ||Number(bid&&bid.tmCrewCount)||1);
   const estDays=Math.max(1,parseInt(j.days)||1);
   const entries=(typeof timeEntries!=='undefined'?timeEntries:[]).filter(e=>e&&e.job_id===jobId&&!e.open);
   const actualHrs=Math.round(entries.reduce((s,e)=>s+(Number(e.minutes)||0),0)/60*100)/100;

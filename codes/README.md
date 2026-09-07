@@ -50,3 +50,22 @@ ever be in. Every edition stays live and selectable forever.
 
 `<family>-<edition>.json`, lowercase: `nec-2023.json`, `ipc-2021.json`,
 `upc-2024.json`.
+
+## Typing the values in
+
+`tools/code-entry.html` is the only thing that should ever write these files.
+Open it in a browser (no server, no build), drop in the dataset, and it walks
+every value the file still needs, one at a time, showing the citation the file's
+own `todo` list names for that value. It never fetches anything and it never
+suggests a number.
+
+Fill what you need and leave the rest. Both rule modules refuse per value
+(`missing-data` in NEC, `missing-value` in IPC and UPC) and name the value they
+wanted, so a partly filled dataset answers the questions it can and stays quiet
+on the ones it cannot. That means you can sign the parts you checked without
+waiting to finish the book.
+
+`tests/e2e-code-entry.spec.js` guards the tool. The case it exists for: box
+sizes are keyed `device-3x2x2.25`, and an earlier build split paths on the dot,
+so it invented thirteen new keys instead of filling the thirteen real ones and
+reported them as done.

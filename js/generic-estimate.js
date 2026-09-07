@@ -1462,7 +1462,12 @@ function _geiItemRowHtml(opts){
         _geiRowActionBtns(editFn,delFn,delTitle)+
       '</div>'+
     '</div>'+
-    (notes?'<div class="byo-meta" style="font-size:11px;color:var(--text-3)">'+escHtml(notes)+'</div>':'')+
+    // A described line shows its words. An undescribed one says so, in the
+    // list, where he can see at a glance which lines will reach the client as
+    // a bare title. Quiet, not red: this is a nudge, not an error.
+    (notes
+      ?'<div class="byo-meta" style="font-size:11px;color:var(--text-3)">'+escHtml(notes)+'</div>'
+      :(editFn?'<div class="byo-meta" style="font-size:11px;color:var(--text3);opacity:.75" onclick="event.stopPropagation();'+editFn+'">+ Add description</div>':''))+
   '</div>';
 }
 function _byoRenderSections(){
@@ -2171,16 +2176,17 @@ function _byoAddItem(sec){
       '<div id="_bya-count" style="font-size:12px;font-weight:700;color:var(--text3)"></div>'+
     '</div>'+
     '<div id="_bya-book"></div>'+
-    '<div class="f" style="margin-bottom:4px"><label>What is it?</label><input type="text" id="_bya-label" placeholder="e.g. Bedroom 3, walls only" autocomplete="off"></div>'+
+    '<div class="f" style="margin-bottom:4px"><label>Title <span style="font-weight:400;color:var(--text3)">, the client sees this</span></label><input type="text" id="_bya-label" placeholder="e.g. Bedroom 3, walls only" autocomplete="off"></div>'+
     '<div id="_bya-sugg" style="margin-bottom:10px"></div>'+
     '<div class="f" style="margin-bottom:10px"><label>Price ($)</label><div class="input-prefix"><span>$</span><input type="text" inputmode="numeric" id="_bya-price" placeholder="0" oninput="_byaFormatPriceInput(this)"></div></div>'+
-    '<div class="f" style="margin-bottom:6px"><label>Notes <span style="font-weight:400;color:var(--text-3)">(optional)</span></label><textarea id="_bya-notes" rows="3" placeholder="e.g. Two coats, ceilings included" style="width:100%;box-sizing:border-box;resize:vertical;font-family:inherit"></textarea></div>'+
+    _byaDescFieldHTML('')+
     '<div style="display:flex;gap:10px;margin-top:14px">'+
       '<button onclick="document.getElementById(\'_byo-add-modal\')?.remove()" class="btn" style="flex:1" id="_bya-close">Cancel</button>'+
       '<button data-sec="'+escHtml(sec)+'" onclick="_byaConfirm(this.dataset.sec)" class="btn btn-p" style="flex:2">Add item</button>'+
     '</div></div>';
   document.body.appendChild(ov);
   ov.addEventListener('click',e=>{if(e.target===ov)ov.remove();});
+  _byaDescHint();
   _byaRenderBook(sec);
   // The search is wired synchronously: the field exists the moment the sheet is
   // in the DOM, and a listener that only attaches 50ms later misses whatever he
@@ -2253,6 +2259,31 @@ function _byaSuggest(sec){
     '</button>';
   }).join('');
 }
+// ONE description field, both modals, so the add and the edit can never drift
+// apart on what it is called or what it says (the two used to disagree on
+// nothing but they were two copies waiting to).
+//
+// It is called Description, not Notes, because Notes reads like something for
+// HIM. It says the client reads it, because that is the fact that gets it
+// filled in. It is NOT required: making it required adds keystrokes to the one
+// flow we measure and ratchet down (CLAUDE.md 12.2), and a field people are
+// forced past gets junk typed into it. It is encouraged, and the price book
+// makes it free from the second job on.
+function _byaDescFieldHTML(val){
+  return '<div class="f" style="margin-bottom:6px">'+
+    '<label>Description <span style="font-weight:400;color:var(--text3)">, what it consists of</span></label>'+
+    '<textarea id="_bya-notes" rows="3" oninput="_byaDescHint()" placeholder="e.g. Two coats, ceilings included, all trim cut in by hand" style="width:100%;box-sizing:border-box;resize:vertical;font-family:inherit">'+escHtml(val||'')+'</textarea>'+
+    '<div id="_bya-desc-hint" style="font-size:11px;color:var(--text3);line-height:1.5;margin-top:4px"></div>'+
+  '</div>';
+}
+// The nudge. Present when the field is empty, gone the moment he writes
+// anything, so it reads as encouragement rather than an error he has to clear.
+function _byaDescHint(){
+  const el=document.getElementById('_bya-desc-hint');if(!el)return;
+  const v=(document.getElementById('_bya-notes')?.value||'').trim();
+  el.innerHTML=v?'':'Worth 10 seconds: a line with no description prints as just its title, and a vague scope is the top reason clients push back on a price.';
+}
+
 function _byaAddFromBook(sec,i){
   const b=_pbList()[i];if(!b)return;
   // Whatever he had half-typed was him looking for THIS, so the field clears
@@ -2260,7 +2291,10 @@ function _byaAddFromBook(sec,i){
   const _l=document.getElementById('_bya-label');if(_l)_l.value='';
   const _sg=document.getElementById('_bya-sugg');if(_sg)_sg.innerHTML='';
   const nextId=(_byoItems.reduce((m,x)=>Math.max(m,x.id),0))+1;
-  _byoItems.push({id:nextId,section:sec,label:b.desc,price:b.rate,notes:'',on:true});
+  // The book's own words come with it. This is the whole payoff: the second
+  // time he sells a water heater swap, the client's proposal already explains
+  // what a water heater swap consists of, and he typed nothing.
+  _byoItems.push({id:nextId,section:sec,label:b.desc,price:b.rate,notes:b.notes||'',on:true});
   _pbLearn(b.desc,b.rate,b.unit);   // used again, so it climbs
   _byoRenderSections();_byoUpdateRail();_byoAutosave();
   // The sheet stays open on purpose: he is usually adding several.
@@ -2283,7 +2317,7 @@ function _byaConfirm(sec){
   if(!label)return;
   const nextId=(_byoItems.reduce((m,x)=>Math.max(m,x.id),0))+1;
   _byoItems.push({id:nextId,section:sec,label,price,notes,on:true});
-  _pbLearn(label,price);
+  _pbLearn(label,price,null,notes);
   document.getElementById('_byo-add-modal')?.remove();
   _byoRenderSections();_byoUpdateRail();_byoAutosave();
 }
@@ -2295,7 +2329,7 @@ function _byaConfirmAndNext(sec){
   if(label){
     const nextId=(_byoItems.reduce((m,x)=>Math.max(m,x.id),0))+1;
     _byoItems.push({id:nextId,section:sec,label,price,notes,on:true});
-    _pbLearn(label,price);
+    _pbLearn(label,price,null,notes);
     _byoRenderSections();_byoUpdateRail();_byoAutosave();
   }
   // Open next item modal for the same section
@@ -2308,15 +2342,16 @@ function _byoEditItem(idx){
   ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9000;display:flex;align-items:center;justify-content:center;padding:16px;box-sizing:border-box';
   ov.innerHTML='<div style="background:var(--bg);border-radius:14px;width:100%;max-width:480px;padding:20px 16px 24px;max-height:90vh;overflow-y:auto">'+
     '<div style="font-weight:800;font-size:16px;margin-bottom:16px">Edit item</div>'+
-    '<div class="f" style="margin-bottom:10px"><label>What is it?</label><input type="text" id="_bya-label" value="'+escHtml(it.label)+'" placeholder="e.g. Bedroom 3, walls only"></div>'+
+    '<div class="f" style="margin-bottom:10px"><label>Title <span style="font-weight:400;color:var(--text3)">, the client sees this</span></label><input type="text" id="_bya-label" value="'+escHtml(it.label)+'" placeholder="e.g. Bedroom 3, walls only"></div>'+
     '<div class="f" style="margin-bottom:10px"><label>Price ($)</label><div class="input-prefix"><span>$</span><input type="text" inputmode="numeric" id="_bya-price" value="'+(it.price?Number(it.price).toLocaleString('en-US'):'')+'" placeholder="0" oninput="_byaFormatPriceInput(this)"></div></div>'+
-    '<div class="f" style="margin-bottom:16px"><label>Notes <span style="font-weight:400;color:var(--text-3)">(optional)</span></label><textarea id="_bya-notes" rows="4" placeholder="e.g. Two coats, ceilings included" style="width:100%;box-sizing:border-box;resize:vertical;font-family:inherit">'+escHtml(it.notes||'')+'</textarea></div>'+
+    _byaDescFieldHTML(it.notes||'')+
     '<div style="display:flex;gap:10px">'+
       '<button onclick="document.getElementById(\'_byo-add-modal\')?.remove()" class="btn" style="flex:1">Cancel</button>'+
       '<button onclick="_byaEditConfirm('+idx+')" class="btn btn-p" style="flex:2">Save changes</button>'+
     '</div></div>';
   document.body.appendChild(ov);
   ov.addEventListener('click',e=>{if(e.target===ov)ov.remove();});
+  _byaDescHint();
   setTimeout(()=>{
     const labelEl=document.getElementById('_bya-label');
     const priceEl=document.getElementById('_bya-price');
@@ -2336,6 +2371,9 @@ function _byaEditConfirm(idx){
   const notes=(document.getElementById('_bya-notes')?.value||'').trim();
   if(!label)return;
   it.label=label;it.price=price;it.notes=notes;
+  // Editing an item is the other moment he writes the words. Teach the book
+  // here too, or a description added on the second pass is lost to the next job.
+  _pbLearn(label,price,null,notes);
   document.getElementById('_byo-add-modal')?.remove();
   _byoRenderSections();_byoUpdateRail();_byoAutosave();
 }
@@ -3258,10 +3296,22 @@ function _pbFind(desc,trade){
   const key=_pbKey(desc);
   return book.find(x=>_pbKey(x.desc)===key)||book.find(x=>_pbSimilar(x.desc,desc)>=0.8)||null;
 }
-function _pbLearn(desc,rate,unit){
+// THE DESCRIPTION IS THE PART THAT SELLS, AND IT WAS THE PART NOBODY TYPED.
+// The book remembered a line's price, unit, count and hours, but never the
+// sentence saying what the work consists of, so that sentence had to be
+// retyped on every estimate forever and it simply never was: the proposal fell
+// back to "Labor and materials per agreed scope", which is the vague scope line
+// homeowners push back on (research 2026-09-07). Remembering it makes the
+// FIRST job the only one he ever types it on.
+//
+// An empty description never erases a stored one. He may add a line in a hurry
+// from the book and fill the words in later, and losing the good sentence
+// because of a fast add would teach him not to trust the field.
+function _pbLearn(desc,rate,unit,notes){
   const d=String(desc||'').trim();
   const r=Number(rate)||0;
   if(!d||d.length<3||r<=0)return;
+  const _n=String(notes||'').trim();
   const trade=_pbTrade();
   if(!S.priceBook||typeof S.priceBook!=='object')S.priceBook={};
   if(!Array.isArray(S.priceBook[trade]))S.priceBook[trade]=[];
@@ -3272,6 +3322,7 @@ function _pbLearn(desc,rate,unit){
     hit.n=(hit.n||1)+1;
     hit.last=todayKey();
     hit.unit=unit||hit.unit||'ea';
+    if(_n)hit.notes=_n;
     // A quarter off the stored price is either a real change or a one-off he
     // does not want remembered, and guessing wrong either freezes an old price
     // or poisons a good one. So ask, once, and only for a line he already uses.
@@ -3288,7 +3339,7 @@ function _pbLearn(desc,rate,unit){
     }
   }else{
     // n:1, remembered but not offered until he uses it again.
-    book.push({desc:d,unit:unit||'ea',rate:r,n:1,last:todayKey()});
+    book.push({desc:d,unit:unit||'ea',rate:r,n:1,last:todayKey(),...(_n?{notes:_n}:{})});
     if(book.length>_PB_MAX){
       // The one-offs go first: never used twice, oldest of those first.
       book.sort((a,b)=>((b.n||1)-(a.n||1))||String(b.last||'').localeCompare(String(a.last||'')));
@@ -4073,6 +4124,25 @@ async function sendGenericProposal(previewOnly,opts){
       return `<div style="margin-bottom:10px"><div style="font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:.1em;color:${_pAccent};margin-bottom:2px">${escHtml(sec)}</div>${rows}</div>`;
     }).join('');
     _scopeBlocks.push(_secBlocks2);
+  }
+  // EVERY ESTIMATE TYPE GETS A SCOPE SECTION, not just BYO. Until now the
+  // section was built from scope chips plus BYO items only, so a T&M or
+  // fixed-scope proposal with no chips selected printed NO description of the
+  // work at all: the client got a price table and nothing saying what they were
+  // buying. The lines are already there and already carry a title and a
+  // description (owner 2026-09-07: "scope of work pulls from title and the
+  // description"), so they say it here in words, priced rows stay in the table
+  // below where they belong.
+  if(!_geiIsFreeForm&&!_geiScopeNoScope){
+    const _lineScope=(_geiLines||[]).filter(l=>l&&!l._tmLabor&&!l._rrp&&String(l.desc||'').trim()
+      &&!_chipsToPrint.some(c=>_pbKey(c)===_pbKey(l.desc)));
+    if(_lineScope.length){
+      const _rows='<ol style="margin:0 0 10px;padding-left:18px">'+_lineScope.map(l=>{
+        const d=String(l.notes||'').trim();
+        return `<li style="font-size:11.5px;color:#4a5568;line-height:1.7;overflow-wrap:anywhere">${escHtml(l.desc)}${d?`<span style="font-size:10.5px;color:#718096">, ${escHtml(d)}</span>`:''}</li>`;
+      }).join('')+'</ol>';
+      _scopeBlocks.push(_rows);
+    }
   }
   const _scopeSection=_scopeBlocks.length
     ?`<div style="padding:14px 18px 6px;border-bottom:1px solid #e2e8f0;background:#f8fafc"><div style="font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:.1em;color:${_pAccent};margin-bottom:10px">Scope of work</div>${_scopeBlocks.join('')}</div>`

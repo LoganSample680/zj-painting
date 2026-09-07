@@ -279,6 +279,27 @@
     return null;
   }
 
+  // One refusal ladder for both totals, in severity order. A total is all or
+  // nothing: there is no partial answer here, because a total missing one
+  // fixture is indistinguishable from a correct one.
+  function _tallyRefusal(FAM, data, citeKey, t, cite, assumed) {
+    if (t.badQty.length) {
+      return { ok: false, reason: 'bad-input', value: null, cite: cite, assumed: assumed,
+        warnings: ['These have a count that is not a positive number: ' + t.badQty.join(', ') + '.'] };
+    }
+    if (t.ambiguous.length) {
+      return { ok: false, reason: 'ambiguous-fixture', value: null, cite: cite, assumed: assumed,
+        warnings: ['These name more than one fixture and they do not carry the same load: ' + t.ambiguous.join('; ')] };
+    }
+    if (t.unknown.length) {
+      return { ok: false, reason: 'unknown-fixture', value: null, cite: cite, assumed: assumed,
+        warnings: ['Not in the ' + FAM.toUpperCase() + ' fixture table: ' + t.unknown.join(', ') +
+          '. An unlisted fixture is sized off its trap, which needs the trap size.'] };
+    }
+    if (t.unvalued.length) return _missing(data, citeKey, t.unvalued.join(', '), assumed);
+    return null;
+  }
+
   function _missing(data, citeKey, what, assumed) {
     return {
       ok: false, reason: 'missing-value', value: null,
@@ -530,38 +551,22 @@
           warnings: ['List the fixtures before this can total anything.'] };
       }
 
-      const unknown = [], ambiguous = [], unvalued = [];
-      let total = 0, counted = 0;
-      list.forEach(function (f) {
-        const k = _fixtureKey(f.raw, data);
-        if (k.ambiguous) { ambiguous.push(String(f.raw) + ' (say which: ' + k.ambiguous.join(', ') + ')'); return; }
-        if (!k.key) { unknown.push(String(f.raw)); return; }
-        const rec = data.fixtures[k.key];
-        const v = _num(rec && rec.wsfu && rec.wsfu[use] && rec.wsfu[use][which]);
-        if (v == null) { unvalued.push((rec && rec.label) || k.key); return; }
-        total += v * f.qty;
-        counted += f.qty;
+      const t = _tally(list, data, function (rec) {
+        return rec && rec.wsfu && rec.wsfu[use] && rec.wsfu[use][which];
       });
 
       if (flow > 0) {
         const per = _num(data.water && data.water.continuousFlowWsfuPerGpm);
-        if (per == null) unvalued.push('continuous flow, supply fixture units per gpm');
-        else total += flow * per;
+        if (per == null) t.unvalued.push('continuous flow, supply fixture units per gpm');
+        else t.total += flow * per;
       }
 
-      if (ambiguous.length) {
-        return { ok: false, reason: 'ambiguous-fixture', value: null, cite: cite, assumed: assumed,
-          warnings: ['These name more than one fixture and they do not carry the same load: ' + ambiguous.join('; ')] };
-      }
-      if (unknown.length) {
-        return { ok: false, reason: 'unknown-fixture', value: null, cite: cite, assumed: assumed,
-          warnings: ['Not in the ' + FAM.toUpperCase() + ' fixture table: ' + unknown.join(', ') + '.'] };
-      }
-      if (unvalued.length) return _missing(data, 'wsfu-total', unvalued.join(', '), assumed);
+      const stop = _tallyRefusal(FAM, data, 'wsfu-total', t, cite, assumed);
+      if (stop) return stop;
 
       return {
-        ok: true, value: _tidy(total), unit: 'wsfu', cite: cite, assumed: assumed, warnings: warnings,
-        inputs: { use: use, which: which, fixtureCount: counted, codeFamily: data.family },
+        ok: true, value: _tidy(t.total), unit: 'wsfu', cite: cite, assumed: assumed, warnings: warnings,
+        inputs: { use: use, which: which, fixtureCount: t.counted, codeFamily: data.family },
         items: []
       };
     }

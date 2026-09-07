@@ -65,15 +65,15 @@
     "note": "HAND-DERIVED, not yet live-confirmed (written 2026-08-19, no network/creds/Playwright available in the authoring sandbox to actually run it, see CLAUDE.md \u00a712.3: act() returns are deterministic so this is legitimate without a live run). Breakdown: open client 1 + New proposal 1 + Build Your Own card 1 + back out (abandon empty draft) 1 + TrueBid card 1 = 5, real-map check 0, force Area mode 1 + 4 map-trace taps 4 = 5, open confirm screen 1, type 20-char description + Add to estimate 1 = 21. Correct this to the exact CI-reported number on the first real green run (tap()/type() can add +1 each for an unanticipated scroll)."
   },
   "estimate-build/byo-send": {
-    "clicks": 161,
-    "note": "First live capture 2026-09-07 (self-hosted flow-local, real Supabase). IDENTICAL on chromium and webkit, so the gate is engine-independent. Breakdown: open the estimator for a client 50 + add a Materials item and an Interior item 110 + send 1. Read the 50: 48 of it is TYPING the client name and address, because the flow creates a fresh client every run; a contractor picking an existing client pays 2. Same inside the 110, which is two item labels typed key by key. Navigation is already cheap here and typing is the entire bill, which is why the price book (descriptions, prices, hours) is the streamline lever and moving buttons is not."
+    "clicks": 113,
+    "note": "Re-measured 2026-09-07 after the entry-cost correction; chromium and webkit identical. Breakdown: open 2 + add a Materials item and an Interior item 110 + send 1. NOT an improvement: the previous 161 charged this flow 48 keystrokes for typing a brand-new client's name and address into the estimator, which is client-record work the intake flow already measures and which a contractor opening an estimate on an existing client never types. Opening is two taps, + New estimate then the type card, and both estimate types pay exactly those two (one shared _geiOpenModeEstimate; mode is the only difference). The remaining 110 is two item labels and their descriptions typed key by key, which is the real streamline target and what the price book eats into."
   },
   "generic-send/tm": {
-    "clicks": 27,
-    "note": "First live capture 2026-09-07 (self-hosted flow-local, real Supabase), identical chromium and webkit. Breakdown: open 1 + crew 1 + rate 2 + hours 2 + add line 1 + description 16 + price 3 + send 1. SIXTEEN of the twenty-seven are typing one material description. The T&M form itself costs ten."
+    "clicks": 28,
+    "note": "Re-measured 2026-09-07, chromium and webkit identical. Breakdown: open 2 + crew 1 + rate 2 + hours 2 + add line 1 + description 16 + price 3 + send 1. Raised from 27 by ONE, a correction not a regression: opening was counted as a single tap here while the BYO flow counted two, and the door is the same two taps for both types. SIXTEEN of the twenty-eight are typing one material description, so the T&M form itself costs twelve."
   },
   "generic-send/byo": {
-    "clicks": 114,
-    "note": "First live capture 2026-09-07 (self-hosted flow-local, real Supabase), identical chromium and webkit. Breakdown: open 1 + Materials item (tap 1 + label 36 + price 3 + notes 11 + confirm 1) + Interior item (tap 1 + label 38 + price 4 + notes 16 + confirm 1) + send 1. 101 of the 114 are keystrokes in two item labels and their descriptions. The ratchet on this flow comes from the book filling those in, not from removing taps."
+    "clicks": 115,
+    "note": "Re-measured 2026-09-07, chromium and webkit identical. Breakdown: open 2 + Materials item (tap 1 + label 36 + price 3 + description 11 + confirm 1) + Interior item (tap 1 + label 38 + price 4 + description 16 + confirm 1) + send 1. Raised from 114 by ONE for the same entry-cost correction as generic-send/tm. 101 of the 115 are keystrokes in two item labels and their descriptions: the ratchet on this flow comes from the book filling those in, not from removing taps."
   }
 }

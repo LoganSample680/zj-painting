@@ -113,6 +113,55 @@ test.describe('the description the client reads', () => {
     expect(r.edit, 'a description written on the second pass must not be lost to the next job').toContain('pit cleaned out');
   });
 
+  test('the smarts reach every estimate type, not just BYO', async () => {
+    const r = await page.evaluate(() => {
+      // T&M / fixed-scope lines carry notes too, and used to teach the book
+      // nothing: only BYO's own modal ever passed a description through.
+      _byoItems = [{ id: 1, section: 'Work', label: 'Cabinet doors', price: 900, notes: 'Sprayed, two coats, hardware off and back on', on: true }];
+      _geiLines = [
+        { desc: 'Paint and primer', notes: 'Sherwin-Williams Duration, tinted to the approved color', qty: 1, unit: 'lot', rate: 420, total: 420 },
+        { desc: 'Crew labor', qty: 16, unit: 'hr', rate: 130, total: 2080, _tmLabor: true }
+      ];
+      _pbLearnAll();
+      const book = S.priceBook[_pbTrade()] || [];
+      return {
+        byo: (book.find(b => b.desc === 'Cabinet doors') || {}).notes,
+        tm: (book.find(b => b.desc === 'Paint and primer') || {}).notes,
+        labor: !!book.find(b => b.desc === 'Crew labor')
+      };
+    });
+    expect(r.byo).toContain('hardware off and back on');
+    expect(r.tm, 'a T&M category described once must arrive described on the next job').toContain('Sherwin-Williams Duration');
+    expect(r.labor, 'the crew rate is not a thing he sells').toBe(false);
+  });
+
+  test('the T&M material modal teaches the book too', async () => {
+    const notes = await page.evaluate(() => {
+      _geiLines = [];
+      _tmAddMatCat();
+      document.getElementById('tcm-name').value = 'Drop cloths and masking';
+      document.getElementById('tcm-cost').value = '85';
+      document.getElementById('tcm-notes').value = 'Canvas on every floor, plastic on the fixtures';
+      _tmMatCatSave(-1);
+      const e = _pbFind('Drop cloths and masking', _pbTrade());
+      document.getElementById('_tm-mat-modal')?.remove();
+      return e && e.notes;
+    });
+    expect(notes).toContain('Canvas on every floor');
+  });
+
+  test('the T&M modal calls it a Description the client reads', async () => {
+    const t = await page.evaluate(() => {
+      _tmAddMatCat();
+      const s = document.getElementById('_tm-mat-modal').textContent;
+      document.getElementById('_tm-mat-modal')?.remove();
+      return s;
+    });
+    expect(t).toContain('what it consists of');
+    expect(t).toContain('The client reads this');
+    expect(t).not.toContain('(optional)');
+  });
+
   // ── 3. It says whose it is, and nudges ─────────────────────────────────────
 
   test('the field is a Description the client sees, not private Notes', async () => {

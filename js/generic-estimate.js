@@ -2620,8 +2620,8 @@ function _tmMatCatModal(idx){
     '<div style="font-weight:800;font-size:16px;color:var(--text);margin-bottom:16px">'+(isEdit?'Edit category':'Add material category')+'</div>'+
     '<div class="f" style="margin-bottom:10px"><label>Category name</label><input type="text" id="tcm-name" placeholder="e.g. Paint &amp; primer" value="'+escHtml(l?.desc||'')+'" style="font-size:15px"></div>'+
     '<div class="f" style="margin-bottom:10px"><label>Estimated cost ($)</label><div class="input-prefix"><span>$</span><input type="number" id="tcm-cost" min="0" step="10" placeholder="0" value="'+(cur||'')+'" inputmode="decimal"></div></div>'+
-    '<div class="f" style="margin-bottom:6px"><label>Notes <span style="font-weight:400;color:var(--text3)">(optional)</span></label><textarea id="tcm-notes" rows="3" placeholder="Brand, product type, etc." style="width:100%;box-sizing:border-box;resize:vertical;font-family:inherit">'+escHtml(l?.notes||'')+'</textarea></div>'+
-    '<div style="font-size:11px;color:var(--text3);margin-bottom:14px">Tab from Notes to save</div>'+
+    '<div class="f" style="margin-bottom:6px"><label>Description <span style="font-weight:400;color:var(--text3)">, what it consists of</span></label><textarea id="tcm-notes" rows="3" placeholder="e.g. Sherwin-Williams Duration, two coats, tinted to the approved color" style="width:100%;box-sizing:border-box;resize:vertical;font-family:inherit">'+escHtml(l?.notes||'')+'</textarea></div>'+
+    '<div style="font-size:11px;color:var(--text3);margin-bottom:14px">The client reads this on the proposal. Tab from here to save.</div>'+
     '<div style="display:flex;gap:10px">'+
       '<button onclick="document.getElementById(\'_tm-mat-modal\')?.remove()" class="btn" style="flex:1">Cancel</button>'+
       '<button onclick="_tmMatCatSave('+idx+')" class="btn btn-p" style="flex:2">'+(isEdit?'Save changes':'Add category')+'</button>'+
@@ -2664,6 +2664,9 @@ function _tmMatCatSave(idx){
   } else {
     _geiLines.push({desc:name,notes,qty:1,unit:'lot',rate:cost,total:cost});
   }
+  // Same moment BYO's modal teaches the book, so a T&M category he describes
+  // once arrives already described on the next job.
+  _pbLearn(name,cost,'lot',notes);
   document.getElementById('_tm-mat-modal')?.remove();
   _tmRenderMatList();_tmInputChange();
 }
@@ -3350,9 +3353,15 @@ function _pbLearn(desc,rate,unit,notes){
 }
 function _pbLearnAll(){
   try{
-    (_byoItems||[]).forEach(i=>_pbLearn(i.label,i.price));
+    // The DESCRIPTION rides along on every save, or the smarts only reach the
+    // one path whose modal happens to pass it. T&M material categories and
+    // fixed-scope lines carry notes too (tcm-notes), and dropping them here
+    // meant those two estimate types could never teach the book what their
+    // work consists of. An empty one is still harmless: _pbLearn refuses to
+    // erase a stored description with a blank.
+    (_byoItems||[]).forEach(i=>_pbLearn(i.label,i.price,null,i.notes));
     // Labor lines are the crew rate, not a thing he sells, so they stay out.
-    (_geiLines||[]).forEach(l=>{if(!l._tmLabor)_pbLearn(l.desc,l.rate,l.unit);});
+    (_geiLines||[]).forEach(l=>{if(!l._tmLabor)_pbLearn(l.desc,l.rate,l.unit,l.notes);});
   }catch(_e){}
 }
 

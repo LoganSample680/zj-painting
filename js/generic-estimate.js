@@ -1620,6 +1620,111 @@ function _geiItemRowHtml(opts){
       :(editFn?'<div class="byo-meta" style="font-size:11px;color:var(--text3);opacity:.75" onclick="event.stopPropagation();'+editFn+'">+ Add description</div>':''))+
   '</div>';
 }
+// ── Start from what he already sells ────────────────────────────────────────
+//
+// 78% of homeowners hire whoever answers first, and a text inside a minute
+// books 73% of the time against 4% after half an hour. The proposal document
+// cannot win that race; only the clock can. Everything else in the estimate is
+// already free (the name writes itself, the scope comes from the lines, the
+// exclusions are presets, the description comes back out of the book), so the
+// last expensive thing left is naming the six lines he sells on every job of
+// this kind. He has already typed them, on every previous bid.
+//
+// Two ways in, because they answer two different questions:
+//   "Same as last time" -> the lines from his most recent proposal for this
+//     trade. The right answer when this job is like the last one.
+//   "What you always sell" -> the lines that appear in MOST of his bids for
+//     this trade, which is the package he does not think about any more.
+//
+// Derived at render time from bids he already has. No new store, no catalog to
+// maintain, no migration, and it is his own history so it can never suggest
+// work he does not do.
+const _PKG_MIN_BIDS=3;      // below this there is no "usually", only a last time
+const _PKG_SHARE=0.5;       // in at least half his bids to count as usual
+function _pkgBidLines(b){
+  const out=[];
+  if(Array.isArray(b&&b.byoItems))b.byoItems.forEach(it=>{if(it&&it.on!==false&&!it._rrp&&it.label)out.push({label:String(it.label).trim(),unit:it.unit||'',rate:Number(it.rate)>0?Number(it.rate):Number(it.price)||0,notes:it.notes||''});});
+  if(!out.length&&Array.isArray(b&&b.geiLines))b.geiLines.forEach(l=>{if(l&&!l._tmLabor&&!l._rrp&&l.desc)out.push({label:String(l.desc).trim(),unit:l.unit||'',rate:Number(l.rate)||0,notes:l.notes||''});});
+  return out;
+}
+// His own bids for this trade, newest first, drafts and empties excluded: a
+// blank stub is not a job he sold.
+function _pkgHistory(trade){
+  const t=trade||_geiTrade||(typeof getActiveTrade==='function'?getActiveTrade():'general');
+  if(typeof bids==='undefined')return [];
+  return bids.filter(b=>b&&!b.cancelledAt&&(b.trade_type||'general')===t&&b.id!==_geiEditBidId&&_pkgBidLines(b).length)
+    .sort((a,b)=>String(b.bid_date||'').localeCompare(String(a.bid_date||''))||(b.id-a.id));
+}
+function _pkgSuggestions(trade){
+  const hist=_pkgHistory(trade);
+  const out=[];
+  if(!hist.length)return out;
+  const last=_pkgBidLines(hist[0]);
+  if(last.length)out.push({key:'last',label:'Same as last time',sub:last.length+' line'+(last.length===1?'':'s')+' from '+(hist[0].bid_date||'your last one'),lines:last});
+  if(hist.length>=_PKG_MIN_BIDS){
+    const seen=new Map();
+    hist.forEach(b=>{
+      const once=new Set();
+      _pkgBidLines(b).forEach(l=>{
+        const k=_pbKey(l.label);
+        if(!k||once.has(k))return;
+        once.add(k);
+        const e=seen.get(k)||{n:0,l};
+        e.n++;e.l=e.l||l;
+        seen.set(k,e);
+      });
+    });
+    const usual=[...seen.values()].filter(e=>e.n/hist.length>=_PKG_SHARE)
+      .sort((a,b)=>b.n-a.n).map(e=>e.l);
+    // Only worth offering when it is genuinely a package and genuinely
+    // different from the last job, or it is the same button twice.
+    const lastKeys=new Set(last.map(l=>_pbKey(l.label)));
+    const differs=usual.some(l=>!lastKeys.has(_pbKey(l.label)))||usual.length!==last.length;
+    if(usual.length>=2&&differs)out.push({key:'usual',label:'What you always sell',sub:usual.length+' line'+(usual.length===1?'':'s')+' on most of your '+hist.length+' jobs',lines:usual});
+  }
+  return out;
+}
+// Drop the package in. The BOOK is the source of price and words wherever it
+// knows the line, so a package carries his current rate and his current
+// description, not whatever they were on the job he copied from.
+function _pkgApply(key){
+  const pick=_pkgSuggestions().find(x=>x.key===key);
+  if(!pick)return;
+  const secs=_byoSections();
+  const defSec=secs[0]||'Work';
+  let nid=(_byoItems.reduce((m,x)=>Math.max(m,x.id||0),0))+1;
+  pick.lines.forEach(l=>{
+    if(_byoItems.some(x=>_pbKey(x.label)===_pbKey(l.label)))return;   // never double up
+    const bk=(typeof _pbFind==='function')?_pbFind(l.label,_pbTrade()):null;
+    const rate=(bk&&Number(bk.rate)>0)?bk.rate:l.rate;
+    const sec=(/material/i.test(l.label)&&secs.find(x=>/material/i.test(x)))||defSec;
+    _byoItems.push(_byoNormItem({id:nid++,section:sec,label:l.label,qty:1,
+      unit:(bk&&bk.unit)||l.unit||'ea',rate,price:rate,
+      notes:(bk&&bk.notes)||l.notes||'',on:true}));
+  });
+  _byoRenderSections();_byoUpdateRail();_byoAutosave();
+  if(typeof showToast==='function')showToast(pick.label+' added, adjust the counts','⚡');
+}
+function _pkgCardHTML(){
+  if(_byoItems.some(x=>x&&!x._rrp))return '';   // only on an empty estimate
+  const sugg=_pkgSuggestions();
+  if(!sugg.length)return '';
+  return '<div class="card card-pad-0" style="margin-bottom:12px;box-shadow:var(--shadow-card),inset 3px 0 0 var(--blue)">'+
+    '<div class="card-hd"><div class="card-hd-title">'+svgIcon('⚡',{size:14})+' Start from what you sell</div></div>'+
+    '<div style="padding:12px 14px">'+
+      '<div style="font-size:11px;color:var(--text-3);margin-bottom:10px;line-height:1.5">Your own lines, at your current prices, already described. Adjust the counts and send.</div>'+
+      sugg.map(x=>'<button onclick="_pkgApply('+escHtml(JSON.stringify(x.key))+')" '+
+        'style="width:100%;display:flex;align-items:center;justify-content:space-between;gap:10px;padding:12px 14px;border-radius:var(--r);border:1.5px solid var(--border2);background:var(--bg2);cursor:pointer;font-family:inherit;text-align:left;margin-bottom:8px;min-height:52px">'+
+        '<div style="min-width:0">'+
+          '<div style="font-size:13px;font-weight:800;color:var(--text)">'+escHtml(x.label)+'</div>'+
+          '<div style="font-size:11px;color:var(--text3);margin-top:2px">'+escHtml(x.sub)+'</div>'+
+        '</div>'+
+        '<span style="font-size:13px;font-weight:800;color:var(--blue);flex-shrink:0">Use →</span>'+
+      '</button>').join('')+
+    '</div>'+
+  '</div>';
+}
+
 function _byoRenderSections(){
   _injectRrpItems();
   _byoNormAll();
@@ -1661,7 +1766,10 @@ function _byoRenderSections(){
         'style="width:100%;padding:10px 12px;border:1.5px solid var(--border2);border-radius:var(--r);font-size:13px;font-family:inherit;background:var(--bg2);color:var(--text);resize:vertical;box-sizing:border-box;line-height:1.5">'+escHtml(_byoCustomTerms||'')+'</textarea>'+
     '</div>'+
   '</div>';
-  wrap.innerHTML=secHtml+addSecBtn+tcCard;
+  // The package card sits ABOVE the sections and only on an empty estimate: it
+  // is the fastest way in, and once there is a line on the bid it has done its
+  // job and gets out of the way.
+  wrap.innerHTML=_pkgCardHTML()+secHtml+addSecBtn+tcCard;
 }
 function _byoToggle(idx){
   if(_byoItems[idx]&&!_byoItems[idx].required){_byoItems[idx].on=!_byoItems[idx].on;_byoRenderSections();_byoUpdateRail();_byoAutosave();}

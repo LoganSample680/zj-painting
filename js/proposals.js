@@ -1360,8 +1360,12 @@ function openOverrunCO(jobId,clientId){
   _coOverrun={addedHours:o.overHrs,addedCrew:o.extraCrew,addedDays:o.extraDays,
     estHours:o.estHrs,actualHours:o.actualHrs,estCrew:o.estCrew,actualCrew:o.actualCrew,
     estDays:o.estDays,actualDays:o.actualDays,rate:o.rate,jobId};
+  // Deliberately SHORT. The document prints estimated beside actual right
+  // below this (_coOverrunHTML), so restating the same three numbers in prose
+  // reads like padding, and a near-empty line is the invitation for him to
+  // type the real reason the job grew.
   const d=document.getElementById('co-desc');
-  if(d)d.value=(typeof _overrunText==='function'?_overrunText(o):'')||'Job ran beyond the estimate';
+  if(d)d.value='Work beyond the original estimate.';
   setCOType('add',bidId);
   const a=document.getElementById('co-amount');
   // _moneyStr is the app's own pre-fill format for a money input (utils.js),

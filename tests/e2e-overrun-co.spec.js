@@ -165,6 +165,22 @@ test.describe('a job running long becomes a change order', () => {
 
   // ── 3. The sentence ────────────────────────────────────────────────────────
 
+  test('_overrunText(o,true) drops the hours a headline already said', async () => {
+    await seed({ days: 1, entries: [
+      { minutes: 720, by: 'u1', date: '2026-06-05' },
+      { minutes: 720, by: 'u2', date: '2026-06-05' },
+      { minutes: 120, by: 'u3', date: '2026-06-06' }
+    ] });
+    const r = await page.evaluate(j => {
+      const o = _jobOverrun(j);
+      return { full: _overrunText(o), trimmed: _overrunText(o, true) };
+    }, OR_JOB);
+    expect(r.full).toContain('beyond the 8 hrs estimated');
+    expect(r.trimmed, 'the card headline already says the hours').not.toContain('estimated');
+    expect(r.trimmed).toContain('1 more person on site than priced');
+    expect(r.trimmed).toContain('1 extra day on site');
+  });
+
   test('_overrunText names only what actually moved', async () => {
     await seed({ days: 1, entries: [
       { minutes: 360, by: 'u1', date: '2026-06-05' },
@@ -207,9 +223,7 @@ test.describe('a job running long becomes a change order', () => {
       };
     }, { jid: OR_JOB, cid: OR_CLIENT });
     expect(r.opened).toBe(true);
-    expect(r.desc).toContain('beyond the 8 hrs estimated');
-    expect(r.desc).toContain('1 more person on site than priced (3 vs 2)');
-    expect(r.desc).toContain('extra day on site');
+    expect(r.desc, 'the document prints the numbers, prose repeating them is padding').toBe('Work beyond the original estimate.');
     expect(r.amount, '8 hrs over at $60 = $480, typed by nobody').toBe(480);
     expect(r.amountShown).toBe('480.00');
     expect(r.preview).toContain('2,480');

@@ -128,12 +128,13 @@ function _jobOverrun(jobId){
   };
 }
 
-// One line a contractor can read at a glance, and the same sentence that
-// pre-fills the change order's description so he never retypes it.
-function _overrunText(o){
+// One line a contractor can read at a glance. omitHours drops the hours clause
+// for a surface whose headline already said it, so the card does not tell him
+// the same number twice.
+function _overrunText(o,omitHours){
   if(!o)return '';
   const bits=[];
-  if(o.overHrs>0)bits.push(_fmtHrsShort(o.overHrs)+' beyond the '+_fmtHrsShort(o.estHrs)+' estimated');
+  if(o.overHrs>0&&!omitHours)bits.push(_fmtHrsShort(o.overHrs)+' beyond the '+_fmtHrsShort(o.estHrs)+' estimated');
   if(o.extraCrew>0)bits.push(o.extraCrew+' more '+(o.extraCrew===1?'person':'people')+' on site than priced ('+o.actualCrew+' vs '+o.estCrew+')');
   if(o.extraDays>0)bits.push(o.extraDays+' extra '+(o.extraDays===1?'day':'days')+' on site ('+o.actualDays+' vs '+o.estDays+' booked)');
   return bits.join(', ');
@@ -1509,9 +1510,9 @@ function openJobSheet(clientId){
           '<div style="font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.06em;color:var(--text3);margin-bottom:8px">'+svgIcon('⚠')+' Running long</div>'+
           '<div style="background:var(--amber-lt);border:1px solid var(--amber);border-radius:var(--r);padding:12px 14px">'+
             '<div style="font-size:14px;font-weight:800;color:#92400E;margin-bottom:4px">'+_fmtHrsShort(_or.overHrs)+' past the estimate'+(_or.overPct>0?' ('+_or.overPct+'% over)':'')+'</div>'+
-            '<div style="font-size:12px;color:#92400E;line-height:1.5;margin-bottom:10px">'+escHtml(_overrunText(_or))+'</div>'+
+            (_overrunText(_or,true)?'<div style="font-size:12px;color:#92400E;line-height:1.5;margin-bottom:10px">'+escHtml(_overrunText(_or,true))+'</div>':'')+
             (_or.suggested>0?'<div style="font-size:12px;color:#92400E;margin-bottom:10px">Suggested change order: <strong>'+fmt(_or.suggested)+'</strong> at $'+_or.rate+'/hr</div>':'')+
-            '<button onclick="this.closest(\'.zmodal-overlay\').remove();openOverrunCO('+_orJob.id+','+clientId+')" style="width:100%;padding:11px;border-radius:var(--r);border:none;background:var(--amber);color:#3d2a00;font-size:13px;font-weight:800;cursor:pointer;font-family:inherit;min-height:44px">Write the change order →</button>'+
+            '<button onclick="this.closest(\'.zmodal-overlay\').remove();openOverrunCO('+_orJob.id+','+clientId+')" style="width:100%;padding:11px;border-radius:var(--r);border:none;background:var(--blue);color:#fff;font-size:13px;font-weight:800;cursor:pointer;font-family:inherit;min-height:44px">Write the change order →</button>'+
           '</div>'+
         '</div>';
   }

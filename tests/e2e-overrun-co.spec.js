@@ -130,20 +130,57 @@ test.describe('a job running long becomes a change order', () => {
     expect(o.rate).toBe(80);
   });
 
-  test('T&M falls back to its own hours and per-man rate', async () => {
+  // The clock sums everybody's minutes, so the promise has to be in man-hours
+  // too. T&M's tmEstHours is DURATION (days x 8; labor = crew x rate x hours),
+  // so it needs the crew multiply. Comparing 10 against a 2-man crew's 20
+  // man-hours reported ten hours of overrun on a job that finished exactly on
+  // plan, and billed the client for it.
+  test('T&M hours are duration and get multiplied by the priced crew', async () => {
     await page.evaluate(({ bid, jid }) => {
       const b = bids.find(x => x.id === bid);
       delete b.estHours; delete b.estCrew;
       b.isTM = true; b.tmEstHours = 10; b.tmCrewCount = 2; b.tmRatePerMan = 95;
-      timeEntries = timeEntries.filter(e => e.job_id !== jid)
-        .concat([{ id: 871000, job_id: jid, date: '2026-06-05', minutes: 720, logged_by_uid: 'u1', open: false }]);
+      // Two people, ten hours each: exactly what was sold.
+      timeEntries = timeEntries.filter(e => e.job_id !== jid).concat([
+        { id: 871000, job_id: jid, date: '2026-06-05', minutes: 600, logged_by_uid: 'u1', open: false },
+        { id: 871001, job_id: jid, date: '2026-06-05', minutes: 600, logged_by_uid: 'u2', open: false }
+      ]);
     }, { bid: OR_BID, jid: OR_JOB });
     const o = await page.evaluate(j => _jobOverrun(j), OR_JOB);
-    expect(o.estHrs).toBe(10);
+    expect(o.estHrs, '10 hours with a crew of two is 20 man-hours').toBe(20);
     expect(o.estCrew).toBe(2);
     expect(o.rate).toBe(95);
-    expect(o.overHrs).toBe(2);
-    expect(o.suggested).toBe(190);
+    expect(o.actualHrs).toBe(20);
+    expect(o.overHrs, 'a job that finished exactly on plan is not over').toBe(0);
+    expect(o.isOver).toBe(false);
+    expect(o.suggested).toBe(0);
+  });
+
+  test('a T&M job that really does run over still trips, at the right number', async () => {
+    await page.evaluate(({ bid, jid }) => {
+      const b = bids.find(x => x.id === bid);
+      delete b.estHours; delete b.estCrew;
+      b.isTM = true; b.tmEstHours = 10; b.tmCrewCount = 2; b.tmRatePerMan = 95;
+      timeEntries = timeEntries.filter(e => e.job_id !== jid).concat([
+        { id: 871100, job_id: jid, date: '2026-06-05', minutes: 780, logged_by_uid: 'u1', open: false },
+        { id: 871101, job_id: jid, date: '2026-06-05', minutes: 780, logged_by_uid: 'u2', open: false }
+      ]);
+    }, { bid: OR_BID, jid: OR_JOB });
+    const o = await page.evaluate(j => _jobOverrun(j), OR_JOB);
+    expect(o.actualHrs).toBe(26);
+    expect(o.overHrs, '26 man-hours against 20 promised').toBe(6);
+    expect(o.suggested).toBe(570);
+  });
+
+  test('a fixed-price bid already promises in man-hours and is not multiplied', async () => {
+    await seed({ estHours: 8, estCrew: ['a@x.com', 'b@x.com'], entries: [
+      { minutes: 360, by: 'u1' }, { minutes: 360, by: 'u2' }
+    ] });
+    const o = await page.evaluate(j => _jobOverrun(j), OR_JOB);
+    expect(o.estHrs, 'estHours is summed from clock-learned history, so it is already man-hours').toBe(8);
+    expect(o.estCrew).toBe(2);
+    expect(o.actualHrs).toBe(12);
+    expect(o.overHrs).toBe(4);
   });
 
   // ── 2. What it refuses to count ────────────────────────────────────────────

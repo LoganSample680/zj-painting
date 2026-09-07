@@ -99,7 +99,6 @@ function _jobOverrun(jobId){
   const j=(typeof jobs!=='undefined'?jobs:[]).find(x=>x.id===jobId);
   if(!j)return null;
   const bid=(j.bid_id&&typeof bids!=='undefined')?bids.find(b=>b.id===j.bid_id):null;
-  const estHrs=Math.max(0,Number(bid&&(bid.estHours||bid.tmEstHours))||0);
   // T&M PRICES ITS CREW. tmCrewCount is the number the client agreed to pay
   // for, so it outranks the payroll picker (estCrew), which is who he happened
   // to assign and can be one name on a three-man T&M job. Everyone else has no
@@ -107,6 +106,19 @@ function _jobOverrun(jobId){
   const estCrew=Math.max(1,(bid&&bid.isTM&&Number(bid.tmCrewCount))
     ||(bid&&Array.isArray(bid.estCrew)&&bid.estCrew.length)
     ||Number(bid&&bid.tmCrewCount)||1);
+  // ONE UNIT, AND IT IS MAN-HOURS, because that is what the clock measures:
+  // every entry's minutes summed across everybody on site.
+  //
+  // The two estimate types do not promise in the same unit, and comparing them
+  // as if they did overstated the change order on every crewed T&M job.
+  //   T&M:   tmEstHours is DURATION (days x 8, and labor = crew x rate x
+  //          hours), so the man-hours promised are that times the priced crew.
+  //   Everything else: estHours is summed from debrief medians, crowdsourced
+  //          benchmarks and the price book, all of which were learned from
+  //          clock totals, so it is ALREADY man-hours.
+  const estHrs=(bid&&bid.isTM)
+    ? Math.max(0,Number(bid.tmEstHours||bid.estHours)||0)*estCrew
+    : Math.max(0,Number(bid&&bid.estHours)||0);
   const estDays=Math.max(1,parseInt(j.days)||1);
   const entries=(typeof timeEntries!=='undefined'?timeEntries:[]).filter(e=>e&&e.job_id===jobId&&!e.open);
   const actualHrs=Math.round(entries.reduce((s,e)=>s+(Number(e.minutes)||0),0)/60*100)/100;

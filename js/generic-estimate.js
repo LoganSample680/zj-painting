@@ -4469,6 +4469,13 @@ async function sendGenericProposal(previewOnly,opts){
     const _sibs=(typeof _optionSiblings==='function')?_optionSiblings(_thisBid):[];
     const _offered=_sibs.filter(x=>x.id===(_thisBid&&_thisBid.id)||x.proposalSentDate||x.signingToken||x.status==='Pending'||x.status==='Closed Won');
     if(_offered.length>1){
+      // The client must be able to GET to the other one. A price with no way to
+      // read what it buys is worse than not listing it: they can see there is a
+      // cheaper option and cannot find out what it leaves out. Each sibling that
+      // has a signing link becomes a link; the one they are reading does not.
+      const _oBase=(typeof _clientBaseUrl==='function')?_clientBaseUrl():'';
+      const _oUid=(typeof _supaUser!=='undefined'&&_supaUser)?_supaUser.id:'';
+      const _oUrl=x=>(x&&x.signingToken&&_oBase)?(_oBase+'sign.html?t='+encodeURIComponent(x.signingToken)+'&u='+encodeURIComponent(_oUid)+'&b='+x.id):'';
       const _rows=_offered.map(x=>{
         const _me=_thisBid&&x.id===_thisBid.id;
         const _amt=_me?total:(Number(x.amount)||0);
@@ -4481,15 +4488,20 @@ async function sendGenericProposal(previewOnly,opts){
         // Suppressed on the one they are reading: this whole page is its
         // description, and repeating a title above it is noise.
         const _hd=_me?'':String(x.type||'').replace(/[,\s-]*Option\s+[A-Z]$/i,'').trim();
-        return `<div style="display:flex;justify-content:space-between;align-items:baseline;gap:12px;padding:9px 12px;border-radius:8px;margin-bottom:6px;background:${_me?'#EBF2FB':'#f8fafc'};border:1.5px solid ${_me?_pAccent:'#e2e8f0'}">
-          <div style="min-width:0">
-            <div style="font-size:12px;font-weight:800;color:${_me?_pAccent:'#4a5568'}">${escHtml(_nm)}${_me?' <span style="font-weight:700;font-size:10px;color:#718096">, this one</span>':''}</div>
-            ${_hd?`<div style="font-size:10.5px;color:#718096;margin-top:1px;overflow-wrap:anywhere">${escHtml(_hd)}</div>`:''}
-          </div>
-          <div style="font-size:14px;font-weight:800;color:#111;white-space:nowrap">${'$'+_amt.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})}</div>
-        </div>`;
+        const _u=_me?'':_oUrl(x);
+        const _inner=`<div style="display:flex;justify-content:space-between;align-items:baseline;gap:12px;width:100%">
+            <div style="min-width:0">
+              <div style="font-size:12px;font-weight:800;color:${_me?_pAccent:'#4a5568'}">${escHtml(_nm)}${_me?' <span style="font-weight:700;font-size:10px;color:#718096">, this one</span>':(_u?' <span style="font-weight:700;font-size:10px;color:'+_pAccent+'">, read it →</span>':'')}</div>
+              ${_hd?`<div style="font-size:10.5px;color:#718096;margin-top:1px;overflow-wrap:anywhere">${escHtml(_hd)}</div>`:''}
+            </div>
+            <div style="font-size:14px;font-weight:800;color:#111;white-space:nowrap">${'$'+_amt.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})}</div>
+          </div>`;
+        const _box=`display:flex;padding:9px 12px;border-radius:8px;margin-bottom:6px;background:${_me?'#EBF2FB':'#f8fafc'};border:1.5px solid ${_me?_pAccent:'#e2e8f0'}`;
+        return _u
+          ? `<a href="${escHtml(_u)}" target="_top" style="${_box};text-decoration:none;color:inherit">${_inner}</a>`
+          : `<div style="${_box}">${_inner}</div>`;
       }).join('');
-      _optionsSection=`<div style="padding:14px 18px;border-bottom:1px solid #e2e8f0;background:#fbfcfe"><div style="font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:.1em;color:${_pAccent};margin-bottom:10px">Your options</div>${_rows}<div style="font-size:10.5px;color:#718096;margin-top:4px">Sign the one you want. The others simply close out.</div></div>`;
+      _optionsSection=`<div style="padding:14px 18px;border-bottom:1px solid #e2e8f0;background:#fbfcfe"><div style="font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:.1em;color:${_pAccent};margin-bottom:10px">Your options</div>${_rows}<div style="font-size:10.5px;color:#718096;margin-top:4px">Tap any option to read it. Sign the one you want, and the others simply close out.</div></div>`;
     }
   }
 

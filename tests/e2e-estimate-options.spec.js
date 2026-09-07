@@ -32,7 +32,7 @@ test.describe('options on one job', () => {
   const seedGroup = () => page.evaluate(cid => {
     clients = clients.filter(c => c.id !== cid).concat([{ id: cid, name: 'Bettis', addr: '3 Option Way', phone: '3165550003' }]);
     bids = bids.filter(b => ![87101, 87102, 87103].includes(b.id)).concat([
-      { id: 87101, client_id: cid, client_name: 'Bettis', type: 'Reroof, Option A', amount: 12400, status: 'Pending', draft: false, optionGroup: 87101, optionLabel: 'A', proposalSentDate: '2026-09-05' },
+      { id: 87101, client_id: cid, client_name: 'Bettis', type: 'Reroof, Option A', amount: 12400, status: 'Pending', draft: false, optionGroup: 87101, optionLabel: 'A', proposalSentDate: '2026-09-05', signingToken: 'tok-a' },
       { id: 87102, client_id: cid, client_name: 'Bettis', type: 'Reroof with new decking, Option B', amount: 15900, status: 'Pending', draft: false, optionGroup: 87101, optionLabel: 'B', proposalSentDate: '2026-09-05' },
       { id: 87103, client_id: cid, client_name: 'Bettis', type: 'Reroof, standing seam, Option C', amount: 28750, status: 'Draft', draft: true, optionGroup: 87101, optionLabel: 'C' }
     ]);
@@ -104,9 +104,49 @@ test.describe('options on one job', () => {
     expect(html).toContain('Option B');
     expect(html, 'the one they opened is marked, so the page is never ambiguous').toContain('this one');
     expect(html, 'the live total of the document they are reading, 32 squares at $420').toContain('$13,440.00');
-    expect(html).toContain('Sign the one you want');
+    expect(html).toContain('Tap any option to read it');
+    // A price with no way to read what it buys is worse than not listing it:
+    // they can see there is a cheaper option and cannot find out what it
+    // leaves out. Every sibling with a signing link is a link.
+    expect(html, 'the other option must be reachable, not just priced').toContain('sign.html?t=tok-a');
+    expect(html).toContain('read it');
     expect(html, 'a DRAFT option is not an offer and must never be priced to a client').not.toContain('$28,750.00');
     expect(html, 'and its name must not leak either').not.toContain('standing seam');
+  });
+
+  test('an option with no signing link yet is listed but not linkable', async () => {
+    await seedGroup();
+    const html = await page.evaluate(async () => {
+      // A sent option that has no token (in-person signing, cash close) still
+      // belongs on the list. It just cannot be opened, so it must not pretend.
+      bids.find(b => b.id === 87101).signingToken = null;
+      _geiEditBidId = 87102; _geiIsFreeForm = true; _geiIsTM = false; _geiScopeChips = [];
+      _byoItems = [_byoNormItem({ id: 1, section: 'Work', label: 'Reroof', rate: 15900, on: true })];
+      _byoUpdateRail();
+      return await sendGenericProposal(true, { silent: true });
+    });
+    expect(html).toContain('Option A');
+    expect(html).toContain('$12,400.00');
+    expect(html, 'no token means no page to send them to').not.toContain('sign.html?t=null');
+    // Scoped to the options block: "read it" is ordinary English and appears
+    // in the terms further down, so a whole-document search proves nothing.
+    const block = html.split('Your options')[1].split('Tap any option')[0];
+    expect(block).not.toContain('read it');
+    expect(block).not.toContain('<a href');
+  });
+
+  test('the one they are reading is never a link to itself', async () => {
+    await seedGroup();
+    const html = await page.evaluate(async () => {
+      bids.find(b => b.id === 87102).signingToken = 'tok-b';
+      _geiEditBidId = 87102; _geiIsFreeForm = true; _geiIsTM = false; _geiScopeChips = [];
+      _byoItems = [_byoNormItem({ id: 1, section: 'Work', label: 'Reroof', rate: 15900, on: true })];
+      _byoUpdateRail();
+      return await sendGenericProposal(true, { silent: true });
+    });
+    expect(html).toContain('this one');
+    const block = html.split('Your options')[1].split('Tap any option')[0];
+    expect(block, 'linking the page to itself is a dead tap').not.toContain('tok-b');
   });
 
   test('a bid in no group prints no options block', async () => {

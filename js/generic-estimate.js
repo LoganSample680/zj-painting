@@ -3295,7 +3295,13 @@ async function _presentOpen(bidId){
     _presentHdr(multi?('Reading '+_presentName(open)):'')+
     '<div style="flex:1;overflow-y:auto;padding:18px 16px;box-sizing:border-box;background:#EFEBE3;overflow-wrap:anywhere;display:flex;flex-direction:column"><div style="max-width:760px;width:100%;margin:auto">'+html+'</div></div>'+
     '<div style="flex-shrink:0;display:flex;gap:10px;padding:12px 16px;padding-bottom:calc(12px + env(safe-area-inset-bottom,0px));border-top:1px solid rgba(245,239,226,.10);box-sizing:border-box">'+
-      (multi?'<button id="present-back" onclick="_geiPresent()" style="flex:0 0 auto;padding:14px 18px;border-radius:3px;border:1px solid rgba(245,239,226,.26);background:none;color:rgba(245,239,226,.85);font-size:15px;font-weight:700;cursor:pointer;font-family:inherit;touch-action:manipulation">Back</button>':'')+
+      // ALWAYS a way out down here, not just when there are options behind it.
+      // Owner 2026-09-07: on a phone with one option there was no back button.
+      // The header × is a 34px target in the far corner, and the only thing
+      // under his thumb was Approve & sign, on the screen where a mis-tap
+      // signs a contract. When nothing is behind it the button closes instead
+      // of going back, because Back with nowhere to go is its own trap.
+      '<button id="present-back" onclick="'+(multi?'_geiPresent()':'_presentClose()')+'" style="flex:0 0 auto;padding:14px 18px;border-radius:3px;border:1px solid rgba(245,239,226,.26);background:none;color:rgba(245,239,226,.85);font-size:15px;font-weight:700;cursor:pointer;font-family:inherit;touch-action:manipulation">'+(multi?'Back':'Close')+'</button>'+
       '<button id="present-sign" onclick="_presentSign()" style="flex:1;min-width:0;padding:14px;border-radius:3px;border:none;background:#0E6B39;color:#fff;font-size:16px;font-weight:800;cursor:pointer;font-family:inherit;touch-action:manipulation">'+svgIcon('✍',{size:16,color:'#fff'})+' Approve &amp; sign</button>'+
     '</div>'
   );

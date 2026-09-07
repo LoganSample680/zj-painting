@@ -172,13 +172,49 @@ test.describe('presentation mode', () => {
         open: !!ov,
         chooser: ov ? ov.innerHTML.includes('ways to do this job') : null,
         sign: ov ? !!ov.querySelector('#present-sign') : null,
-        back: ov ? !!ov.querySelector('#present-back') : null
+        back: ov ? !!ov.querySelector('#present-back') : null,
+        backLabel: ov ? (ov.querySelector('#present-back')?.textContent || '') : '',
+        backCall: ov ? (ov.querySelector('#present-back')?.getAttribute('onclick') || '') : ''
       };
     });
     expect(r.open).toBe(true);
     expect(r.chooser, 'there is nothing to choose between').toBe(false);
     expect(r.sign).toBe(true);
-    expect(r.back, 'no options behind it, so no Back that goes nowhere').toBe(false);
+    // WAS: no button at all when nothing sat behind it. That left a phone with
+    // its only exit a 34px x in the far corner and Approve & sign the one thing
+    // under the thumb, on the screen where a mis-tap signs a contract.
+    expect(r.back, 'there is always a way out at the bottom').toBe(true);
+    expect(r.backLabel, 'Back with nowhere to go is its own trap').toBe('Close');
+    expect(r.backCall).toContain('_presentClose()');
+  });
+
+  test('Close on a lone proposal really closes, it does not bounce to an empty chooser', async () => {
+    const r = await page.evaluate(async () => {
+      _presentClose();
+      _geiEditBidId = 88500; _geiClientId = 88001; _geiIsFreeForm = true; _geiIsTM = false;
+      _byoItems = [_byoNormItem({ id: 1, section: 'Work', label: 'Patch flashing', qty: 1, unit: 'ea', rate: 900, on: true })];
+      _geiScopeChips = []; _geiExclusions = [];
+      _byoUpdateRail();
+      await _geiPresent();
+      document.getElementById('present-back').click();
+      return document.querySelectorAll('#_gei-present-ov').length;
+    });
+    expect(r).toBe(0);
+  });
+
+  test('with options behind it the same button goes Back to them', async () => {
+    await seed(); await seedRoofLines(); await openB();
+    const r = await page.evaluate(async () => {
+      _geiPresent();
+      await _presentOpen(88102);
+      const btn = document.getElementById('present-back');
+      const label = btn.textContent;
+      btn.click();
+      const ov = document.getElementById('_gei-present-ov');
+      return { label, chooser: !!ov && ov.innerHTML.includes('ways to do this job') };
+    });
+    expect(r.label).toBe('Back');
+    expect(r.chooser).toBe(true);
   });
 
   // ── 3. The recommendation is HIS, never ours ───────────────────────────────

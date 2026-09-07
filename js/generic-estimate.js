@@ -995,6 +995,7 @@ function _geiRenderActionButtons(prefix,opts){
   const extra=(o.extraButtons||[]).map(b=>'<button class="btn btn-sm" style="background:var(--bg2);color:var(--text2);font-size:11px;padding:8px 4px" onclick="'+b.onclick+'">'+b.label+'</button>').join('');
   wrap.innerHTML=
     '<button class="btn btn-p btn-xl btn-full" style="margin-top:14px" onclick="sendGenericProposal()">'+svgIcon('📨',{size:16})+' '+(o.sendLabel||'Send proposal')+'</button>'+
+    '<button class="btn btn-xl btn-full" style="margin-top:8px;background:#0f172a;color:#fff;border-color:#0f172a" onclick="_geiPresent()">'+svgIcon('📱',{size:16,color:'#fff'})+' Present on this screen</button>'+
     '<button class="btn btn-xl btn-full" style="margin-top:8px;background:var(--green);color:#fff;border-color:var(--green)" onclick="_geiSignInPerson()">'+svgIcon('✍',{size:16})+' Sign in person</button>'+
     '<div style="display:grid;grid-template-columns:repeat('+cols+',1fr);gap:6px;margin-top:8px">'+
       '<button class="btn btn-sm" style="background:var(--bg2);color:var(--text2);font-size:11px;padding:8px 4px" onclick="'+(o.previewOnclick||'_geiPreviewClient()')+'">'+svgIcon('👁',{size:11})+' Preview</button>'+
@@ -2878,6 +2879,172 @@ function _showProposalPreviewOverlay(proposalHtml){
   ov.appendChild(hdr);ov.appendChild(body);
   document.body.appendChild(ov);
 }
+// ─── Presentation mode ───────────────────────────────────────────────────────
+// The tablet on the kitchen table. Owner 2026-09-07: "so smart like Jarvis and
+// easy to get done it can be presented on at the home."
+//
+// Every part of that already existed and was pointed the wrong way. The preview
+// overlay is captioned "how they'll see it" and framed for HIM. The options only
+// appear together on a document the client has to be emailed first. "Sign in
+// person" is a button he has to reach past the client's shoulder to find. So
+// this adds no new document, no new signing path and no new record: it is the
+// same proposal HTML (sendGenericProposal), the same option group
+// (_optionOffered) and the same signature sheet (_geiSignInPerson), arranged
+// for a screen he turns around and hands across the table.
+//
+// Which one is a real offer is decided in ONE place, here, and the client's
+// document (_optionsSection) reads the same function. A half-written draft is
+// not an offer and must never carry a price into a client's hands, on paper or
+// on the tablet, and the two can never disagree about it.
+function _optionOffered(cur){
+  const sibs=(typeof _optionSiblings==='function')?_optionSiblings(cur):[];
+  return sibs.filter(x=>(cur&&x.id===cur.id)||x.proposalSentDate||x.signingToken||x.status==='Pending'||x.status==='Closed Won');
+}
+// The options to put in front of the client: the group if there is one, else
+// just the proposal that is open.
+function _presentList(){
+  const cur=(typeof bids!=='undefined'&&typeof _geiEditBidId!=='undefined'&&_geiEditBidId)?bids.find(x=>x.id===_geiEditBidId):null;
+  if(!cur)return [];
+  const off=_optionOffered(cur);
+  return off.length?off:[cur];
+}
+// HE marks the recommendation. Nothing is badged until he taps the star.
+// Auto-badging the middle option by price is the textbook anchor and it was
+// deliberately not built: it puts a recommendation in the contractor's mouth
+// that he never made, in front of the client, on his own letterhead.
+function _presentRecId(list){
+  const m=(list||[]).find(x=>x&&x.optionRecommended);
+  return m?m.id:null;
+}
+function _presentSetRec(bidId){
+  const list=_presentList();
+  if(!list.length)return;
+  const already=list.some(x=>x&&x.optionRecommended&&String(x.id)===String(bidId));
+  list.forEach(x=>{x.optionRecommended=(!already&&String(x.id)===String(bidId));});
+  try{if(typeof saveAll==='function')saveAll();}catch(_e){}
+  _presentChooser(_presentList());
+}
+function _presentClose(){
+  const ov=document.getElementById('_gei-present-ov');
+  if(ov)ov.remove();
+}
+// One shell for both screens. Two overlays stacked is how a "Back to options"
+// ends up behind the document it was supposed to replace.
+function _presentShell(inner){
+  let ov=document.getElementById('_gei-present-ov');
+  if(!ov){
+    ov=document.createElement('div');
+    ov.id='_gei-present-ov';
+    ov.style.cssText='position:fixed;inset:0;z-index:9650;background:#0f172a;display:flex;flex-direction:column;animation:td-pg-enter .2s cubic-bezier(.22,1,.36,1) both';
+    document.body.appendChild(ov);
+  }
+  ov.innerHTML=inner;
+  return ov;
+}
+function _presentHdr(sub){
+  const biz=(typeof S!=='undefined'&&S.bname)||(typeof getBusinessName==='function'?getBusinessName():'')||'';
+  return '<div style="flex-shrink:0;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 18px;border-bottom:1px solid rgba(255,255,255,.10);box-sizing:border-box">'+
+    '<div style="min-width:0"><div style="font-size:15px;font-weight:800;color:#fff;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+escHtml(biz)+'</div>'+
+      (sub?'<div style="font-size:11.5px;color:#94a3b8;margin-top:1px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+escHtml(sub)+'</div>':'')+
+    '</div>'+
+    '<button id="present-exit" onclick="_presentClose()" aria-label="Exit presentation" style="flex-shrink:0;background:rgba(255,255,255,.10);border:none;color:#cbd5e1;width:34px;height:34px;border-radius:9px;font-size:18px;line-height:1;cursor:pointer;font-family:inherit;touch-action:manipulation">×</button>'+
+  '</div>';
+}
+function _presentName(b){
+  if(!b)return 'Proposal';
+  return b.optionLabel?('Option '+b.optionLabel):(String(b.type||'Proposal').trim()||'Proposal');
+}
+function _presentMoney(n){return '$'+(Number(n)||0).toLocaleString('en-US',{maximumFractionDigits:0});}
+// Entry point. Save first: from here on the client is reading it, and a number
+// on screen that is not the number on the record is the one mistake this whole
+// mode exists to avoid.
+async function _geiPresent(){
+  try{if(typeof saveGenericEstimate==='function')saveGenericEstimate(true);}catch(_e){}
+  const list=_presentList();
+  if(!list.length){showToast('Save your proposal first','⚠️');return;}
+  if(list.length===1){return _presentOpen(list[0].id);}
+  _presentChooser(list);
+}
+function _presentChooser(list){
+  const cur=(typeof bids!=='undefined'&&typeof _geiEditBidId!=='undefined'&&_geiEditBidId)?bids.find(x=>x.id===_geiEditBidId):null;
+  const recId=_presentRecId(list);
+  const cards=list.map(b=>{
+    const me=!!(cur&&b.id===cur.id);
+    // Live total for the one that is open, stored amount for the rest: exactly
+    // what the client's own document does, so the tablet and the paper agree.
+    const amt=me&&typeof calcGeiTotal==='function'?(calcGeiTotal().total||0):(Number(b.amount)||0);
+    const rec=!!(recId&&String(b.id)===String(recId));
+    const head=String(b.type||'').replace(/[,\s-]*Option\s+[A-Z]$/i,'').trim();
+    const lines=(typeof _pkgBidLines==='function')?_pkgBidLines(b):[];
+    const bullets=lines.slice(0,5).map(l=>'<li style="font-size:12.5px;color:#4a5568;line-height:1.65;overflow-wrap:anywhere">'+escHtml(l.label)+'</li>').join('');
+    const more=Math.max(0,lines.length-5);
+    const star=svgIcon('★',{size:15,color:rec?'#B7791F':'#cbd5e1'});
+    return '<div style="position:relative;display:flex;flex-direction:column;min-width:0;background:#fff;border-radius:14px;border:2px solid '+(rec?'#B7791F':'#e2e8f0')+';box-shadow:0 6px 22px rgba(0,0,0,.18);overflow:hidden">'+
+      // The badge strip is reserved on EVERY card, empty on the ones without
+      // it. Rendered only on the badged card, its own price sat 24px lower
+      // than its neighbours' and the row of numbers the client is comparing
+      // stopped lining up, which is the one thing this screen exists to do.
+      '<div style="height:26px;flex-shrink:0;background:'+(rec?'#B7791F':'transparent')+';color:#fff;font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.1em;padding:0 12px;display:flex;align-items:center">'+(rec?'Our recommendation':'')+'</div>'+
+      '<button onclick="_presentSetRec(\''+String(b.id).replace(/'/g,'')+'\')" aria-label="Mark as our recommendation" style="position:absolute;top:34px;right:10px;background:none;border:none;padding:4px;cursor:pointer;line-height:1;font-family:inherit;touch-action:manipulation">'+star+'</button>'+
+      '<div style="padding:10px 18px 0"><div style="font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.1em;color:#94a3b8">'+escHtml(_presentName(b))+'</div>'+
+        // Two lines reserved for the headline for the same reason: "Reroof,
+        // architectural shingle" wraps and "Standing seam metal" does not.
+        '<div style="font-size:14px;font-weight:700;color:#1a365d;margin-top:3px;min-height:2.6em;padding-right:26px;overflow-wrap:anywhere">'+escHtml(head||'')+'</div>'+
+        '<div style="font-size:34px;font-weight:900;color:#111;letter-spacing:-1px;margin-top:6px">'+_presentMoney(amt)+'</div>'+
+      '</div>'+
+      (bullets?'<ul style="margin:12px 0 0;padding:0 18px 0 34px">'+bullets+'</ul>':'')+
+      (more?'<div style="font-size:11.5px;color:#718096;padding:6px 18px 0">and '+more+' more</div>':'')+
+      '<div style="padding:16px 18px;margin-top:auto">'+
+        '<button onclick="_presentOpen(\''+String(b.id).replace(/'/g,'')+'\')" style="width:100%;padding:13px;border-radius:11px;border:none;background:'+(rec?'#B7791F':'#1a365d')+';color:#fff;font-size:15px;font-weight:800;cursor:pointer;font-family:inherit;touch-action:manipulation">See the details</button>'+
+      '</div>'+
+    '</div>';
+  }).join('');
+  _presentShell(
+    _presentHdr('Prepared for '+((cur&&(cur.client_name||cur.name))||'you'))+
+    '<div style="flex:1;overflow-y:auto;padding:20px 16px 28px;box-sizing:border-box">'+
+      '<div style="max-width:1040px;margin:0 auto">'+
+        '<div style="text-align:center;margin-bottom:18px"><div style="font-size:21px;font-weight:800;color:#fff">Choose your option</div>'+
+        '<div style="font-size:13px;color:#94a3b8;margin-top:4px">Tap one to read it in full. You can sign it right here.</div></div>'+
+        '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:14px;align-items:stretch">'+cards+'</div>'+
+      '</div>'+
+    '</div>'
+  );
+}
+// The document, full screen, with the signature one tap away. Switching to a
+// sibling goes through openGenericEstimate, the same path every resume button
+// uses: the editor really is on that bid, so the total, the terms and the
+// signature all belong to the option on screen.
+async function _presentOpen(bidId){
+  const cur=(typeof bids!=='undefined'&&typeof _geiEditBidId!=='undefined'&&_geiEditBidId)?bids.find(x=>x.id===_geiEditBidId):null;
+  if(!cur||String(bidId)!==String(cur.id)){
+    const b=(typeof bids!=='undefined')?bids.find(x=>String(x.id)===String(bidId)):null;
+    if(!b){showToast('Option not found','⚠️');return;}
+    try{if(typeof saveGenericEstimate==='function')saveGenericEstimate(true);}catch(_e){}
+    const c=(typeof getClientById==='function')?getClientById(b.client_id):null;
+    openGenericEstimate(c||{id:b.client_id,name:b.client_name||b.name||''},b.id,b.trade_type||'general');
+  }
+  let html='';
+  // sendGenericProposal is async: awaited, or the client is handed a tablet
+  // showing "[object Promise]" where the contract should be.
+  try{html=(typeof sendGenericProposal==='function')?(await sendGenericProposal(true,{silent:true})||''):'';}catch(_e){html='';}
+  if(!html){showToast('Add items to this proposal first','⚠️');return;}
+  const open=(typeof bids!=='undefined'&&typeof _geiEditBidId!=='undefined'&&_geiEditBidId)?bids.find(x=>x.id===_geiEditBidId):null;
+  const multi=_presentList().length>1;
+  _presentShell(
+    _presentHdr(multi?('Reading '+_presentName(open)):'')+
+    '<div style="flex:1;overflow-y:auto;padding:16px;box-sizing:border-box;background:#f0f4f8;overflow-wrap:anywhere"><div style="max-width:720px;margin:0 auto">'+html+'</div></div>'+
+    '<div style="flex-shrink:0;display:flex;gap:10px;padding:12px 16px;padding-bottom:calc(12px + env(safe-area-inset-bottom,0px));border-top:1px solid rgba(255,255,255,.10);box-sizing:border-box">'+
+      (multi?'<button id="present-back" onclick="_geiPresent()" style="flex:0 0 auto;padding:14px 18px;border-radius:11px;border:1px solid rgba(255,255,255,.22);background:none;color:#cbd5e1;font-size:15px;font-weight:700;cursor:pointer;font-family:inherit;touch-action:manipulation">Back</button>':'')+
+      '<button id="present-sign" onclick="_presentSign()" style="flex:1;min-width:0;padding:14px;border-radius:11px;border:none;background:#2f855a;color:#fff;font-size:16px;font-weight:800;cursor:pointer;font-family:inherit;touch-action:manipulation">'+svgIcon('✍',{size:16,color:'#fff'})+' Approve &amp; sign</button>'+
+    '</div>'
+  );
+}
+// The signature sheet is z-index 9700, deliberately above this overlay: a
+// client who backs out of signing lands back on the proposal, not in the
+// contractor's editor.
+function _presentSign(){
+  if(typeof _geiSignInPerson==='function')_geiSignInPerson();
+}
 // ─── Comparison proposal picker ─────────────────────────────────────────────
 // Show a picker so the contractor can send two side-by-side options to a client.
 // The picker lets the contractor preview the comparison before sending.
@@ -4574,8 +4741,10 @@ async function sendGenericProposal(previewOnly,opts){
   let _optionsSection='';
   {
     const _thisBid=_geiEditBidId?bids.find(x=>x.id===_geiEditBidId):null;
-    const _sibs=(typeof _optionSiblings==='function')?_optionSiblings(_thisBid):[];
-    const _offered=_sibs.filter(x=>x.id===(_thisBid&&_thisBid.id)||x.proposalSentDate||x.signingToken||x.status==='Pending'||x.status==='Closed Won');
+    // Same rule as the tablet (_optionOffered), one function, so the document
+    // and presentation mode can never disagree about what the client is
+    // choosing from.
+    const _offered=(typeof _optionOffered==='function')?_optionOffered(_thisBid):[];
     if(_offered.length>1){
       // The client must be able to GET to the other one. A price with no way to
       // read what it buys is worse than not listing it: they can see there is a
@@ -5311,6 +5480,9 @@ async function _geiConfirmInPerson(){
   // in the one cursive face when nothing was drawn).
   const _sigR=esignResult('gei-ip',{requireTyped:false,typedAsSig:true});
   const sigData=_sigR.ok?_sigR.sigData:'';
+  // The presentation is over the moment it is signed. Close it here so "Back
+  // to home" doesn't peel back to a stale proposal still on screen behind it.
+  try{if(typeof _presentClose==='function')_presentClose();}catch(_e){}
   // Show confirmation screen immediately
   const ov=document.getElementById('_gei-ip-ov');
   const fmt=n=>'$'+(n||0).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});

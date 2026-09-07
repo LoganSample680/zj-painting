@@ -1492,7 +1492,13 @@ function _geiRowActionBtns(editCall,delCall,delTitle,dupCall){
   // single most repeated act in a room-by-room estimate, and retyping the label,
   // the price and the description every time is the whole reason the fast way
   // to build a bid is still a notepad.
-  return (dupCall?'<button onclick="event.stopPropagation();'+dupCall+'" title="Duplicate this line" style="background:none;border:1px solid var(--border2);border-radius:6px;padding:4px 8px;font-size:12px;cursor:pointer;font-family:inherit;color:var(--text3);touch-action:manipulation">Copy</button>':'')+
+  // ICON, not the word "Copy". Three text buttons on a 390px row squeezed the
+  // title column until overflow-wrap:anywhere broke a four-letter word across
+  // two lines, which made the header taller and pulled the centered checkbox
+  // off the title it belongs to (webkit shard 3, 2026-09-07). Same footprint as
+  // the delete button, so the row is exactly as wide as it was before Copy
+  // existed, and a phone gets one icon instead of a third word.
+  return (dupCall?'<button onclick="event.stopPropagation();'+dupCall+'" title="Duplicate this line" aria-label="Duplicate this line" style="background:none;border:1px solid var(--border2);border-radius:6px;padding:4px 8px;font-size:12px;cursor:pointer;font-family:inherit;color:var(--text3);touch-action:manipulation">'+svgIcon('📋',{size:12})+'</button>':'')+
     '<button onclick="event.stopPropagation();'+editCall+'" title="Edit" style="background:none;border:1px solid var(--border2);border-radius:6px;padding:4px 8px;font-size:12px;cursor:pointer;font-family:inherit;color:var(--blue);touch-action:manipulation">Edit</button>'+
     '<button onclick="event.stopPropagation();'+delCall+'" title="'+(delTitle||'Remove')+'" style="background:none;border:1px solid var(--border2);border-radius:6px;padding:4px 8px;font-size:12px;cursor:pointer;font-family:inherit;color:#A32D2D;touch-action:manipulation">'+svgIcon('✕',{size:12})+'</button>';
 }

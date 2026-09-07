@@ -220,13 +220,16 @@ test.describe('closing the gaps other estimate tools leave open', () => {
     expect(r.threw).toBe(false);
   });
 
-  test('the row offers Copy, and a disclosure row does not', async () => {
+  test('the row offers a duplicate button, and a disclosure row does not', async () => {
     const r = await page.evaluate(() => ({
       normal: _geiItemRowHtml({ label: 'X', notes: '', price: 100, editFn: '_byoEditItem(0)', delFn: 'x', dupFn: '_byoDupItem(0)', checked: true }),
       rrp: _geiItemRowHtml({ label: 'X', notes: '', price: 0, editFn: '_byoEditItem(0)', delFn: 'x', dupFn: '', checked: true })
     }));
-    expect(r.normal).toContain('>Copy<');
-    expect(r.rrp).not.toContain('>Copy<');
+    // An icon, not the word: three text buttons squeezed the title column
+    // until a four-letter label broke across two lines on a phone.
+    expect(r.normal).toContain('Duplicate this line');
+    expect(r.normal, 'a third word-button does not fit a 390px row').not.toContain('>Copy<');
+    expect(r.rrp).not.toContain('Duplicate this line');
   });
 
   test('no console errors across the gap-closing loop', async () => {

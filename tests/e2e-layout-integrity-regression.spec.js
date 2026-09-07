@@ -183,6 +183,38 @@ test.describe('layout integrity, mobile', () => {
   // itself: .byo-row became a column container (header row + full-width notes
   // below it) as part of taking advantage of the grey space notes used to waste
   // next to the price/Edit/x buttons (see the next test).
+  // The engine-independent version of the alignment test below. That one only
+  // failed on webkit, because chromium happened to leave the title column a few
+  // pixels wider; the actual defect was that a third action button squeezed the
+  // column until overflow-wrap:anywhere broke a FOUR-LETTER word across two
+  // lines. Measuring the title's own height catches that on any engine.
+  test('BYO item row: a short title never breaks across lines, however wide the price and however many actions', async () => {
+    const r = await page.evaluate(() => {
+      const c = { id: 79103, name: 'Squeeze Client', addr: '1 Squeeze St' };
+      clients = clients.filter(x => x.id !== 79103).concat([c]);
+      bids = bids.filter(x => x.client_id !== 79103);
+      openGenericEstimate(c, null, null, { mode: 'byo' });
+      goGeiStep(2);
+      _geiIsFreeForm = true;
+      // The worst case: a seven-figure price, so the price column is as wide as
+      // it ever gets, and every action button present.
+      _byoItems = [{ id: 1, section: 'Materials', label: 'test', notes: 'n', price: 1232134, on: true }];
+      _byoRenderSections();
+      const label = document.querySelector('.byo-row .byo-label');
+      const hd = document.querySelector('.byo-row .byo-row-hd');
+      if (!label || !hd) return { missing: true };
+      const lh = parseFloat(getComputedStyle(label).lineHeight) || 18;
+      return {
+        missing: false,
+        lines: Math.round(label.getBoundingClientRect().height / lh),
+        overflows: hd.scrollWidth > hd.clientWidth + 1,
+      };
+    });
+    expect(r.missing).toBe(false);
+    expect(r.lines, 'a four-letter title breaking in half means the actions have eaten the row').toBe(1);
+    expect(r.overflows, 'and the row itself must never scroll sideways').toBe(false);
+  });
+
   test('BYO item row: checkbox and price/actions stay top-aligned with the item title, even with a long wrapped note', async () => {
     const r = await page.evaluate(() => {
       const c = { id: 79102, name: 'Row Align Client', addr: '1 Row Align St' };

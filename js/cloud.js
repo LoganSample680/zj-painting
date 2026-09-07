@@ -634,7 +634,7 @@ const _supaMode=(()=>{try{return localStorage.getItem('zp3_supa_mode');}catch(_e
 // `let` so the supaInit auto-fallback can flip it to the proxy before the client is built.
 let SUPA_URL = (_supaMode==='proxy') ? _SUPA_PROXY_URL : _SUPA_DIRECT_URL;
 const SUPA_KEY = 'sb_publishable_kaahEa5tFydocUuYi8plHg_K78HPyvJ';
-const APP_VERSION='09.06.26.24';
+const APP_VERSION='09.06.26.25';
 let _supa=null,_supaUser=null,_syncTimer=null,_syncStatus='local',_supaCloudLoaded=false,_lastLocalSaveAt=0;
 let _syncBroadcastChannel=null,_realtimeSubscribed=false,_loadInProgress=false,_activeLoadPromise=null,_broadcastReloadTimer=null,_broadcastPending=false,_reconcileTimer=null,_writeCacheTimer=null,_rtRenderTimer=null;
 // True only for the window between an in-tab sign-in landing on the dashboard
@@ -7571,6 +7571,16 @@ async function checkNewSignatures(_src){
         // Runs regardless of seenCache, the signature lands after the row was seen.
         if(Array.isArray(s.change_orders)&&s.change_orders.length&&bid.changeOrders&&bid.changeOrders.length){
           for(const rc of s.change_orders){
+            // A decline is news too, and it is the news he can still act on:
+            // nothing about the contract moves, the change order just stops
+            // waiting and says why. Same jsonb row, same pickup path.
+            if(rc&&rc.declinedAt){
+              const dc=bid.changeOrders.find(x=>x.coNum===rc.coNum);
+              if(dc&&!dc.declinedAt&&!dc.signedAt){
+                dc.declinedAt=rc.declinedAt;dc.declineNote=rc.declineNote||'';dc.status='declined';
+                changed=true;
+              }
+            }
             if(!rc||!rc.signedAt)continue;
             const lc=bid.changeOrders.find(x=>x.coNum===rc.coNum);
             if(!lc||lc.signedAt)continue;

@@ -1438,6 +1438,12 @@ function openJobSheet(clientId){
         (c.phone?'<a href="tel:'+c.phone.replace(/\D/g,'')+'" style="background:rgba(52,211,153,.25);color:#fff;text-decoration:none;font-size:12px;font-weight:700;padding:6px 13px;border-radius:20px;display:inline-flex;align-items:center;gap:4px" onclick="event.stopPropagation()">'+svgIcon('📞')+' Call</a>':'')+
         (c.addr?'<button onclick="openMapsForClient('+clientId+');event.stopPropagation()" style="background:rgba(96,165,250,.25);border:none;color:#fff;font-size:12px;font-weight:700;padding:6px 13px;border-radius:20px;cursor:pointer;font-family:inherit">'+svgIcon('🗺')+' Drive</button>':'')+
         (c.phone?'<button onclick="sendOMWText('+clientId+');event.stopPropagation()" style="background:rgba(251,191,36,.3);border:none;color:#fff;font-size:12px;font-weight:700;padding:6px 13px;border-radius:20px;cursor:pointer;font-family:inherit">'+svgIcon('🚗')+' OMW</button>':'')+
+        // A change order used to live at the very bottom of this sheet, under
+        // payment, schedule, supplies, scope, photos, spec, subs, notes and
+        // tasks. On site with one hand free, that is the same as not having
+        // one, and the whole point is that he writes it while the client is
+        // standing there. It is a header action now.
+        (bid?'<button onclick="this.closest(\'.zmodal-overlay\').remove();showChangeOrderModal('+bid.id+','+clientId+')" style="background:rgba(255,255,255,.22);border:none;color:#fff;font-size:12px;font-weight:700;padding:6px 13px;border-radius:20px;cursor:pointer;font-family:inherit">'+svgIcon('📋')+' Change order</button>':'')+
         '<button onclick="this.closest(\'.zmodal-overlay\').remove();openClientDetail('+clientId+')" style="background:rgba(255,255,255,.15);border:none;color:#fff;font-size:12px;font-weight:700;padding:6px 13px;border-radius:20px;cursor:pointer;font-family:inherit">Full record ›</button>'+
       '</div>'+
     '</div>';
@@ -1469,6 +1475,11 @@ function openJobSheet(clientId){
             '<div style="font-size:16px;font-weight:800;color:'+(balance>0.01?'#A32D2D':'var(--green-mid)')+'">'+fmt(balance)+'</div>'+
           '</div>'+
         '</div>'+
+        // How the contract got to this number. Without it the total silently
+        // becomes something other than what he signed, which is the thing
+        // homeowners say makes them fight a change order.
+        (typeof _coHistoryLine==='function'&&_coHistoryLine(bid)?
+          '<div style="font-size:11px;color:var(--text3);margin:-4px 0 10px;line-height:1.5">'+escHtml(_coHistoryLine(bid))+'</div>':'')+
         // Progress bar
         '<div style="background:var(--border2);border-radius:20px;height:6px;overflow:hidden;margin-bottom:10px">'+
           '<div style="width:'+pct+'%;height:100%;background:'+barColor+';border-radius:20px;transition:width .3s"></div>'+
@@ -1825,7 +1836,6 @@ function openJobSheet(clientId){
         (jobActions.length?
           jobActions.map(j=>'<button onclick="this.closest(\'.zmodal-overlay\').remove();markJobDone('+j.id+')" style="padding:12px;border-radius:var(--r);border:none;background:var(--green-mid);color:#fff;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;text-align:left">✓ Mark job complete, '+escHtml(j.name||'')+'</button>').join('')
         :'')+
-        (bid?'<button onclick="this.closest(\'.zmodal-overlay\').remove();showChangeOrderModal('+bid.id+','+clientId+')" style="padding:12px;border-radius:var(--r);border:none;background:var(--blue);color:#fff;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;text-align:left">'+svgIcon('📋')+' Change order, adjust scope or price</button>':'')+
         '<button onclick="this.closest(\'.zmodal-overlay\').remove();openClientDetail('+clientId+')" style="padding:12px;border-radius:var(--r);border:1px solid var(--border2);background:var(--bg2);font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;color:var(--text);text-align:left">'+svgIcon('📋')+' Full client record & history</button>'+
       '</div>'+
     '</div>';
@@ -1846,11 +1856,15 @@ function openJobSheet(clientId){
             '<div style="display:flex;align-items:center;gap:6px">'+
               '<span style="font-size:13px;font-weight:800;color:'+deltaColor+'">'+deltaLabel+'</span>'+
               (co.signedAt?'<span style="font-size:10px;font-weight:700;background:#D1FAE5;color:#065F46;padding:2px 7px;border-radius:10px">Signed</span>':
+               co.declinedAt?'<span style="font-size:10px;font-weight:700;background:#FEE8E8;color:#A32D2D;padding:2px 7px;border-radius:10px">Declined</span>':
                co.status==='pending_client'?'<span style="font-size:10px;font-weight:700;background:#FEF3C7;color:#92400E;padding:2px 7px;border-radius:10px">'+svgIcon('⏳')+' Awaiting client signature</span>':
                            '<span style="font-size:10px;font-weight:700;background:#FEF3C7;color:#92400E;padding:2px 7px;border-radius:10px">Unsigned</span>')+
             '</div>'+
           '</div>'+
           '<div style="font-size:12px;color:var(--text2);line-height:1.4;margin-bottom:6px">'+escHtml(co.desc)+'</div>'+
+          // Why they said no, in their words. This is the whole value of a
+          // decline path: it is the thing he can actually act on.
+          (co.declineNote?'<div style="font-size:12px;color:#A32D2D;line-height:1.4;margin-bottom:6px;padding:8px 10px;background:#FEE8E8;border-radius:var(--r)">'+svgIcon('💬')+' '+escHtml(co.declineNote)+'</div>':'')+
           '<div style="display:flex;justify-content:space-between;align-items:center;font-size:11px;color:var(--text3)">'+
             '<span>'+fmt(co.originalAmount)+' → <strong style="color:var(--text)">'+fmt(co.newAmount)+'</strong></span>'+
             '<span>'+(co.signerName?'Signed by '+escHtml(co.signerName)+' · ':'')+signedLabel+'</span>'+

@@ -331,8 +331,15 @@ test.describe('the change order document', () => {
   test('the change order is a header action on the job sheet, not buried in Actions', async () => {
     await seed({ amount: 3200, cos: [SIGNED_CO_1] });
     const r = await page.evaluate(cid => {
+      // Assert on the sheet THIS call rendered. Reading querySelector's first
+      // match makes the test depend on the DOM being clean, and an overlay
+      // surviving from an earlier test then answers for this one (webkit
+      // shard 1, 2026-09-07: the no-bid sheet reported a Change order button
+      // that belonged to the previous test's client).
+      document.querySelectorAll('.zmodal-overlay').forEach(o => o.remove());
       openJobSheet(cid);
-      const ov = document.querySelector('.zmodal-overlay');
+      const all = document.querySelectorAll('.zmodal-overlay');
+      const ov = all[all.length - 1];
       const hdr = ov.querySelector('div');
       const btns = [...ov.querySelectorAll('button')].filter(b => /Change order/i.test(b.textContent || ''));
       const first = btns[0];
@@ -340,8 +347,9 @@ test.describe('the change order document', () => {
       const sheetTop = ov.getBoundingClientRect().top;
       const text = ov.textContent || '';
       document.querySelectorAll('.zmodal-overlay').forEach(o => o.remove());
-      return { count: btns.length, offsetFromTop: top - sheetTop, hasHistory: /Original \$2,450\.00 · CO #1 \+\$750\.00/.test(text), hdrExists: !!hdr };
+      return { sheets: all.length, count: btns.length, offsetFromTop: top - sheetTop, hasHistory: /Original \$2,450\.00 · CO #1 \+\$750\.00/.test(text), hdrExists: !!hdr };
     }, CD_CLIENT);
+    expect(r.sheets, 'one openJobSheet call, one sheet').toBe(1);
     expect(r.count, 'exactly one way in, so there is no second stale entry point').toBe(1);
     expect(r.offsetFromTop, 'it used to sit below nine other sections').toBeLessThan(300);
     expect(r.hasHistory, 'the payment block has to say how the contract got to this number').toBe(true);
@@ -351,8 +359,10 @@ test.describe('the change order document', () => {
     const count = await page.evaluate(() => {
       const cid = 88777;
       clients = clients.filter(c => c.id !== cid).concat([{ id: cid, name: 'No Bid', addr: '1 Nowhere' }]);
+      document.querySelectorAll('.zmodal-overlay').forEach(o => o.remove());
       openJobSheet(cid);
-      const ov = document.querySelector('.zmodal-overlay');
+      const all = document.querySelectorAll('.zmodal-overlay');
+      const ov = all[all.length - 1];
       const n = ov ? [...ov.querySelectorAll('button')].filter(b => /Change order/i.test(b.textContent || '')).length : -1;
       document.querySelectorAll('.zmodal-overlay').forEach(o => o.remove());
       return n;
@@ -363,8 +373,10 @@ test.describe('the change order document', () => {
   test('a declined change order says so, in their words', async () => {
     await seed({ amount: 3200, cos: [{ coNum: 1, desc: 'Add a second shutoff', type: 'add', amount: 400, delta: 400, originalAmount: 3200, newAmount: 3600, sentAt: '2026-09-05T10:00:00Z', declinedAt: '2026-09-05T18:00:00Z', declineNote: 'Want to wait until spring on that one' }] });
     const text = await page.evaluate(cid => {
+      document.querySelectorAll('.zmodal-overlay').forEach(o => o.remove());
       openJobSheet(cid);
-      const t = document.querySelector('.zmodal-overlay').textContent || '';
+      const all = document.querySelectorAll('.zmodal-overlay');
+      const t = all[all.length - 1].textContent || '';
       document.querySelectorAll('.zmodal-overlay').forEach(o => o.remove());
       return t;
     }, CD_CLIENT);

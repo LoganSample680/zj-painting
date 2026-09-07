@@ -113,6 +113,7 @@
     'basin': 'lavatory',
     'tub': 'bathtub',
     'bath': 'bathtub',
+    'bath tub': 'bathtub',
     'tub shower': 'bathtub-shower',
     'tub shower combo': 'bathtub-shower',
     'bathtub with shower': 'bathtub-shower',

@@ -525,7 +525,7 @@ test.describe('Live Activities: what reaches the lock screen', () => {
       window._supaUser = { id: 'crew-1' };
       window._contractorUserId = 'boss-1';
       const prev = window._supa;
-      window._supa = { from: () => ({ upsert: (row, opts) => { rows.push({ row, opts }); return Promise.resolve({ error: null }); } }) };
+      window._supa = Object.assign({}, prev, { from: () => ({ upsert: (row, opts) => { rows.push({ row, opts }); return Promise.resolve({ error: null }); } }) });
       const cb = window.__td.liveListeners && window.__td.liveListeners.activityToken;
       if (cb) { cb({ channel: 'clock', token: 'act-tok-1' }); cb({ channel: 'clock', token: 'act-tok-2' }); }
       await new Promise(r => setTimeout(r, 40));
@@ -545,7 +545,7 @@ test.describe('Live Activities: what reaches the lock screen', () => {
     const r = await page.evaluate(async () => {
       const invoked = [];
       const prev = window._supa;
-      window._supa = { functions: { invoke: (name, opts) => { invoked.push({ name, body: opts && opts.body }); return Promise.resolve({ data: { ok: true } }); } } };
+      window._supa = Object.assign({}, prev, { functions: { invoke: (name, opts) => { invoked.push({ name, body: opts && opts.body }); return Promise.resolve({ data: { ok: true } }); } } });
       _liveActRemoteEnd('crew-uid-9', 'clock');
       await new Promise(r => setTimeout(r, 40));
       window._supa = prev;
@@ -694,7 +694,7 @@ test.describe('Remote push: token handling and tap routing', () => {
       window._supaUser = { id: 'user-abc' };
       window._contractorUserId = 'boss-xyz';     // an employee on their boss's account
       const prev = window._supa;
-      window._supa = { from: () => ({ upsert: (row, opts) => { rows.push({ row, opts }); return Promise.resolve({ error: null }); } }) };
+      window._supa = Object.assign({}, prev, { from: () => ({ upsert: (row, opts) => { rows.push({ row, opts }); return Promise.resolve({ error: null }); } }) });
       const ok = await _pushSaveToken('devtok-1');
       window._supa = prev;
       return { ok, rows, cached: localStorage.getItem('zp3_push_token') };
@@ -716,7 +716,7 @@ test.describe('Remote push: token handling and tap routing', () => {
       window._supaUser = { id: 'owner-1' };
       window._contractorUserId = null;           // owners have no separate account id
       const prev = window._supa;
-      window._supa = { from: () => ({ upsert: (x) => { row = x; return Promise.resolve({ error: null }); } }) };
+      window._supa = Object.assign({}, prev, { from: () => ({ upsert: (x) => { row = x; return Promise.resolve({ error: null }); } }) });
       await _pushSaveToken('devtok-2');
       window._supa = prev;
       return row;
@@ -728,7 +728,7 @@ test.describe('Remote push: token handling and tap routing', () => {
     const r = await page.evaluate(async () => {
       const prevU = window._supaUser, prevS = window._supa;
       let called = 0;
-      window._supa = { from: () => ({ upsert: () => { called++; return Promise.resolve({ error: null }); } }) };
+      window._supa = Object.assign({}, prevS, { from: () => ({ upsert: () => { called++; return Promise.resolve({ error: null }); } }) });
       window._supaUser = { id: 'u' };
       const empty = await _pushSaveToken('');
       window._supaUser = null;
@@ -746,7 +746,7 @@ test.describe('Remote push: token handling and tap routing', () => {
       localStorage.setItem('zp3_push_token', 'devtok-3');
       const deleted = [];
       const prev = window._supa;
-      window._supa = { from: () => ({ delete: () => ({ eq: (col, val) => { deleted.push([col, val]); return Promise.resolve({ error: null }); } }) }) };
+      window._supa = Object.assign({}, prev, { from: () => ({ delete: () => ({ eq: (col, val) => { deleted.push([col, val]); return Promise.resolve({ error: null }); } }) }) });
       await _pushForget();
       window._supa = prev;
       return { deleted, cached: localStorage.getItem('zp3_push_token') };

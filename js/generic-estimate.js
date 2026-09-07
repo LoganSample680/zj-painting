@@ -3086,7 +3086,7 @@ function _presentShell(inner){
   if(!ov){
     ov=document.createElement('div');
     ov.id='_gei-present-ov';
-    ov.style.cssText='position:fixed;inset:0;z-index:9650;background:#0f172a;display:flex;flex-direction:column;animation:td-pg-enter .2s cubic-bezier(.22,1,.36,1) both';
+    ov.style.cssText='position:fixed;inset:0;z-index:9650;background:#1B1612;display:flex;flex-direction:column;animation:td-pg-enter .2s cubic-bezier(.22,1,.36,1) both';
     document.body.appendChild(ov);
   }
   ov.innerHTML=inner;
@@ -3094,11 +3094,11 @@ function _presentShell(inner){
 }
 function _presentHdr(sub){
   const biz=(typeof S!=='undefined'&&S.bname)||(typeof getBusinessName==='function'?getBusinessName():'')||'';
-  return '<div style="flex-shrink:0;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 18px;border-bottom:1px solid rgba(255,255,255,.10);box-sizing:border-box">'+
-    '<div style="min-width:0"><div style="font-size:15px;font-weight:800;color:#fff;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+escHtml(biz)+'</div>'+
-      (sub?'<div style="font-size:11.5px;color:#94a3b8;margin-top:1px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+escHtml(sub)+'</div>':'')+
+  return '<div style="flex-shrink:0;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 18px;border-bottom:1px solid rgba(245,239,226,.10);box-sizing:border-box">'+
+    '<div style="min-width:0"><div style="font-size:15px;font-weight:800;color:#F5EFE2;letter-spacing:.01em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+escHtml(biz)+'</div>'+
+      (sub?'<div style="font-size:11.5px;color:rgba(245,239,226,.62);margin-top:1px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+escHtml(sub)+'</div>':'')+
     '</div>'+
-    '<button id="present-exit" onclick="_presentClose()" aria-label="Exit presentation" style="flex-shrink:0;background:rgba(255,255,255,.10);border:none;color:#cbd5e1;width:34px;height:34px;border-radius:9px;font-size:18px;line-height:1;cursor:pointer;font-family:inherit;touch-action:manipulation">×</button>'+
+    '<button id="present-exit" onclick="_presentClose()" aria-label="Exit presentation" style="flex-shrink:0;background:rgba(245,239,226,.10);border:none;color:rgba(245,239,226,.75);width:34px;height:34px;border-radius:9px;font-size:18px;line-height:1;cursor:pointer;font-family:inherit;touch-action:manipulation">×</button>'+
   '</div>';
 }
 function _presentName(b){
@@ -3116,47 +3116,131 @@ async function _geiPresent(){
   if(list.length===1){return _presentOpen(list[0].id);}
   _presentChooser(list);
 }
+// The lines on an option RIGHT NOW. For the one he has open that means the
+// editor, not the record: he may have changed it thirty seconds ago and the
+// client is about to read it.
+function _presentLines(b,cur){
+  if(cur&&b&&b.id===cur.id){
+    const live=[];
+    if(typeof _byoItems!=='undefined'&&Array.isArray(_byoItems))_byoItems.forEach(it=>{
+      if(it&&it.on!==false&&!it._rrp&&it.label)live.push({label:String(it.label).trim(),unit:it.unit||'',rate:Number(it.rate)||0,notes:it.notes||''});
+    });
+    if(!live.length&&typeof _geiLines!=='undefined'&&Array.isArray(_geiLines))_geiLines.forEach(l=>{
+      if(l&&!l._tmLabor&&!l._rrp&&l.desc)live.push({label:String(l.desc).trim(),unit:l.unit||'',rate:Number(l.rate)||0,notes:l.notes||''});
+    });
+    if(live.length)return live;
+  }
+  return _pkgBidLines(b);
+}
+// Said once, not three times. Three cards that each repeat "tear off, haul
+// away, ice and water shield" make the client read the same paragraph three
+// times to find the two lines that actually differ, and the two lines that
+// differ ARE the decision. Pull the common work up into one rail and every
+// card underneath is nothing but its own answer.
+function _presentShared(list,cur){
+  if(!list||list.length<2)return [];
+  const sets=list.map(b=>{
+    const m=new Map();
+    _presentLines(b,cur).forEach(l=>{const k=_pbKey(l.label);if(k&&!m.has(k))m.set(k,l);});
+    return m;
+  });
+  const out=[];
+  sets[0].forEach((l,k)=>{if(sets.every(m=>m.has(k)))out.push(l);});
+  return out;
+}
+function _presentUnique(b,list,cur){
+  const shared=new Set(_presentShared(list,cur).map(l=>_pbKey(l.label)));
+  const seen=new Set();
+  return _presentLines(b,cur).filter(l=>{
+    const k=_pbKey(l.label);
+    if(!k||shared.has(k)||seen.has(k))return false;
+    seen.add(k);return true;
+  });
+}
+// The deposit is what he actually has to pay today, and it is the number that
+// decides whether "yes" happens now or "let me talk to my wife" happens now.
+function _presentDeposit(b,me,total){
+  if(me){
+    const pct=(typeof _geiDepositPct==='function')?_geiDepositPct():0;
+    return pct>0?Math.round(total*pct/100*100)/100:0;
+  }
+  return Number(b&&b.deposit)||0;
+}
+function _presentCount(n){return ['','One','Two','Three','Four','Five','Six'][n]||'Your';}
 function _presentChooser(list){
   const cur=(typeof bids!=='undefined'&&typeof _geiEditBidId!=='undefined'&&_geiEditBidId)?bids.find(x=>x.id===_geiEditBidId):null;
   const recId=_presentRecId(list);
+  // His brand, not our navy. This is his letterhead and the client is looking
+  // at it in his truck's colours if he set one (adaBrand already clamped it so
+  // it holds contrast as a background under white text).
+  let accent='#1a365d';
+  if(typeof S!=='undefined'&&S&&S.brandColor){
+    const bh=(typeof adaBrand==='function'?adaBrand(S.brandColor):S.brandColor).replace('#','');
+    if(/^[0-9a-f]{6}$/i.test(bh))accent='#'+bh;
+  }
+  const shared=_presentShared(list,cur);
+  const warranty=(typeof S!=='undefined'&&S&&S.warrantyPeriod)?String(S.warrantyPeriod):'';
   const cards=list.map(b=>{
     const me=!!(cur&&b.id===cur.id);
-    // Live total for the one that is open, stored amount for the rest: exactly
-    // what the client's own document does, so the tablet and the paper agree.
     const amt=me&&typeof calcGeiTotal==='function'?(calcGeiTotal().total||0):(Number(b.amount)||0);
+    const dep=_presentDeposit(b,me,amt);
     const rec=!!(recId&&String(b.id)===String(recId));
     const head=String(b.type||'').replace(/[,\s-]*Option\s+[A-Z]$/i,'').trim();
-    const lines=(typeof _pkgBidLines==='function')?_pkgBidLines(b):[];
-    const bullets=lines.slice(0,5).map(l=>'<li style="font-size:12.5px;color:#4a5568;line-height:1.65;overflow-wrap:anywhere">'+escHtml(l.label)+'</li>').join('');
-    const more=Math.max(0,lines.length-5);
-    const star=svgIcon('★',{size:15,color:rec?'#B7791F':'#cbd5e1'});
-    return '<div style="position:relative;display:flex;flex-direction:column;min-width:0;background:#fff;border-radius:14px;border:2px solid '+(rec?'#B7791F':'#e2e8f0')+';box-shadow:0 6px 22px rgba(0,0,0,.18);overflow:hidden">'+
-      // The badge strip is reserved on EVERY card, empty on the ones without
-      // it. Rendered only on the badged card, its own price sat 24px lower
-      // than its neighbours' and the row of numbers the client is comparing
-      // stopped lining up, which is the one thing this screen exists to do.
-      '<div style="height:26px;flex-shrink:0;background:'+(rec?'#B7791F':'transparent')+';color:#fff;font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.1em;padding:0 12px;display:flex;align-items:center">'+(rec?'Our recommendation':'')+'</div>'+
-      '<button onclick="_presentSetRec(\''+String(b.id).replace(/'/g,'')+'\')" aria-label="Mark as our recommendation" style="position:absolute;top:34px;right:10px;background:none;border:none;padding:4px;cursor:pointer;line-height:1;font-family:inherit;touch-action:manipulation">'+star+'</button>'+
-      '<div style="padding:10px 18px 0"><div style="font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.1em;color:#94a3b8">'+escHtml(_presentName(b))+'</div>'+
-        // Two lines reserved for the headline for the same reason: "Reroof,
-        // architectural shingle" wraps and "Standing seam metal" does not.
-        '<div style="font-size:14px;font-weight:700;color:#1a365d;margin-top:3px;min-height:2.6em;padding-right:26px;overflow-wrap:anywhere">'+escHtml(head||'')+'</div>'+
-        '<div style="font-size:34px;font-weight:900;color:#111;letter-spacing:-1px;margin-top:6px">'+_presentMoney(amt)+'</div>'+
+    const uniq=_presentUnique(b,list,cur);
+    const rows=uniq.slice(0,6).map(l=>
+      '<li style="font-size:13px;line-height:1.55;color:#2C2620;margin-bottom:5px;overflow-wrap:anywhere">'+escHtml(l.label)+'</li>').join('');
+    const more=Math.max(0,uniq.length-6);
+    const star=svgIcon('★',{size:16,color:rec?accent:'#C9C2B6'});
+    const idAttr=escHtml(JSON.stringify(String(b.id)));
+    return '<div style="position:relative;display:flex;flex-direction:column;min-width:0;background:#fff;border-radius:4px;'+
+        'border:1px solid '+(rec?accent:'#DED7CA')+';'+(rec?'box-shadow:0 10px 34px rgba(0,0,0,.30)':'box-shadow:0 3px 14px rgba(0,0,0,.18)')+';overflow:hidden">'+
+      // Reserved on every card, filled on one. Rendered only where it applies,
+      // the badged card's price sat lower than the others and the column of
+      // numbers the client is comparing stopped lining up.
+      '<div style="height:24px;flex-shrink:0;background:'+(rec?accent:'transparent')+';color:#fff;font-size:9.5px;font-weight:800;text-transform:uppercase;letter-spacing:.14em;padding:0 14px;display:flex;align-items:center">'+(rec?'Our recommendation':'')+'</div>'+
+      '<button onclick="_presentSetRec('+idAttr+')" aria-label="Mark as our recommendation" style="position:absolute;top:33px;right:11px;background:none;border:none;padding:4px;cursor:pointer;line-height:1;font-family:inherit;touch-action:manipulation">'+star+'</button>'+
+      '<div style="padding:14px 16px 0">'+
+        '<div style="font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.16em;color:#8C8375">'+escHtml(_presentName(b))+'</div>'+
+        '<div style="font-size:15px;font-weight:700;color:#1B1612;line-height:1.3;margin-top:4px;min-height:2.6em;padding-right:24px;overflow-wrap:anywhere">'+escHtml(head||'')+'</div>'+
+        // tabular-nums is load-bearing: three prices in a row with proportional
+        // digits do not line up at their commas and the comparison reads sloppy.
+        '<div style="font-size:38px;font-weight:800;color:#1B1612;letter-spacing:-1.5px;line-height:1;margin-top:10px;font-variant-numeric:tabular-nums">'+_presentMoney(amt)+'</div>'+
+        (dep>0?'<div style="font-size:11.5px;color:#6B6355;margin-top:6px;font-variant-numeric:tabular-nums">'+_presentMoney(dep)+' to get started</div>':'')+
       '</div>'+
-      (bullets?'<ul style="margin:12px 0 0;padding:0 18px 0 34px">'+bullets+'</ul>':'')+
-      (more?'<div style="font-size:11.5px;color:#718096;padding:6px 18px 0">and '+more+' more</div>':'')+
-      '<div style="padding:16px 18px;margin-top:auto">'+
-        '<button onclick="_presentOpen(\''+String(b.id).replace(/'/g,'')+'\')" style="width:100%;padding:13px;border-radius:11px;border:none;background:'+(rec?'#B7791F':'#1a365d')+';color:#fff;font-size:15px;font-weight:800;cursor:pointer;font-family:inherit;touch-action:manipulation">See the details</button>'+
+      (rows
+        ?'<div style="padding:14px 16px 0"><div style="font-size:9.5px;font-weight:800;text-transform:uppercase;letter-spacing:.14em;color:'+accent+';margin-bottom:8px">'+(list.length>1&&shared.length?'What this adds':'Includes')+'</div>'+
+          '<ul style="margin:0;padding-left:17px">'+rows+'</ul>'+
+          (more?'<div style="font-size:11.5px;color:#8C8375;margin-top:2px">and '+more+' more</div>':'')+
+        '</div>'
+        :(shared.length?'<div style="padding:14px 16px 0;font-size:12.5px;color:#8C8375;line-height:1.5">The work listed above, nothing added.</div>':''))+
+      '<div style="padding:16px;margin-top:auto">'+
+        '<button onclick="_presentOpen('+idAttr+')" style="width:100%;padding:14px;border-radius:3px;border:1px solid '+accent+';background:'+(rec?accent:'#fff')+';color:'+(rec?'#fff':accent)+';font-size:15px;font-weight:800;letter-spacing:.01em;cursor:pointer;font-family:inherit;touch-action:manipulation">See the details</button>'+
       '</div>'+
     '</div>';
   }).join('');
+  const sharedRail=(shared.length||warranty)
+    ?'<div style="border:1px solid rgba(245,239,226,.14);border-radius:4px;padding:14px 16px;margin-bottom:18px;background:rgba(245,239,226,.04)">'+
+      '<div style="font-size:9.5px;font-weight:800;text-transform:uppercase;letter-spacing:.16em;color:rgba(245,239,226,.55);margin-bottom:'+(shared.length?'9px':'0')+'">Every option includes</div>'+
+      // The separator TRAILS its item, it never leads the next one. Leading it,
+      // a wrap on a phone put a stray slash at the start of every line.
+      (shared.length?'<div style="display:flex;flex-wrap:wrap;gap:4px 0">'+shared.slice(0,10).map((l,i,a)=>
+        '<span style="font-size:13px;color:#F5EFE2;line-height:1.55;white-space:nowrap">'+escHtml(l.label)+(i<a.length-1?'<span style="color:rgba(245,239,226,.30);padding:0 9px">/</span>':'')+'</span>').join('')+'</div>':'')+
+      (warranty?'<div style="font-size:12px;color:rgba(245,239,226,.62);margin-top:'+(shared.length?'10px':'6px')+';padding-top:'+(shared.length?'10px':'0')+';'+(shared.length?'border-top:1px solid rgba(245,239,226,.10)':'')+'">'+escHtml(warranty)+' workmanship warranty, in writing, on every option.</div>':'')+
+    '</div>'
+    :'';
   _presentShell(
     _presentHdr('Prepared for '+((cur&&(cur.client_name||cur.name))||'you'))+
-    '<div style="flex:1;overflow-y:auto;padding:20px 16px 28px;box-sizing:border-box">'+
-      '<div style="max-width:1040px;margin:0 auto">'+
-        '<div style="text-align:center;margin-bottom:18px"><div style="font-size:21px;font-weight:800;color:#fff">Choose your option</div>'+
-        '<div style="font-size:13px;color:#94a3b8;margin-top:4px">Tap one to read it in full. You can sign it right here.</div></div>'+
-        '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:14px;align-items:stretch">'+cards+'</div>'+
+    // margin:auto inside a flex column centres the block when the screen has
+    // room and still scrolls when it does not, which justify-content cannot do
+    // without clipping the top of a tall list.
+    '<div style="flex:1;overflow-y:auto;padding:22px 16px 30px;box-sizing:border-box;display:flex;flex-direction:column">'+
+      '<div style="max-width:1060px;width:100%;margin:auto">'+
+        '<div style="margin-bottom:18px">'+
+          '<div style="font-size:24px;font-weight:800;color:#F5EFE2;letter-spacing:-.4px">'+_presentCount(list.length)+' ways to do this job</div>'+
+          '<div style="font-size:13px;color:rgba(245,239,226,.62);margin-top:5px">Same crew, same warranty. The difference is below. Tap one to read it in full and sign it right here.</div>'+
+        '</div>'+
+        sharedRail+
+        '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(248px,1fr));gap:14px;align-items:stretch">'+cards+'</div>'+
       '</div>'+
     '</div>'
   );
@@ -3183,10 +3267,10 @@ async function _presentOpen(bidId){
   const multi=_presentList().length>1;
   _presentShell(
     _presentHdr(multi?('Reading '+_presentName(open)):'')+
-    '<div style="flex:1;overflow-y:auto;padding:16px;box-sizing:border-box;background:#f0f4f8;overflow-wrap:anywhere"><div style="max-width:720px;margin:0 auto">'+html+'</div></div>'+
-    '<div style="flex-shrink:0;display:flex;gap:10px;padding:12px 16px;padding-bottom:calc(12px + env(safe-area-inset-bottom,0px));border-top:1px solid rgba(255,255,255,.10);box-sizing:border-box">'+
-      (multi?'<button id="present-back" onclick="_geiPresent()" style="flex:0 0 auto;padding:14px 18px;border-radius:11px;border:1px solid rgba(255,255,255,.22);background:none;color:#cbd5e1;font-size:15px;font-weight:700;cursor:pointer;font-family:inherit;touch-action:manipulation">Back</button>':'')+
-      '<button id="present-sign" onclick="_presentSign()" style="flex:1;min-width:0;padding:14px;border-radius:11px;border:none;background:#2f855a;color:#fff;font-size:16px;font-weight:800;cursor:pointer;font-family:inherit;touch-action:manipulation">'+svgIcon('✍',{size:16,color:'#fff'})+' Approve &amp; sign</button>'+
+    '<div style="flex:1;overflow-y:auto;padding:18px 16px;box-sizing:border-box;background:#EFEBE3;overflow-wrap:anywhere;display:flex;flex-direction:column"><div style="max-width:760px;width:100%;margin:auto">'+html+'</div></div>'+
+    '<div style="flex-shrink:0;display:flex;gap:10px;padding:12px 16px;padding-bottom:calc(12px + env(safe-area-inset-bottom,0px));border-top:1px solid rgba(245,239,226,.10);box-sizing:border-box">'+
+      (multi?'<button id="present-back" onclick="_geiPresent()" style="flex:0 0 auto;padding:14px 18px;border-radius:3px;border:1px solid rgba(245,239,226,.26);background:none;color:rgba(245,239,226,.85);font-size:15px;font-weight:700;cursor:pointer;font-family:inherit;touch-action:manipulation">Back</button>':'')+
+      '<button id="present-sign" onclick="_presentSign()" style="flex:1;min-width:0;padding:14px;border-radius:3px;border:none;background:#0E6B39;color:#fff;font-size:16px;font-weight:800;cursor:pointer;font-family:inherit;touch-action:manipulation">'+svgIcon('✍',{size:16,color:'#fff'})+' Approve &amp; sign</button>'+
     '</div>'
   );
 }
@@ -4944,6 +5028,38 @@ async function sendGenericProposal(previewOnly,opts){
     ?`<div style="padding:14px 18px;border-bottom:1px solid #e2e8f0"><div style="font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:.1em;color:#94a3b8;margin-bottom:8px">Not included</div><ul style="margin:0;padding-left:18px">${_geiExclusions.map(x=>`<li style="font-size:11.5px;color:#4a5568;line-height:1.7;overflow-wrap:anywhere">${escHtml(x)}</li>`).join('')}</ul><div style="font-size:10.5px;color:#718096;margin-top:8px">Anything above can be added by written change order.</div></div>`
     :'';
 
+  // ── What the other options add ──────────────────────────────────────────
+  // Owner's question, 2026-09-07: on the option that does NOT replace the deck,
+  // does the client see that? The scope was already right (it prints this
+  // option's own lines and nothing else), but "right" was silent: the cheap
+  // option read as complete, because nothing on the page said what the dearer
+  // one buys. That is the whole good-better-best mechanic and it was missing
+  // from the document.
+  //
+  // Derived, never typed: any line a sibling offer carries that this one does
+  // not. He cannot forget to write it and it cannot go stale when he edits an
+  // option.
+  let _optDiffSection='';
+  {
+    const _dBid=_geiEditBidId?bids.find(x=>x.id===_geiEditBidId):null;
+    const _dOff=(typeof _optionOffered==='function')?_optionOffered(_dBid):[];
+    if(_dBid&&_dOff.length>1&&typeof _presentLines==='function'){
+      const _mine=new Set(_presentLines(_dBid,_dBid).map(l=>_pbKey(l.label)));
+      const _blocks=_dOff.map(x=>{
+        if(x.id===_dBid.id)return '';
+        const _extra=_pkgBidLines(x).filter(l=>l.label&&!_mine.has(_pbKey(l.label)));
+        if(!_extra.length)return '';
+        const _nm=x.optionLabel?('Option '+x.optionLabel):String(x.type||'the other option');
+        const _amt=Number(x.amount)||0;
+        const _seen=new Set();
+        const _li=_extra.filter(l=>{const k=_pbKey(l.label);if(_seen.has(k))return false;_seen.add(k);return true;})
+          .slice(0,6).map(l=>`<li style="font-size:11.5px;color:#4a5568;line-height:1.7;overflow-wrap:anywhere">${escHtml(l.label)}</li>`).join('');
+        return `<div style="margin-bottom:10px"><div style="font-size:11.5px;font-weight:800;color:${_pAccent};margin-bottom:4px">${escHtml(_nm)}${_amt?` <span style="font-weight:700;color:#718096">(${'$'+_amt.toLocaleString('en-US',{maximumFractionDigits:0})})</span>`:''} also includes</div><ul style="margin:0;padding-left:18px">${_li}</ul></div>`;
+      }).filter(Boolean).join('');
+      if(_blocks)_optDiffSection=`<div style="padding:14px 18px;border-bottom:1px solid #e2e8f0;background:#fbfcfe"><div style="font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:.1em;color:#94a3b8;margin-bottom:8px">Not in this option</div>${_blocks}<div style="font-size:10.5px;color:#718096">Say the word and we will move you onto it before we start.</div></div>`;
+    }
+  }
+
   const _scopeSection=_scopeBlocks.length
     ?`<div style="padding:14px 18px 6px;border-bottom:1px solid #e2e8f0;background:#f8fafc"><div style="font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:.1em;color:${_pAccent};margin-bottom:10px">Scope of work</div>${_scopeBlocks.join('')}</div>`
     :'';
@@ -4997,7 +5113,7 @@ async function sendGenericProposal(previewOnly,opts){
   const _lineItemsSection=_geiIsFreeForm
     ?`<table style="width:100%;border-collapse:collapse"><tfoot>${_totalFooterRows}</tfoot></table>`
     :`<table style="width:100%;border-collapse:collapse;font-size:12px"><thead><tr style="background:#f1f5f9;border-bottom:2px solid #e2e8f0"><th colspan="2" style="padding:8px 18px;text-align:left;font-weight:800;text-transform:uppercase;color:#64748b;font-size:9px;letter-spacing:.08em">Description</th></tr></thead><tbody>${lineRows}</tbody><tfoot>${_totalFooterRows}</tfoot></table>`;
-  const proposalHtml=`<div style="background:#fff;color:#1a1a1a;border-radius:10px;overflow:hidden;border:1px solid #e2e8f0;box-shadow:0 4px 24px rgba(0,0,0,.10)"><div style="background:linear-gradient(135deg,${_pAccent} 0%,${_pAccent2} 100%);color:#fff;padding:24px 28px;display:flex;justify-content:space-between;align-items:flex-start;border-bottom:3px solid rgba(255,255,255,.1)">${_proposalBizHeader(_bnameRaw,_bphoneRaw,_blicRaw)}<div style="text-align:right;padding-top:4px"><div style="font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.12em;opacity:.9;margin-bottom:8px">${_hdrLabel}</div><div style="font-size:11px;opacity:.6;margin-bottom:2px"># ${estNum}</div><div style="font-size:11px;opacity:.6">Date: ${dateStr}</div></div></div><div style="display:grid;grid-template-columns:1fr 1fr;border-bottom:1px solid #e2e8f0"><div style="padding:14px 18px;border-right:1px solid #e2e8f0"><div style="font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:.1em;color:#94a3b8;margin-bottom:6px">Customer</div><div style="font-size:14px;font-weight:700;color:${_pAccent}">${clientName}</div>${clientAddr?`<div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#94a3b8;margin-top:7px">Address</div><div style="font-size:12px;color:#4a5568;margin-top:1px">${clientAddr}</div>`:''}${clientPhone?`<div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#94a3b8;margin-top:7px">Phone</div><div style="font-size:12px;color:#4a5568;margin-top:1px">${clientPhone}</div>`:''}</div><div style="padding:14px 18px"><div style="font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:.1em;color:#94a3b8;margin-bottom:6px">Project</div><div style="font-size:13px;font-weight:600;color:${_pAccent}">${jobDesc||tradeName+' service'}</div>${duration?`<div style="font-size:11px;color:#718096;margin-top:6px">Est. duration: ${duration}</div>`:''}<div style="font-size:11px;color:#718096;margin-top:3px">Valid until: ${_geiExpD}</div></div></div>${_optionsSection}${_scopeSection}${_exclSection}${_rrpSection}${_scanPlanSection}${_lineItemsSection}${notesHtml}${_propPanelHtml}</div>`;
+  const proposalHtml=`<div style="background:#fff;color:#1a1a1a;border-radius:10px;overflow:hidden;border:1px solid #e2e8f0;box-shadow:0 4px 24px rgba(0,0,0,.10)"><div style="background:linear-gradient(135deg,${_pAccent} 0%,${_pAccent2} 100%);color:#fff;padding:24px 28px;display:flex;justify-content:space-between;align-items:flex-start;border-bottom:3px solid rgba(255,255,255,.1)">${_proposalBizHeader(_bnameRaw,_bphoneRaw,_blicRaw)}<div style="text-align:right;padding-top:4px"><div style="font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.12em;opacity:.9;margin-bottom:8px">${_hdrLabel}</div><div style="font-size:11px;opacity:.6;margin-bottom:2px"># ${estNum}</div><div style="font-size:11px;opacity:.6">Date: ${dateStr}</div></div></div><div style="display:grid;grid-template-columns:1fr 1fr;border-bottom:1px solid #e2e8f0"><div style="padding:14px 18px;border-right:1px solid #e2e8f0"><div style="font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:.1em;color:#94a3b8;margin-bottom:6px">Customer</div><div style="font-size:14px;font-weight:700;color:${_pAccent}">${clientName}</div>${clientAddr?`<div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#94a3b8;margin-top:7px">Address</div><div style="font-size:12px;color:#4a5568;margin-top:1px">${clientAddr}</div>`:''}${clientPhone?`<div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#94a3b8;margin-top:7px">Phone</div><div style="font-size:12px;color:#4a5568;margin-top:1px">${clientPhone}</div>`:''}</div><div style="padding:14px 18px"><div style="font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:.1em;color:#94a3b8;margin-bottom:6px">Project</div><div style="font-size:13px;font-weight:600;color:${_pAccent}">${jobDesc||tradeName+' service'}</div>${duration?`<div style="font-size:11px;color:#718096;margin-top:6px">Est. duration: ${duration}</div>`:''}<div style="font-size:11px;color:#718096;margin-top:3px">Valid until: ${_geiExpD}</div></div></div>${_optionsSection}${_scopeSection}${_exclSection}${_optDiffSection}${_rrpSection}${_scanPlanSection}${_lineItemsSection}${notesHtml}${_propPanelHtml}</div>`;
   // Terms & Conditions is NOT part of the document the client reviews first,
   // it only appears in the accordion under the signature on the actual sign
   // step (owner directive 2026-07-13). The preview mirrors that: it shows

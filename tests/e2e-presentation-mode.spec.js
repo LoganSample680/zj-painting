@@ -52,6 +52,21 @@ test.describe('presentation mode', () => {
     _byoUpdateRail();
   });
 
+  // Option A is the base roof. Option B is A plus the deck and the ridge vent.
+  // That gap is what the difference block and the comparison rail both read.
+  const seedRoofLines = () => page.evaluate(() => {
+    bids.find(b => b.id === 88101).byoItems = [
+      { id: 1, section: 'Roof', label: 'Tear off existing shingles', qty: 1, unit: 'ea', rate: 2400, price: 2400, on: true },
+      { id: 2, section: 'Roof', label: 'Architectural shingle, 30 yr', qty: 1, unit: 'ea', rate: 9280, price: 9280, on: true }
+    ];
+    bids.find(b => b.id === 88102).byoItems = [
+      { id: 1, section: 'Roof', label: 'Tear off existing shingles', qty: 1, unit: 'ea', rate: 2400, price: 2400, on: true },
+      { id: 2, section: 'Roof', label: 'Replace deck sheathing, 7/16 OSB', qty: 1, unit: 'ea', rate: 3040, price: 3040, on: true },
+      { id: 3, section: 'Roof', label: 'Architectural shingle, 30 yr', qty: 1, unit: 'ea', rate: 9280, price: 9280, on: true },
+      { id: 4, section: 'Roof', label: 'Ridge vent, continuous', qty: 1, unit: 'ea', rate: 460, price: 460, on: true }
+    ];
+  });
+
   test.beforeAll(async ({ browser }) => {
     const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, bypassCSP: true });
     page = await ctx.newPage();
@@ -125,7 +140,7 @@ test.describe('presentation mode', () => {
         hasC: html.includes('Option C'),
         priceA: html.includes('$12,400'),
         priceC: html.includes('$28,750'),
-        chooseCopy: html.includes('Choose your option')
+        chooseCopy: html.includes('ways to do this job')
       };
     });
     expect(r.open).toBe(true);
@@ -134,7 +149,7 @@ test.describe('presentation mode', () => {
     expect(r.hasC, 'the draft option is not an offer and is not on the tablet').toBe(false);
     expect(r.priceA).toBe(true);
     expect(r.priceC).toBe(false);
-    expect(r.chooseCopy).toBe(true);
+    expect(r.chooseCopy, 'the headline counts the options: "Two ways to do this job"').toBe(true);
   });
 
   test('the open option shows its LIVE total, not the number last saved on the record', async () => {
@@ -155,7 +170,7 @@ test.describe('presentation mode', () => {
       const ov = document.getElementById('_gei-present-ov');
       return {
         open: !!ov,
-        chooser: ov ? ov.innerHTML.includes('Choose your option') : null,
+        chooser: ov ? ov.innerHTML.includes('ways to do this job') : null,
         sign: ov ? !!ov.querySelector('#present-sign') : null,
         back: ov ? !!ov.querySelector('#present-back') : null
       };
@@ -226,7 +241,7 @@ test.describe('presentation mode', () => {
         back: !!ov.querySelector('#present-back'),
         doc: ov.innerHTML.includes('Tear-off and reroof'),
         total: ov.innerHTML.includes('$13,440.00'),
-        chooser: ov.innerHTML.includes('Choose your option')
+        chooser: ov.innerHTML.includes('ways to do this job')
       };
     });
     expect(r.editing).toBe(88102);
@@ -249,7 +264,7 @@ test.describe('presentation mode', () => {
       _geiPresent();
       const before = _geiEditBidId;
       await _presentOpen(999999);
-      return { before, after: _geiEditBidId, stillChooser: document.getElementById('_gei-present-ov').innerHTML.includes('Choose your option') };
+      return { before, after: _geiEditBidId, stillChooser: document.getElementById('_gei-present-ov').innerHTML.includes('ways to do this job') };
     });
     expect(r.after).toBe(r.before);
     expect(r.stillChooser).toBe(true);
@@ -359,6 +374,135 @@ test.describe('presentation mode', () => {
     expect(r.mNul).toBe('$0');
     expect(r.mStr).toBe('$0');
     expect(r.mNum).toBe('$13,440');
+  });
+
+  // ── The difference, said out loud ──────────────────────────────────────────
+
+  test('the cheaper option names what the dearer one adds, derived not typed', async () => {
+    await seed();
+    await seedRoofLines();
+    const html = await page.evaluate(async () => {
+      _presentClose();
+      _geiEditBidId = 88101; _geiClientId = 88001; _geiIsFreeForm = true; _geiIsTM = false;
+      _byoItems = bids.find(b => b.id === 88101).byoItems.map(x => _byoNormItem({ ...x }));
+      _geiScopeChips = []; _geiExclusions = [];
+      _byoUpdateRail();
+      return await sendGenericProposal(true, { silent: true });
+    });
+    expect(html).toContain('Not in this option');
+    expect(html, 'it names WHICH option, not just that something is missing').toContain('Option B');
+    expect(html).toContain('Replace deck sheathing, 7/16 OSB');
+    expect(html).toContain('Ridge vent, continuous');
+    const notIdx = html.indexOf('Not in this option');
+    const shared = html.indexOf('Tear off existing shingles', notIdx);
+    expect(shared === -1 || shared > html.length, 'work both options share is not a difference').toBe(true);
+  });
+
+  test('the dearer option has nothing missing, so the block does not print', async () => {
+    const html = await page.evaluate(async () => {
+      _presentClose();
+      _geiEditBidId = 88102; _geiClientId = 88001; _geiIsFreeForm = true; _geiIsTM = false;
+      _byoItems = bids.find(b => b.id === 88102).byoItems.map(x => _byoNormItem({ ...x }));
+      _geiScopeChips = []; _geiExclusions = [];
+      _byoUpdateRail();
+      return await sendGenericProposal(true, { silent: true });
+    });
+    expect(html, 'B is a superset of A: nothing to say').not.toContain('Not in this option');
+  });
+
+  test('a lone proposal never prints a difference block', async () => {
+    const html = await page.evaluate(async () => {
+      _presentClose();
+      _geiEditBidId = 88500; _geiClientId = 88001; _geiIsFreeForm = true; _geiIsTM = false;
+      _byoItems = [_byoNormItem({ id: 1, section: 'Work', label: 'Patch flashing', qty: 1, rate: 900, on: true })];
+      _geiScopeChips = []; _geiExclusions = [];
+      _byoUpdateRail();
+      return await sendGenericProposal(true, { silent: true });
+    });
+    expect(html).not.toContain('Not in this option');
+  });
+
+  // ── The chooser compares, it does not repeat ───────────────────────────────
+
+  test('shared work is stated once, and each card carries only its own difference', async () => {
+    await seed(); await seedRoofLines();
+    const r = await page.evaluate(() => {
+      _presentClose();
+      _geiEditBidId = 88101; _geiClientId = 88001; _geiIsFreeForm = true; _geiIsTM = false;
+      _byoItems = bids.find(b => b.id === 88101).byoItems.map(x => _byoNormItem({ ...x }));
+      _geiScopeChips = [];
+      _byoUpdateRail();
+      _geiPresent();
+      const html = document.getElementById('_gei-present-ov').innerHTML;
+      const rail = html.indexOf('Every option includes');
+      const cards = html.indexOf('What this adds');
+      return {
+        rail: rail >= 0,
+        railBeforeCards: rail >= 0 && cards >= 0 && rail < cards,
+        tearoffs: (html.match(/Tear off existing shingles/g) || []).length,
+        deck: (html.match(/Replace deck sheathing/g) || []).length,
+        shared: _presentShared(_presentList(), bids.find(b => b.id === 88101)).map(l => l.label),
+        uniqB: _presentUnique(bids.find(b => b.id === 88102), _presentList(), bids.find(b => b.id === 88101)).map(l => l.label)
+      };
+    });
+    expect(r.rail).toBe(true);
+    expect(r.railBeforeCards).toBe(true);
+    expect(r.tearoffs, 'the work they share is said once, not once per card').toBe(1);
+    expect(r.deck, 'the difference sits on the card that has it').toBe(1);
+    expect(r.shared).toEqual(['Tear off existing shingles', 'Architectural shingle, 30 yr']);
+    expect(r.uniqB).toEqual(['Replace deck sheathing, 7/16 OSB', 'Ridge vent, continuous']);
+  });
+
+  test('the open option is compared on its LIVE lines, not the saved record', async () => {
+    await seed(); await seedRoofLines();
+    const r = await page.evaluate(() => {
+      _geiEditBidId = 88101; _geiIsFreeForm = true; _geiIsTM = false;
+      _byoItems = bids.find(b => b.id === 88101).byoItems.map(x => _byoNormItem({ ...x }))
+        .concat([_byoNormItem({ id: 9, section: 'Roof', label: 'Ridge vent, continuous', qty: 1, rate: 460, on: true })]);
+      _byoUpdateRail();
+      return _presentUnique(bids.find(b => b.id === 88102), _presentList(), bids.find(b => b.id === 88101)).map(l => l.label);
+    });
+    expect(r, 'he just added the vent to A, so B no longer adds it').toEqual(['Replace deck sheathing, 7/16 OSB']);
+  });
+
+  test('two options that share nothing get no rail and full lists', async () => {
+    const r = await page.evaluate(() => {
+      const a = { id: 88601, optionGroup: 88601, optionLabel: 'A', byoItems: [{ label: 'Repipe', on: true, rate: 1 }] };
+      const b = { id: 88602, optionGroup: 88601, optionLabel: 'B', byoItems: [{ label: 'Water softener', on: true, rate: 1 }] };
+      return {
+        shared: _presentShared([a, b], null).length,
+        uniqA: _presentUnique(a, [a, b], null).map(l => l.label)
+      };
+    });
+    expect(r.shared).toBe(0);
+    expect(r.uniqA).toEqual(['Repipe']);
+  });
+
+  test('the deposit that gets him started is on the card', async () => {
+    await seed(); await seedRoofLines();
+    const html = await page.evaluate(() => {
+      _presentClose();
+      _geiEditBidId = 88101; _geiIsFreeForm = true; _geiIsTM = false;
+      _byoItems = bids.find(b => b.id === 88101).byoItems.map(x => _byoNormItem({ ...x }));
+      bids.find(b => b.id === 88102).deposit = 3975;
+      _byoUpdateRail();
+      _geiPresent();
+      return document.getElementById('_gei-present-ov').innerHTML;
+    });
+    expect(html).toContain('$3,975 to get started');
+  });
+
+  test('_presentShared and _presentUnique hold on junk', async () => {
+    const r = await page.evaluate(() => ({
+      nul: _presentShared(null, null).length,
+      one: _presentShared([{ id: 1 }], null).length,
+      empty: _presentUnique({ id: 1 }, [{ id: 1 }], null).length,
+      count: [_presentCount(2), _presentCount(3), _presentCount(9)]
+    }));
+    expect(r.nul).toBe(0);
+    expect(r.one, 'one option shares nothing with anything').toBe(0);
+    expect(r.empty).toBe(0);
+    expect(r.count, 'the chooser never opens for fewer than two').toEqual(['Two', 'Three', 'Your']);
   });
 
   test('no console errors', async () => {

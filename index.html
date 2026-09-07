@@ -4206,6 +4206,9 @@ document.querySelectorAll('[data-ico]').forEach(function(el){
 <script src="js/fleet.js"></script>
 <script src="js/vehicle-verdict.js"></script>
 <script src="js/milestones.js"></script>
+<!-- The code engine loads BEFORE any js/code-*.js module: those register their
+     rule sets onto it at parse time, so the registry has to exist first. -->
+<script src="js/code-engine.js"></script>
 <script src="js/e2e.js"></script>
 <script src="js/pwa.js"></script>
 <script>

@@ -574,7 +574,7 @@ function openGenericEstimate(c,bidId,_tradePick,opts){
   _geiEditBidId=bidId||null;
   _geiClientTaxRate=null;
   const _facts=_geiFacts(c);
-  _geiLines=[];_byoItems=[];_byoCustomSections=[];_byoCustomTerms='';_geiEmergency=false;_panelSched=null;_geiStep=1;_geiScopeChips=[];_geiScopeNoScope=false;_estCrew=[];
+  _geiLines=[];_byoItems=[];_byoCustomSections=[];_byoCustomTerms='';_geiEmergency=false;_panelSched=null;_geiStep=1;_geiScopeChips=[];_geiScopeNoScope=false;_estCrew=[];_geiExclusions=[];
   // Resolved, not blanked. An emergency is the one thing nobody can know in
   // advance, so that one still starts off.
   _geiIsCommercial=_facts.commercial;
@@ -666,6 +666,7 @@ function openGenericEstimate(c,bidId,_tradePick,opts){
       if(b.geiTaxPct)sf('gei-tax-pct',b.geiTaxPct);
       if(b.jobScope)_geiJobScope=b.jobScope;
       if(b.scopeChips)_geiScopeChips=[...b.scopeChips];
+      if(Array.isArray(b.exclusions))_geiExclusions=[...b.exclusions];
       _geiScopeNoScope=!!(b.scopeNoScope);
       if(b.geiDuration)sf('gei-duration',b.geiDuration);
       if(b.geiNewWork){_geiNewWork=true;if(nwEl)nwEl.checked=true;}
@@ -736,6 +737,7 @@ function openGenericEstimate(c,bidId,_tradePick,opts){
       if(_b.isTM){_geiIsTM=true;_geiIsFreeForm=false;_tmCrewCount=_b.tmCrewCount||1;_tmRatePerMan=_b.tmRatePerMan||_facts.laborRate;_tmEstHours=_b.tmEstHours||0;_tmBillingCycle=_b.tmBillingCycle||'weekly';_tmCapAction=_b.tmCapAction||'Stop & get re-approval';}
       else if(_b.isFreeForm){_geiIsFreeForm=true;_geiIsTM=false;}
       if(_b.scopeChips)_geiScopeChips=[..._b.scopeChips];
+      if(Array.isArray(_b.exclusions))_geiExclusions=[..._b.exclusions];
       _geiScopeNoScope=!!(_b.scopeNoScope);
       // Deposit % is restored in _tmShowPage/_byoShowPage instead, the field
       // doesn't exist in the DOM yet at this point (rendered lazily on page show).
@@ -1159,6 +1161,86 @@ function _geiSiteNoteInput(val){
   if(_geiSiteNoteT)clearTimeout(_geiSiteNoteT);
   _geiSiteNoteT=setTimeout(()=>{try{saveAll();}catch(e){}},400);
 }
+// ── What is NOT included ────────────────────────────────────────────────────
+//
+// The single most-named thing missing from a contractor's estimate, and the
+// one that turns into a fight: permits, asbestos and mold, structural damage
+// found after demo, owner-supplied materials, disposal beyond normal debris.
+// Homeowner guides literally teach people to treat a missing exclusions list as
+// a red flag and go get another bid, and estimate-terms guides call it the
+// first line of defense against a dispute. TradeDesk had nothing.
+//
+// Presets first because nobody writes these from memory at a kitchen table,
+// free text underneath because every job has its own. Same card on every
+// estimate type, injected by the shared chrome like everything else.
+const _EXCL_COMMON=[
+  'Permits, plan review and inspection fees',
+  'Hazardous materials (asbestos, lead, mold)',
+  'Structural or hidden damage found after demo',
+  'Owner-supplied materials and fixtures',
+  'Disposal beyond normal job debris',
+  'Work not specifically listed above',
+];
+const _EXCL_BY_TRADE={
+  roofing:    ['Deck replacement beyond the sheets listed','Gutter replacement','Interior ceiling or drywall repair'],
+  hvac:       ['Electrical service upgrades','Duct replacement or resizing','Gas line modifications'],
+  plumbing:   ['Wall, ceiling and floor repair after access','Septic or main sewer line work','Fixture upgrades not listed'],
+  electrical: ['Drywall patch and paint after access','Panel or service upgrades','Low-voltage and data wiring'],
+  painting:   ['Wallpaper removal','Carpentry and rot repair','Moving heavy or fragile furniture'],
+  landscaping:['Irrigation repair','Tree removal','Grading or drainage correction'],
+};
+function _exclList(trade){
+  const t=trade||_geiTrade||(typeof getActiveTrade==='function'?getActiveTrade():'general');
+  return [...(_EXCL_BY_TRADE[t]||[]),..._EXCL_COMMON];
+}
+let _geiExclusions=[];
+Object.defineProperty(window,'_geiExclusions',{get:()=>_geiExclusions,set:v=>{_geiExclusions=Array.isArray(v)?v:[];},configurable:true});
+function _exclToggle(label){
+  const i=_geiExclusions.indexOf(label);
+  if(i>=0)_geiExclusions.splice(i,1);else _geiExclusions.push(label);
+  _geiRenderExclusions(_geiIsTM?'tm':'byo');
+  if(typeof _byoAutosave==='function')_byoAutosave();
+}
+function _exclAddCustom(){
+  const el=document.getElementById('gei-excl-custom');
+  const v=(el&&el.value||'').trim();
+  if(!v)return;
+  if(_geiExclusions.indexOf(v)<0)_geiExclusions.push(v);
+  if(el)el.value='';
+  _geiRenderExclusions(_geiIsTM?'tm':'byo');
+  if(typeof _byoAutosave==='function')_byoAutosave();
+}
+function _geiRenderExclusions(prefix){
+  ['tm','byo','gen'].forEach(p=>{if(p!==prefix){const w=document.getElementById(p+'-excl-wrap');if(w)w.innerHTML='';}});
+  const wrap=document.getElementById(prefix+'-excl-wrap');if(!wrap)return;
+  const opts=_exclList();
+  const chosen=_geiExclusions.slice();
+  // Anything he typed himself sits with the presets, so the list reads as one
+  // thing and he can turn a custom line back off the same way.
+  const all=opts.concat(chosen.filter(c=>opts.indexOf(c)<0));
+  wrap.innerHTML='<div class="card card-pad-0" style="margin-bottom:12px">'+
+    '<div class="card-hd"><div class="card-hd-title">'+svgIcon('⚠',{size:14})+' What is not included</div>'+
+      '<div style="font-size:11px;color:var(--text3);font-weight:600">'+(chosen.length?chosen.length+' on the proposal':'optional')+'</div>'+
+    '</div>'+
+    '<div style="padding:12px 14px">'+
+      '<div style="font-size:11px;color:var(--text-3);margin-bottom:10px;line-height:1.5">Naming the boundary is what stops the argument later. Tap what this job does not cover.</div>'+
+      '<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px">'+
+        all.map(l=>{
+          const on=chosen.indexOf(l)>=0;
+          return '<button type="button" onclick="_exclToggle('+escHtml(JSON.stringify(l))+')" '+
+            'style="padding:8px 12px;border-radius:20px;border:1.5px solid '+(on?'var(--blue)':'var(--border2)')+';background:'+(on?'var(--blue-lt)':'var(--bg2)')+';color:'+(on?'var(--blue-dk)':'var(--text)')+';font-size:12px;font-weight:'+(on?'800':'600')+';cursor:pointer;font-family:inherit;min-height:38px;text-align:left">'+
+            (on?svgIcon('✓',{size:11})+' ':'')+escHtml(l)+'</button>';
+        }).join('')+
+      '</div>'+
+      '<div style="display:flex;gap:8px">'+
+        '<input type="text" id="gei-excl-custom" placeholder="Anything else this job does not cover" onkeydown="if(event.key===\'Enter\'){event.preventDefault();_exclAddCustom();}" '+
+          'style="flex:1;min-width:0;font-size:13px;padding:9px 11px;border-radius:var(--r);border:1px solid var(--border2);background:var(--bg2);color:var(--text);font-family:inherit">'+
+        '<button onclick="_exclAddCustom()" class="btn btn-sm" style="flex-shrink:0;min-height:38px">+ Add</button>'+
+      '</div>'+
+    '</div>'+
+  '</div>';
+}
+
 function _geiRenderSiteNoteField(prefix){
   ['tm','byo','gen'].forEach(p=>{if(p!==prefix){const w=document.getElementById(p+'-sitenote-wrap');if(w)w.innerHTML='';}});
   const wrap=document.getElementById(prefix+'-sitenote-wrap');if(!wrap)return;
@@ -1189,6 +1271,7 @@ function _geiShowSharedChrome(prefix){
   _geiRenderDepositField(prefix,m.depositOninput);
   _geiApplyDepositDefault(prefix);
   _geiRenderSiteNoteField(prefix);
+  _geiRenderExclusions(prefix);
   // Trade branding in title
   const tmMeta=TRADE_META[_geiTrade||getActiveTrade()]||{icon:'🔧',label:'Trade'};
   const titleEl=document.getElementById(prefix+'-tbar-title');
@@ -1404,8 +1487,13 @@ function _openScopeSheet(containerId){
 // item rows and T&M's material category rows so the two lists look and
 // behave identically. event.stopPropagation() keeps a wrapping row-level
 // onclick (BYO toggles on/off; T&M opens edit) from also firing.
-function _geiRowActionBtns(editCall,delCall,delTitle){
-  return '<button onclick="event.stopPropagation();'+editCall+'" title="Edit" style="background:none;border:1px solid var(--border2);border-radius:6px;padding:4px 8px;font-size:12px;cursor:pointer;font-family:inherit;color:var(--blue);touch-action:manipulation">Edit</button>'+
+function _geiRowActionBtns(editCall,delCall,delTitle,dupCall){
+  // COPY, because "Bedroom 1, walls only" then "Bedroom 2, walls only" is the
+  // single most repeated act in a room-by-room estimate, and retyping the label,
+  // the price and the description every time is the whole reason the fast way
+  // to build a bid is still a notepad.
+  return (dupCall?'<button onclick="event.stopPropagation();'+dupCall+'" title="Duplicate this line" style="background:none;border:1px solid var(--border2);border-radius:6px;padding:4px 8px;font-size:12px;cursor:pointer;font-family:inherit;color:var(--text3);touch-action:manipulation">Copy</button>':'')+
+    '<button onclick="event.stopPropagation();'+editCall+'" title="Edit" style="background:none;border:1px solid var(--border2);border-radius:6px;padding:4px 8px;font-size:12px;cursor:pointer;font-family:inherit;color:var(--blue);touch-action:manipulation">Edit</button>'+
     '<button onclick="event.stopPropagation();'+delCall+'" title="'+(delTitle||'Remove')+'" style="background:none;border:1px solid var(--border2);border-radius:6px;padding:4px 8px;font-size:12px;cursor:pointer;font-family:inherit;color:#A32D2D;touch-action:manipulation">'+svgIcon('✕',{size:12})+'</button>';
 }
 function _editEstTitle(titleId,btnId){
@@ -1503,7 +1591,7 @@ function _byoQtyLabel(it){
 // below that line instead of being squeezed into a narrow left column next to
 // empty grey space under the price/action buttons.
 function _geiItemRowHtml(opts){
-  const{label,notes,price,qtyLabel,editFn,delFn,delTitle,checked,rowOnclick,extraClass}=opts;
+  const{label,notes,price,qtyLabel,editFn,delFn,delTitle,dupFn,checked,rowOnclick,extraClass}=opts;
   const checkHtml=checked!==undefined?'<div class="byo-check'+(checked?' on':'')+'">'+(checked?svgIcon('✓',{size:14}):'')+'</div>':'';
   return '<div class="byo-row'+(checked?' on':'')+(extraClass?' '+extraClass:'')+'"'+(rowOnclick?' onclick="'+rowOnclick+'"':'')+'>'+
     '<div class="byo-row-hd">'+
@@ -1511,7 +1599,7 @@ function _geiItemRowHtml(opts){
       '<div class="byo-label">'+escHtml(label)+'</div>'+
       '<div class="byo-price">$'+price.toLocaleString()+'</div>'+
       '<div style="display:flex;gap:4px;flex-shrink:0;margin-left:6px">'+
-        _geiRowActionBtns(editFn,delFn,delTitle)+
+        _geiRowActionBtns(editFn,delFn,delTitle,dupFn)+
       '</div>'+
     '</div>'+
     // The arithmetic, shown. He typed a count and a rate; this is the app
@@ -1542,7 +1630,7 @@ function _byoRenderSections(){
       return _geiItemRowHtml({
         checked:it.on,rowOnclick:'_byoToggle('+idx+')',
         label:it.label,notes:(it.notes&&!it._rrp)?it.notes:'',price:it.price,qtyLabel:_byoQtyLabel(it),
-        editFn:'_byoEditItem('+idx+')',delFn:'_byoDelItem('+idx+')'
+        editFn:'_byoEditItem('+idx+')',delFn:'_byoDelItem('+idx+')',dupFn:it._rrp?'':'_byoDupItem('+idx+')'
       });
     }).join(''):
     '<div style="padding:14px 16px;font-size:12px;color:var(--text-3);font-style:italic">No items yet, tap + Add item</div>';
@@ -1599,6 +1687,7 @@ function _byoAutosave(){
   // Build Your Own with empty items (the "my work disappeared" bug).
   b.isFreeForm=_geiIsFreeForm&&!_geiIsTM;
   b.estCrew=[..._estCrew];
+  b.exclusions=[..._geiExclusions];
   // THE PROMISE, frozen. _estLaborHours() is derived live from the price book
   // and his scope history, so it MOVES as the book learns. Stamping it here is
   // what lets the job compare what really happened against what this estimate
@@ -2510,6 +2599,22 @@ function _byaEditConfirm(idx){
   // here too, or a description added on the second pass is lost to the next job.
   _pbLearn(label,rate,unit,notes);
   document.getElementById('_byo-add-modal')?.remove();
+  _byoRenderSections();_byoUpdateRail();_byoAutosave();
+}
+// A copy lands directly under the original, named so he can tell them apart at
+// a glance and so two rows reading exactly the same thing never reach a client.
+// Everything else rides along: quantity, unit, rate and the description, which
+// is the part that made copying worth doing.
+function _byoDupItem(idx){
+  const it=_byoItems[idx];if(!it||it._rrp)return;
+  const base=String(it.label||'').replace(/\s*\((\d+)\)$/,'').trim();
+  let n=2,name=base+' (2)';
+  while(_byoItems.some(x=>String(x.label||'').trim()===name)){n++;name=base+' ('+n+')';}
+  const copy=_byoNormItem(Object.assign({},JSON.parse(JSON.stringify(it)),{
+    id:(_byoItems.reduce((m,x)=>Math.max(m,x.id||0),0))+1,
+    label:name,on:true
+  }));
+  _byoItems.splice(idx+1,0,copy);
   _byoRenderSections();_byoUpdateRail();_byoAutosave();
 }
 function _byoAddSection(){
@@ -4027,6 +4132,7 @@ function saveGenericEstimate(draft){
       b.estHours=_estLaborHours();
       b.estCrew=[..._estCrew];
       b.estCrewSize=_estCrew.length||1;
+      b.exclusions=[..._geiExclusions];
       if(_geiIsFreeForm&&_byoItems.length)b.byoItems=JSON.parse(JSON.stringify(_byoItems));
       if(_geiIsFreeForm){b.byoCustomSections=_byoSecsSave;b.byoCustomTerms=_byoTermsSave;}
       if(_panelSched)b.panelSched=JSON.parse(JSON.stringify(_panelSched));else delete b.panelSched;
@@ -4054,6 +4160,7 @@ function saveGenericEstimate(draft){
       scopeChips:[..._geiScopeChips],
       scopeNoScope:_geiScopeNoScope||false,
       estHours:_estLaborHours(),estCrew:[..._estCrew],estCrewSize:_estCrew.length||1,
+      exclusions:[..._geiExclusions],
       trade_type:trade,...(_panelSched?{panelSched:JSON.parse(JSON.stringify(_panelSched))}:{}),..._tmFields,
     };
     bids.unshift(newBid);_geiEditBidId=newBid.id;saveAll();
@@ -4380,6 +4487,14 @@ async function sendGenericProposal(previewOnly,opts){
     }
   }
 
+  // The boundary, on the client's copy, right after the scope. It answers the
+  // question the scope raises ("is X in there?") at the moment they ask it,
+  // instead of in the terms accordion where nobody looks until there is an
+  // argument.
+  const _exclSection=_geiExclusions.length
+    ?`<div style="padding:14px 18px;border-bottom:1px solid #e2e8f0"><div style="font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:.1em;color:#94a3b8;margin-bottom:8px">Not included</div><ul style="margin:0;padding-left:18px">${_geiExclusions.map(x=>`<li style="font-size:11.5px;color:#4a5568;line-height:1.7;overflow-wrap:anywhere">${escHtml(x)}</li>`).join('')}</ul><div style="font-size:10.5px;color:#718096;margin-top:8px">Anything above can be added by written change order.</div></div>`
+    :'';
+
   const _scopeSection=_scopeBlocks.length
     ?`<div style="padding:14px 18px 6px;border-bottom:1px solid #e2e8f0;background:#f8fafc"><div style="font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:.1em;color:${_pAccent};margin-bottom:10px">Scope of work</div>${_scopeBlocks.join('')}</div>`
     :'';
@@ -4433,7 +4548,7 @@ async function sendGenericProposal(previewOnly,opts){
   const _lineItemsSection=_geiIsFreeForm
     ?`<table style="width:100%;border-collapse:collapse"><tfoot>${_totalFooterRows}</tfoot></table>`
     :`<table style="width:100%;border-collapse:collapse;font-size:12px"><thead><tr style="background:#f1f5f9;border-bottom:2px solid #e2e8f0"><th colspan="2" style="padding:8px 18px;text-align:left;font-weight:800;text-transform:uppercase;color:#64748b;font-size:9px;letter-spacing:.08em">Description</th></tr></thead><tbody>${lineRows}</tbody><tfoot>${_totalFooterRows}</tfoot></table>`;
-  const proposalHtml=`<div style="background:#fff;color:#1a1a1a;border-radius:10px;overflow:hidden;border:1px solid #e2e8f0;box-shadow:0 4px 24px rgba(0,0,0,.10)"><div style="background:linear-gradient(135deg,${_pAccent} 0%,${_pAccent2} 100%);color:#fff;padding:24px 28px;display:flex;justify-content:space-between;align-items:flex-start;border-bottom:3px solid rgba(255,255,255,.1)">${_proposalBizHeader(_bnameRaw,_bphoneRaw,_blicRaw)}<div style="text-align:right;padding-top:4px"><div style="font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.12em;opacity:.9;margin-bottom:8px">${_hdrLabel}</div><div style="font-size:11px;opacity:.6;margin-bottom:2px"># ${estNum}</div><div style="font-size:11px;opacity:.6">Date: ${dateStr}</div></div></div><div style="display:grid;grid-template-columns:1fr 1fr;border-bottom:1px solid #e2e8f0"><div style="padding:14px 18px;border-right:1px solid #e2e8f0"><div style="font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:.1em;color:#94a3b8;margin-bottom:6px">Customer</div><div style="font-size:14px;font-weight:700;color:${_pAccent}">${clientName}</div>${clientAddr?`<div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#94a3b8;margin-top:7px">Address</div><div style="font-size:12px;color:#4a5568;margin-top:1px">${clientAddr}</div>`:''}${clientPhone?`<div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#94a3b8;margin-top:7px">Phone</div><div style="font-size:12px;color:#4a5568;margin-top:1px">${clientPhone}</div>`:''}</div><div style="padding:14px 18px"><div style="font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:.1em;color:#94a3b8;margin-bottom:6px">Project</div><div style="font-size:13px;font-weight:600;color:${_pAccent}">${jobDesc||tradeName+' service'}</div>${duration?`<div style="font-size:11px;color:#718096;margin-top:6px">Est. duration: ${duration}</div>`:''}<div style="font-size:11px;color:#718096;margin-top:3px">Valid until: ${_geiExpD}</div></div></div>${_optionsSection}${_scopeSection}${_rrpSection}${_scanPlanSection}${_lineItemsSection}${notesHtml}${_propPanelHtml}</div>`;
+  const proposalHtml=`<div style="background:#fff;color:#1a1a1a;border-radius:10px;overflow:hidden;border:1px solid #e2e8f0;box-shadow:0 4px 24px rgba(0,0,0,.10)"><div style="background:linear-gradient(135deg,${_pAccent} 0%,${_pAccent2} 100%);color:#fff;padding:24px 28px;display:flex;justify-content:space-between;align-items:flex-start;border-bottom:3px solid rgba(255,255,255,.1)">${_proposalBizHeader(_bnameRaw,_bphoneRaw,_blicRaw)}<div style="text-align:right;padding-top:4px"><div style="font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.12em;opacity:.9;margin-bottom:8px">${_hdrLabel}</div><div style="font-size:11px;opacity:.6;margin-bottom:2px"># ${estNum}</div><div style="font-size:11px;opacity:.6">Date: ${dateStr}</div></div></div><div style="display:grid;grid-template-columns:1fr 1fr;border-bottom:1px solid #e2e8f0"><div style="padding:14px 18px;border-right:1px solid #e2e8f0"><div style="font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:.1em;color:#94a3b8;margin-bottom:6px">Customer</div><div style="font-size:14px;font-weight:700;color:${_pAccent}">${clientName}</div>${clientAddr?`<div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#94a3b8;margin-top:7px">Address</div><div style="font-size:12px;color:#4a5568;margin-top:1px">${clientAddr}</div>`:''}${clientPhone?`<div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#94a3b8;margin-top:7px">Phone</div><div style="font-size:12px;color:#4a5568;margin-top:1px">${clientPhone}</div>`:''}</div><div style="padding:14px 18px"><div style="font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:.1em;color:#94a3b8;margin-bottom:6px">Project</div><div style="font-size:13px;font-weight:600;color:${_pAccent}">${jobDesc||tradeName+' service'}</div>${duration?`<div style="font-size:11px;color:#718096;margin-top:6px">Est. duration: ${duration}</div>`:''}<div style="font-size:11px;color:#718096;margin-top:3px">Valid until: ${_geiExpD}</div></div></div>${_optionsSection}${_scopeSection}${_exclSection}${_rrpSection}${_scanPlanSection}${_lineItemsSection}${notesHtml}${_propPanelHtml}</div>`;
   // Terms & Conditions is NOT part of the document the client reviews first,
   // it only appears in the accordion under the signature on the actual sign
   // step (owner directive 2026-07-13). The preview mirrors that: it shows

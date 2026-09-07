@@ -199,7 +199,7 @@ function _buildClientHubSnapshot(clientId){
     const propKey=b.proposalKey||b.signingKey||(_pendingSignToken?.bidId===b.id?_pendingSignToken.proposalKey:null)||null;
     const signBase=signToken?baseUrl+'sign.html?t='+signToken+'&u='+(_supaUser?.id||'')+'&b='+b.id:null;
     const _hubType=(b.type==='Build Your Own Estimate'?'Custom Estimate':b.type)||'Estimate';
-    const _hubCOs=(b.changeOrders||[]).map(co=>({id:co.id,coNum:co.coNum,desc:co.desc,type:co.type,amount:co.amount,delta:co.delta,originalAmount:co.originalAmount,newAmount:co.newAmount,status:co.status||(co.signedAt?'signed':'pending_client'),sentAt:co.sentAt||'',signedAt:co.signedAt||'',signerName:co.signerName||'',sigData:co.sigData||''}));
+    const _hubCOs=(b.changeOrders||[]).map(co=>({id:co.id,coNum:co.coNum,desc:co.desc,type:co.type,amount:co.amount,delta:co.delta,originalAmount:co.originalAmount,newAmount:co.newAmount,status:co.status||(co.signedAt?'signed':'pending_client'),sentAt:co.sentAt||'',signedAt:co.signedAt||'',signerName:co.signerName||'',sigData:co.sigData||'',overrun:co.overrun||null}));
     const _fcDaysElapsed=typeof window._fcTestDays==="number"?window._fcTestDays:Math.floor((Date.now()-new Date(b.completion_date||b.signedAt||Date.now()).getTime())/86400000);
     const _fcDaysOverdue=Math.max(0,_fcDaysElapsed-30);
     const _fcRate=(S.financeChargePct!=null?parseFloat(S.financeChargePct):1.5)/100/30;
@@ -1342,10 +1342,36 @@ function showWorkflowGate(msg,btnLabel,btnAction){
 }
 // ── Change Order System ───────────────────────────────────────────────────────
 let _coBidId=null,_coClientId=null,_coType=null;
+// The three facts behind a change order that came from a job running long
+// (js/jobs.js _jobOverrun): added hours, added crew, added days. Null for a
+// change order the contractor wrote by hand, which is most of them. Same
+// module-state shape as _coType above rather than a parallel mechanism.
+let _coOverrun=null;
+
+// The job ran long: open the change order already knowing why. The contractor
+// types nothing, he reads it, adjusts the number if he wants, and signs.
+function openOverrunCO(jobId,clientId){
+  const j=(typeof jobs!=='undefined'?jobs:[]).find(x=>x.id===jobId);
+  const o=(typeof _jobOverrun==='function')?_jobOverrun(jobId):null;
+  if(!j||!o||!o.isOver)return;
+  const bidId=j.bid_id;
+  const b=bids.find(x=>x.id===bidId);if(!b)return;
+  showChangeOrderModal(bidId,clientId==null?b.client_id:clientId);
+  _coOverrun={addedHours:o.overHrs,addedCrew:o.extraCrew,addedDays:o.extraDays,
+    estHours:o.estHrs,actualHours:o.actualHrs,estCrew:o.estCrew,actualCrew:o.actualCrew,
+    estDays:o.estDays,actualDays:o.actualDays,rate:o.rate,jobId};
+  const d=document.getElementById('co-desc');
+  if(d)d.value=(typeof _overrunText==='function'?_overrunText(o):'')||'Job ran beyond the estimate';
+  setCOType('add',bidId);
+  const a=document.getElementById('co-amount');
+  // _moneyStr is the app's own pre-fill format for a money input (utils.js),
+  // the same one every other programmatic fill uses. Do not hand-format here.
+  if(a&&o.suggested>0){a.value=_moneyStr(o.suggested);_previewCO(bidId);}
+}
 
 function showChangeOrderModal(bidId,clientId){
   const b=bids.find(x=>x.id===bidId);if(!b)return;
-  _coBidId=bidId;_coClientId=clientId;_coType=null;
+  _coBidId=bidId;_coClientId=clientId;_coType=null;_coOverrun=null;
   const c=getClientById(b.client_id)||{name:b.client_name||'Client'};
   const coNum=(b.changeOrders||[]).length+1;
   // Build original scope summary
@@ -1435,14 +1461,38 @@ function _reviewCO(bidId,clientId){
   const coNum=(b.changeOrders||[]).length+1;
   const delta=_coType==='add'?amt:-amt;
   const newTotal=Math.max(0,Math.round((b.amount+delta)*100)/100);
-  const coData={desc,type:_coType,amount:amt,delta,originalAmount:b.amount,newAmount:newTotal,coNum};
+  const coData={desc,type:_coType,amount:amt,delta,originalAmount:b.amount,newAmount:newTotal,coNum,
+    overrun:(_coType==='add'&&_coOverrun)?_coOverrun:null};
   // Show the CO document for signing
   document.querySelector('.zmodal-overlay')?.remove();
   _showCOSignDocument(b,c,coData,clientId);
 }
 
+// Estimated vs actual, three rows, on the client's copy. Printed only for the
+// facts that actually moved: a job that took longer with the same crew on the
+// same days says exactly that, and does not pad itself with two "no change"
+// rows the client has to read past.
+function _coOverrunHTML(o){
+  if(!o)return '';
+  const _h=v=>(typeof _fmtHrsShort==='function')?_fmtHrsShort(v):(Math.round((+v||0)*10)/10)+' hrs';
+  const rows=[];
+  if((+o.addedHours||0)>0)rows.push(['Labor on site',_h(o.estHours),_h(o.actualHours)]);
+  if((+o.addedCrew||0)>0)rows.push(['Crew',(o.estCrew||1)+' on the estimate',(o.actualCrew||0)+' on the job']);
+  if((+o.addedDays||0)>0)rows.push(['Days on site',(o.estDays||1)+' booked',(o.actualDays||0)+' worked']);
+  if(!rows.length)return '';
+  return '<div style="margin-bottom:18px;padding-bottom:18px;border-bottom:1.5px solid #e5e7eb">'+
+    '<div style="font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.07em;color:#6b7280;margin-bottom:10px">What changed on site</div>'+
+    rows.map(r=>'<div style="display:flex;justify-content:space-between;align-items:baseline;gap:10px;padding:5px 0">'+
+      '<span style="font-size:13px;color:#374151;flex:1;min-width:0">'+escHtml(r[0])+'</span>'+
+      '<span style="font-size:12px;color:#6b7280;text-decoration:line-through;white-space:nowrap">'+escHtml(String(r[1]))+'</span>'+
+      '<span style="font-size:13px;font-weight:800;color:#111;white-space:nowrap">'+escHtml(String(r[2]))+'</span>'+
+    '</div>').join('')+
+    ((+o.rate||0)>0&&(+o.addedHours||0)>0?'<div style="font-size:11px;color:#6b7280;margin-top:8px">Additional labor billed at $'+(+o.rate)+'/hr.</div>':'')+
+  '</div>';
+}
+
 function _showCOSignDocument(b,c,coData,clientId){
-  const {desc,type,amount,delta,originalAmount,newAmount,coNum}=coData;
+  const {desc,type,amount,delta,originalAmount,newAmount,coNum,overrun}=coData;
   const biz=S.bname||'TradeDesk';
   const dateStr=new Date().toLocaleDateString('en-US',{year:'numeric',month:'2-digit',day:'2-digit'});
   // Build scope summary from original bid
@@ -1482,6 +1532,11 @@ function _showCOSignDocument(b,c,coData,clientId){
           '<span style="font-size:16px;font-weight:800;color:'+deltaColor+'">'+deltaLabel+'</span>'+
         '</div>'+
       '</div>'+
+      // WHY the number moved, when the job's own clock is the reason. A client
+      // asked to sign a bigger number deserves the three facts behind it side
+      // by side with what he agreed to, not a sentence asking him to trust it.
+      // Absent on a hand-written change order, which has no clock behind it.
+      (overrun?_coOverrunHTML(overrun):'')+
       // New total
       '<div style="background:#f0fdf4;border:2px solid #86efac;border-radius:10px;padding:14px 18px;margin-bottom:24px;display:flex;justify-content:space-between;align-items:center">'+
         '<div style="font-size:13px;font-weight:700;color:#166534">New Contract Total</div>'+
@@ -1524,12 +1579,12 @@ function _submitCOSign(bidId,clientId){
   const ov=document.getElementById('co-sign-canvas')?.closest('[style*=fixed]');
   const coData=ov?.dataset?.coData?JSON.parse(ov.dataset.coData):null;
   if(!coData)return;
-  const{desc,type,amount,delta,originalAmount,newAmount,coNum}=coData;
+  const{desc,type,amount,delta,originalAmount,newAmount,coNum,overrun}=coData;
   // Save CO
   if(!b.changeOrders)b.changeOrders=[];
   b.changeOrders.push({
     id:_newId(),coNum,date:todayKey(),desc,type,amount,delta,
-    originalAmount,newAmount,
+    originalAmount,newAmount,overrun:overrun||null,
     signedAt:new Date().toISOString(),signerName,sigData
   });
   b.amount=newAmount;
@@ -1548,9 +1603,9 @@ async function _sendCOToHub(bidId,clientId){
   const ov=document.getElementById('co-sign-canvas')?.closest('[style*=fixed]');
   const coData=ov?.dataset?.coData?JSON.parse(ov.dataset.coData):null;
   if(!coData)return;
-  const{desc,type,amount,delta,originalAmount,newAmount,coNum}=coData;
+  const{desc,type,amount,delta,originalAmount,newAmount,coNum,overrun}=coData;
   if(!b.changeOrders)b.changeOrders=[];
-  const co={id:_newId(),coNum,date:todayKey(),desc,type,amount,delta,originalAmount,newAmount,status:'pending_client',sentAt:new Date().toISOString()};
+  const co={id:_newId(),coNum,date:todayKey(),desc,type,amount,delta,originalAmount,newAmount,overrun:overrun||null,status:'pending_client',sentAt:new Date().toISOString()};
   b.changeOrders.push(co);
   saveAll();renderDash();renderJobsPage();
   ov?.remove();
@@ -1573,7 +1628,7 @@ async function _sendCOToHub(bidId,clientId){
   // confirmed in the cloud, not merely scheduled.
   try{await _flushSaveNow();}catch(_e){}
   try{
-    const entry={coNum,desc,type,amount,delta,originalAmount,newAmount,sentAt:co.sentAt,signedAt:null,signerName:null,signatureData:null};
+    const entry={coNum,desc,type,amount,delta,originalAmount,newAmount,overrun:overrun||null,sentAt:co.sentAt,signedAt:null,signerName:null,signatureData:null};
     // One signed_proposals row per bid, append to it, or create it for bids
     // signed before the table existed (in-person/cash signings).
     const{data:rows}=await _supa.from('signed_proposals').select('id,change_orders')

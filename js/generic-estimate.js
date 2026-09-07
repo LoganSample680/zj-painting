@@ -1537,6 +1537,14 @@ function _byoAutosave(){
   // Build Your Own with empty items (the "my work disappeared" bug).
   b.isFreeForm=_geiIsFreeForm&&!_geiIsTM;
   b.estCrew=[..._estCrew];
+  // THE PROMISE, frozen. _estLaborHours() is derived live from the price book
+  // and his scope history, so it MOVES as the book learns. Stamping it here is
+  // what lets the job compare what really happened against what this estimate
+  // actually said, instead of against a number that has since drifted
+  // (js/jobs.js _jobOverrun). Zero is stored as zero on purpose: a bid with no
+  // hours behind it has no promise to be over.
+  b.estHours=_estLaborHours();
+  b.estCrewSize=_estCrew.length||1;
   b.scopeChips=[..._geiScopeChips];
   b.scopeNoScope=_geiScopeNoScope||false;
   const _termsEl=document.getElementById('byo-custom-terms');

@@ -77,6 +77,72 @@ function getJobScopeBreakdown(jobId){
   return out;
 }
 
+// ── No surprises on the final price ─────────────────────────────────────────
+//
+// Owner 2026-09-07: "no surprises on final price if there's a change order?
+// Change order that's signed could mean additional things, increased crew, all
+// the variables?" Yes. A job going long is not a dollar figure that appears at
+// the end, it is three facts the contractor can point at while he is still
+// standing there: the work took longer than the estimate said, more people were
+// on it than he priced, and it ran more days than were booked.
+//
+// The estimate promised a number (bid.estHours, stamped at save time in
+// js/generic-estimate.js, or tmEstHours for T&M) and a crew (bid.estCrew). The
+// clock recorded what really happened. This is the difference, and nothing
+// more: it decides nothing, writes nothing, and shows nothing on its own. The
+// job sheet reads it to offer a change order; the change order carries the
+// three facts onto the signed document so the client sees WHY the number moved.
+//
+// Deliberately reads only CLOSED entries. An open timer is a running number,
+// and a job would flicker in and out of "over" while somebody is clocked in.
+function _jobOverrun(jobId){
+  const j=(typeof jobs!=='undefined'?jobs:[]).find(x=>x.id===jobId);
+  if(!j)return null;
+  const bid=(j.bid_id&&typeof bids!=='undefined')?bids.find(b=>b.id===j.bid_id):null;
+  const estHrs=Math.max(0,Number(bid&&(bid.estHours||bid.tmEstHours))||0);
+  const estCrew=Math.max(1,(bid&&Array.isArray(bid.estCrew)&&bid.estCrew.length)||Number(bid&&bid.tmCrewCount)||1);
+  const estDays=Math.max(1,parseInt(j.days)||1);
+  const entries=(typeof timeEntries!=='undefined'?timeEntries:[]).filter(e=>e&&e.job_id===jobId&&!e.open);
+  const actualHrs=Math.round(entries.reduce((s,e)=>s+(Number(e.minutes)||0),0)/60*100)/100;
+  // Who was actually on it. logged_by_uid is the durable identity; a hand-added
+  // entry may only carry a name, and an entry with neither is the owner himself.
+  const people=new Set(entries.map(e=>String(e.logged_by_uid||e.logged_by_name||'owner')));
+  const actualCrew=Math.max(entries.length?people.size:0,0);
+  const actualDays=new Set(entries.map(e=>e.date).filter(Boolean)).size;
+  const overHrs=Math.round(Math.max(0,actualHrs-estHrs)*100)/100;
+  // The rate he BILLS, not what the hour costs him. T&M already names it per
+  // man; everyone else uses the Settings labor rate.
+  const rate=Math.max(0,Number(bid&&bid.tmRatePerMan)||Number(typeof S!=='undefined'&&S.laborRate)||0);
+  return {
+    estHrs,actualHrs,overHrs,
+    overPct:estHrs>0?Math.round((actualHrs/estHrs-1)*100):0,
+    estCrew,actualCrew,extraCrew:Math.max(0,actualCrew-estCrew),
+    estDays,actualDays,extraDays:Math.max(0,actualDays-estDays),
+    rate,
+    suggested:Math.round(overHrs*rate*100)/100,
+    // "Over" needs a promise to be over. A bid that never recorded estimated
+    // hours (hand-entered, or written before estHours was stamped) has nothing
+    // to compare against, and guessing one would put a number in front of a
+    // client that no estimate ever supported.
+    isOver:estHrs>0&&overHrs>0
+  };
+}
+
+// One line a contractor can read at a glance, and the same sentence that
+// pre-fills the change order's description so he never retypes it.
+function _overrunText(o){
+  if(!o)return '';
+  const bits=[];
+  if(o.overHrs>0)bits.push(_fmtHrsShort(o.overHrs)+' beyond the '+_fmtHrsShort(o.estHrs)+' estimated');
+  if(o.extraCrew>0)bits.push(o.extraCrew+' more '+(o.extraCrew===1?'person':'people')+' on site than priced ('+o.actualCrew+' vs '+o.estCrew+')');
+  if(o.extraDays>0)bits.push(o.extraDays+' extra '+(o.extraDays===1?'day':'days')+' on site ('+o.actualDays+' vs '+o.estDays+' booked)');
+  return bits.join(', ');
+}
+function _fmtHrsShort(h){
+  const n=Math.round((Number(h)||0)*10)/10;
+  return (Number.isInteger(n)?n:n.toFixed(1))+' hr'+(n===1?'':'s');
+}
+
 function getJobClockTotal(jobId){
   return timeEntries.filter(e=>e.job_id===jobId).reduce((s,e)=>s+(e.minutes||0),0);
 }
@@ -1420,6 +1486,36 @@ function openJobSheet(clientId){
       '</div>';
   }
 
+  // ── The job is running long ─────────────────────────────────
+  // Surfaced while he is still on site, not discovered at invoice time. One
+  // tap opens the change order already carrying the hours, the crew and the
+  // days (js/proposals.js openOverrunCO), so the conversation happens with the
+  // client in front of him instead of over a surprise invoice three days later.
+  let overrunHtml='';
+  // The job in play, most recent first: the first one that is genuinely over
+  // and does not already have a change order covering it. A change order
+  // already naming this job means the conversation happened, and nagging him
+  // about it again is how a useful card becomes noise.
+  const _orJob=[...allJobs].sort((a,b)=>(b.start||'').localeCompare(a.start||'')).find(j=>{
+    const o=_jobOverrun(j.id);
+    if(!o||!o.isOver)return false;
+    const jb=j.bid_id?bids.find(b=>b.id===j.bid_id):null;
+    return !((jb&&jb.changeOrders||[]).some(co=>co&&co.overrun&&co.overrun.jobId===j.id));
+  });
+  const _or=_orJob?_jobOverrun(_orJob.id):null;
+  if(_or){
+    overrunHtml=
+        '<div style="padding:14px 20px;border-bottom:1px solid var(--border)">'+
+          '<div style="font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.06em;color:var(--text3);margin-bottom:8px">'+svgIcon('⚠')+' Running long</div>'+
+          '<div style="background:var(--amber-lt);border:1px solid var(--amber);border-radius:var(--r);padding:12px 14px">'+
+            '<div style="font-size:14px;font-weight:800;color:#92400E;margin-bottom:4px">'+_fmtHrsShort(_or.overHrs)+' past the estimate'+(_or.overPct>0?' ('+_or.overPct+'% over)':'')+'</div>'+
+            '<div style="font-size:12px;color:#92400E;line-height:1.5;margin-bottom:10px">'+escHtml(_overrunText(_or))+'</div>'+
+            (_or.suggested>0?'<div style="font-size:12px;color:#92400E;margin-bottom:10px">Suggested change order: <strong>'+fmt(_or.suggested)+'</strong> at $'+_or.rate+'/hr</div>':'')+
+            '<button onclick="this.closest(\'.zmodal-overlay\').remove();openOverrunCO('+_orJob.id+','+clientId+')" style="width:100%;padding:11px;border-radius:var(--r);border:none;background:var(--amber);color:#3d2a00;font-size:13px;font-weight:800;cursor:pointer;font-family:inherit;min-height:44px">Write the change order →</button>'+
+          '</div>'+
+        '</div>';
+  }
+
   // ── Schedule section ────────────────────────────────────────
   let schedHtml='';
   if(nextJob){
@@ -1803,7 +1899,7 @@ function openJobSheet(clientId){
         '<div style="font-size:10px;color:var(--text3);margin-top:6px">Includes 10% waste · '+_coats+' coat'+(_coats!==1?'s':'')+' · Verify with SW rep for dark colors</div>'+
       '</div>';
   }
-  body.innerHTML=payHtml+schedHtml+assignedEmpHtml+coHistoryHtml+supplyHtml+scopeHtml+photosHtml+specHtml+paintOrderHtml+actualCostsHtml+subsHtml+visitNotesHtml+tasksHtml+actionsHtml;
+  body.innerHTML=payHtml+overrunHtml+schedHtml+assignedEmpHtml+coHistoryHtml+supplyHtml+scopeHtml+photosHtml+specHtml+paintOrderHtml+actualCostsHtml+subsHtml+visitNotesHtml+tasksHtml+actionsHtml;
   box.appendChild(body);
   ov.appendChild(box);
   ov.onclick=e=>{if(e.target===ov)ov.remove();};

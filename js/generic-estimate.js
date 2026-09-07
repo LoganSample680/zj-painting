@@ -1639,6 +1639,13 @@ function _estLaborHours(){
   // hours the price book actually knows.
   _estPricedLines().forEach(l=>{
     if(_chipHrsKeys.has(_pbKey(l.desc)))return;
+    // MEASURED BEATS SPLIT. A line he has actually clocked into carries its own
+    // history now (the clock can see the work he sold, js/jobs.js
+    // _jobScopesFromBid), keyed line:<pbKey>. That is a real stopwatch on this
+    // exact service, so it outranks the pro-rata figure _pbLearnFromJob derives
+    // when nobody timed it.
+    const own=_scopeHistoryHrs('line:'+_pbKey(l.desc));
+    if(own!=null){hrs+=own;return;}
     const h=_pbHrs(_pbFind(l.desc,trade));
     if(h!=null)hrs+=h;
   });
@@ -3332,7 +3339,10 @@ function _pbLearnFromJob(bid,hours){
     // such home, so its line still learns.
     const _defs=[..._GEN_SCOPE,...((typeof TRADE_SCOPE_ITEMS!=='undefined'&&TRADE_SCOPE_ITEMS[trade])||[])];
     const chips=new Set((bid.scopeChips||[]).filter(l=>_defs.some(x=>x&&x.id&&x.label===l)).map(l=>_pbKey(l)));
-    const priced=lines.filter(l=>l.price>0&&!chips.has(_pbKey(l.desc)));
+    // A line that was CLOCKED does not need a guess. Splitting a job total
+    // across it too would teach the book twice from one day's work, once
+    // measured and once estimated, and the estimate would drift up.
+    const priced=lines.filter(l=>l.price>0&&!chips.has(_pbKey(l.desc))&&_scopeHistoryHrs('line:'+_pbKey(l.desc))==null);
     const sum=priced.reduce((s,l)=>s+l.price,0);
     if(!priced.length||sum<=0)return false;
     priced.forEach(l=>_pbLearnHours(l.desc,h*(l.price/sum),trade));

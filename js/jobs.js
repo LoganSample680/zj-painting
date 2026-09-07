@@ -1,5 +1,26 @@
 // ── Active time tracking ─────────────────────────────────────────────────────
 
+// The work a bid actually sold, as clockable scopes. Priced line items first
+// (they are the job), then any scope chips that say something the lines do not.
+// Deduplicated on the price-book key so a chip repeating a line is one row, the
+// same rule the proposal and the hours math already use.
+function _jobScopesFromBid(bid){
+  if(!bid)return [];
+  const key=d=>(typeof _pbKey==='function')?_pbKey(d):String(d||'').trim().toLowerCase();
+  const out=[],seen=new Set();
+  const add=(label,icon)=>{
+    const l=String(label||'').trim();
+    if(!l)return;
+    const k=key(l);
+    if(!k||seen.has(k))return;
+    seen.add(k);
+    out.push({id:'line:'+k,label:l,icon:icon||'🔧'});
+  };
+  if(Array.isArray(bid.byoItems))bid.byoItems.forEach(it=>{if(it&&it.on!==false&&!it._rrp)add(it.label);});
+  if(!out.length&&Array.isArray(bid.geiLines))bid.geiLines.forEach(l=>{if(l&&!l._tmLabor)add(l.desc);});
+  if(Array.isArray(bid.scopeChips))bid.scopeChips.forEach(l=>add(l,'📋'));
+  return out;
+}
 function getJobScopes(jobId){
   const j=jobs.find(x=>x.id===jobId);
   const bid=j&&j.bid_id?bids.find(b=>b.id===j.bid_id):null;
@@ -9,6 +30,19 @@ function getJobScopes(jobId){
     Object.values(bid.roomScopeMap).forEach(room=>Object.entries(room).forEach(([sid,sv])=>{if(sv&&sv.active)activeIds.add(sid);}));
     base=SCOPE_ITEMS.filter(s=>activeIds.has(s.id));
   }
+  // THE CLOCK HAS TO SEE THE WORK HE ACTUALLY SOLD (owner 2026-09-06). Above
+  // this line, the job's scopes come from SCOPE_ITEMS (the painting list) and
+  // roomScopeMap (a painting-era structure). So a plumber whose bid is three
+  // price-book lines got the generic painting defaults and could not clock into
+  // "Water heater replacement" at all. Every hour he worked landed on the job
+  // with no scope, which is why the price book could only learn hours by
+  // splitting a job total pro-rata across its lines.
+  //
+  // The bid he signed already names the work. Use it. Line ids are namespaced
+  // (line:<key>) off the same _pbKey the price book matches on, so an hour
+  // clocked here lands on the SAME key the estimate priced, and S.scopeHistory
+  // starts holding measured time per service instead of per painting task.
+  if(!base.length&&bid)base=_jobScopesFromBid(bid);
   if(!base.length)base=SCOPE_ITEMS.filter(s=>_CLOCK_DEFAULT_SCOPES.includes(s.id));
   if(j?.extraScopes?.length){
     const baseIds=new Set(base.map(s=>s.id));
@@ -2534,24 +2568,37 @@ function showJobDebrief(jobId){
   const bid=bids.find(b=>b.id===job.bid_id);
   const roomScope=bid?.roomScopeMap||{};
   const scopeRooms=Object.entries(roomScope).filter(([r,sc])=>Object.values(sc).some(e=>e&&e.active));
-  if(!scopeRooms.length){confirmMarkComplete(jobId);return;}
+  // EVERY TRADE GETS A DEBRIEF, not just the one with rooms. This used to
+  // return straight to "complete" for any job with no roomScopeMap, which is
+  // every plumbing, electrical and HVAC job in the product, so S.scopeHistory
+  // only ever filled for painting and every other trade's estimate had nothing
+  // of his own to learn from. A job that sold real work now debriefs against
+  // that work (getJobScopes, which reads the bid's own lines).
+  const soldScopes=scopeRooms.length?[]:getJobScopes(jobId);
+  if(!scopeRooms.length&&!soldScopes.length){confirmMarkComplete(jobId);return;}
   const ov=document.createElement('div');ov.className='zmodal-overlay';
   const box=document.createElement('div');box.className='zmodal';
   box.style.maxHeight='88vh';box.style.overflowY='auto';
   let debriefRows='';
+  const _row=(room,s)=>`<div style="display:flex;align-items:center;gap:10px;padding:6px 0;border-bottom:1px solid var(--border2)">
+        <div style="font-size:13px;flex:1">${s.icon?svgIcon(s.icon):''} ${escHtml(s.label)}</div>
+        <input type="number" min="0" step="0.25" placeholder="hrs" inputmode="decimal"
+          data-room="${encodeURIComponent(room)}" data-scope="${escHtml(s.id)}"
+          style="width:64px;padding:5px;border-radius:var(--r);border:1px solid var(--border2);background:var(--bg2);color:var(--text);font-size:13px;text-align:center">
+      </div>`;
   scopeRooms.forEach(([room,sc])=>{
     const items=SCOPE_ITEMS.filter(s=>sc[s.id]&&sc[s.id].active);
     if(!items.length)return;
     debriefRows+=`<div style="margin-bottom:12px">
       <div style="font-size:11px;font-weight:800;color:var(--text3);text-transform:uppercase;margin-bottom:6px">${escHtml(room)}</div>
-      ${items.map(s=>`<div style="display:flex;align-items:center;gap:10px;padding:6px 0;border-bottom:1px solid var(--border2)">
-        <div style="font-size:13px;flex:1">${s.icon?svgIcon(s.icon):''} ${s.label}</div>
-        <input type="number" min="0" step="0.25" placeholder="hrs" inputmode="decimal"
-          data-room="${encodeURIComponent(room)}" data-scope="${s.id}"
-          style="width:64px;padding:5px;border-radius:var(--r);border:1px solid var(--border2);background:var(--bg2);color:var(--text);font-size:13px;text-align:center">
-      </div>`).join('')}
+      ${items.map(s=>_row(room,s)).join('')}
     </div>`;
   });
+  // No rooms: one flat list of what the bid actually sold. Same input shape, so
+  // saveDebriefAndComplete needs no change and the hours land in the same place.
+  if(soldScopes.length){
+    debriefRows+=`<div style="margin-bottom:12px">${soldScopes.map(s=>_row('Job',s)).join('')}</div>`;
+  }
   box.innerHTML=
     `<div style="font-size:17px;font-weight:800;margin-bottom:4px">How'd the job go?</div>
     <div style="font-size:12px;color:var(--text3);margin-bottom:14px;line-height:1.6">Optional: enter actual hours for each task. Over time this builds your personal benchmarks so future estimates get sharper. Skip anything you didn't track.</div>
@@ -2602,7 +2649,10 @@ function saveDebriefAndComplete(jobId,btn){
   inputs.forEach(inp=>{
     const scopeId=inp.dataset.scope;
     const hrs=parseFloat(inp.value)||0;
-    if(hrs>0&&_user?.id)_benchRows.push({user_id:_user.id,scope_id:scopeId,trade:_debTrade,actual_hrs:hrs});
+    // Only SHARED scope ids reach the crowdsourced pool. A line: id is this
+    // contractor's own wording for his own service; it means nothing to anyone
+    // else's benchmark and it is his business, not the pool's.
+    if(hrs>0&&_user?.id&&!/^line:/.test(String(scopeId||'')))_benchRows.push({user_id:_user.id,scope_id:scopeId,trade:_debTrade,actual_hrs:hrs});
   });
   if(typeof _submitScopeBenchmarks==='function')_submitScopeBenchmarks(_benchRows);
   // Teach the price book how long this job's own line items take (§ profit

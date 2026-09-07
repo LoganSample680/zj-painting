@@ -129,24 +129,70 @@ function _necAssume(key, value, label) {
 // it): rows {uptoVa, pct}, ascending, the last row carrying uptoVa null to
 // mean "and everything above". Returns null when the rows are malformed, so a
 // mistyped dataset refuses instead of quietly under-calculating a service.
+//
+// The WHOLE table is validated before any of it is used. Validating as we
+// accumulate looks equivalent and is not: a small load stops early, so a table
+// whose open band was typed FIRST would be accepted for a 12,500 VA dwelling
+// and rejected for a 100,000 VA one. A dataset is either usable or it is not,
+// and that cannot depend on the load being asked about.
 function _necBandDemand(rows, total) {
   if (!Array.isArray(rows) || !rows.length) return null;
-  let prev = 0, out = 0, seenOpen = false;
+
+  const bands = [];
+  let prev = 0, seenOpen = false;
   for (let i = 0; i < rows.length; i++) {
     const r = rows[i] || {};
     const pct = _necNum(r.pct);
     if (pct === null || pct < 0) return null;
+    if (seenOpen) return null;                                // the open band must be last
     const upto = (r.uptoVa === null || r.uptoVa === undefined) ? Infinity : _necNum(r.uptoVa);
-    if (upto === null || upto <= prev) return null;          // not ascending
-    if (seenOpen) return null;                                // open band was not last
+    if (upto === null || upto <= prev) return null;           // not ascending
     if (upto === Infinity) seenOpen = true;
-    const band = Math.max(0, Math.min(total, upto) - prev);
-    out += band * pct / 100;
+    bands.push({ from: prev, to: upto, pct: pct });
     prev = upto;
-    if (prev >= total) break;
   }
-  if (!seenOpen && total > prev) return null;                 // table ran out below the load
+  if (!seenOpen) return null;                                 // no "and everything above" row
+
+  let out = 0;
+  for (let i = 0; i < bands.length; i++) {
+    const b = bands[i];
+    const amount = Math.max(0, Math.min(total, b.to) - b.from);
+    if (!amount) continue;
+    out += amount * b.pct / 100;
+  }
   return out;
+}
+
+// Trade sizes ('1/2', '1', '1-1/4', '2-1/2') as numbers, so they can be put in
+// order. NEVER trust object key order for these: JavaScript hoists integer-like
+// keys ahead of everything else, so Object.keys on a raceway table hands back
+// '1' before '1/2' and the "smallest that fits" answer comes out one size too
+// big. That bug shipped once in this file and this parser is why it cannot
+// again. Returns null for anything it does not recognise.
+function _necTradeSizeValue(s) {
+  const str = String(s).trim();
+  const m = /^(?:(\d+)(?:-(\d+)\/(\d+))?|(\d+)\/(\d+))$/.exec(str);
+  if (!m) return null;
+  if (m[4] !== undefined) {
+    const den = Number(m[5]);
+    return den ? Number(m[4]) / den : null;
+  }
+  const whole = Number(m[1]);
+  if (m[2] === undefined) return whole;
+  const den = Number(m[3]);
+  return den ? whole + Number(m[2]) / den : null;
+}
+
+// Ascending, by actual size. Anything unparseable sorts to the end rather than
+// being dropped, so a dataset typo is visible instead of silently skipped.
+function _necTradeSizesAscending(table) {
+  return Object.keys(table || {}).slice().sort(function (a, b) {
+    const av = _necTradeSizeValue(a), bv = _necTradeSizeValue(b);
+    if (av === null && bv === null) return 0;
+    if (av === null) return 1;
+    if (bv === null) return -1;
+    return av - bv;
+  });
 }
 
 // Count tables (Table 220.54 dryer demand, Table 310.15(C)(1) adjustment):
@@ -956,11 +1002,12 @@ function _necConduitFill(inp, data, h) {
 
   const tradeSize = (inp.tradeSize === undefined || inp.tradeSize === null) ? null : String(inp.tradeSize).trim();
 
-  // The smallest trade size of this raceway type that holds the bundle. Object
-  // key order in the dataset is ascending by design, and this is the number the
-  // contractor actually wants: not "does 1/2 work" but "what do I buy".
+  // The smallest trade size of this raceway type that holds the bundle. This is
+  // the number the contractor actually wants: not "does 1/2 work" but "what do
+  // I buy". Sorted by real size, never by object key order, see
+  // _necTradeSizesAscending.
   let minTradeSize = null;
-  const sizesInOrder = Object.keys(conduitTable);
+  const sizesInOrder = _necTradeSizesAscending(conduitTable);
   for (let i = 0; i < sizesInOrder.length; i++) {
     const al = allowedFor(conduitTable[sizesInOrder[i]]);
     if (al && area <= al.sqIn + _NEC_EPS) { minTradeSize = sizesInOrder[i]; break; }

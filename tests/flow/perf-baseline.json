@@ -62,6 +62,18 @@
   },
   "truebid/truemeasure-to-byo": {
     "clicks": 32,
-    "note": "HAND-DERIVED, not yet live-confirmed (written 2026-08-19, no network/creds/Playwright available in the authoring sandbox to actually run it, see CLAUDE.md §12.3: act() returns are deterministic so this is legitimate without a live run). Breakdown: open client 1 + New proposal 1 + Build Your Own card 1 + back out (abandon empty draft) 1 + TrueBid card 1 = 5, real-map check 0, force Area mode 1 + 4 map-trace taps 4 = 5, open confirm screen 1, type 20-char description + Add to estimate 1 = 21. Correct this to the exact CI-reported number on the first real green run (tap()/type() can add +1 each for an unanticipated scroll)."
+    "note": "HAND-DERIVED, not yet live-confirmed (written 2026-08-19, no network/creds/Playwright available in the authoring sandbox to actually run it, see CLAUDE.md \u00a712.3: act() returns are deterministic so this is legitimate without a live run). Breakdown: open client 1 + New proposal 1 + Build Your Own card 1 + back out (abandon empty draft) 1 + TrueBid card 1 = 5, real-map check 0, force Area mode 1 + 4 map-trace taps 4 = 5, open confirm screen 1, type 20-char description + Add to estimate 1 = 21. Correct this to the exact CI-reported number on the first real green run (tap()/type() can add +1 each for an unanticipated scroll)."
+  },
+  "estimate-build/byo-send": {
+    "clicks": 161,
+    "note": "First live capture 2026-09-07 (self-hosted flow-local, real Supabase). IDENTICAL on chromium and webkit, so the gate is engine-independent. Breakdown: open the estimator for a client 50 + add a Materials item and an Interior item 110 + send 1. Read the 50: 48 of it is TYPING the client name and address, because the flow creates a fresh client every run; a contractor picking an existing client pays 2. Same inside the 110, which is two item labels typed key by key. Navigation is already cheap here and typing is the entire bill, which is why the price book (descriptions, prices, hours) is the streamline lever and moving buttons is not."
+  },
+  "generic-send/tm": {
+    "clicks": 27,
+    "note": "First live capture 2026-09-07 (self-hosted flow-local, real Supabase), identical chromium and webkit. Breakdown: open 1 + crew 1 + rate 2 + hours 2 + add line 1 + description 16 + price 3 + send 1. SIXTEEN of the twenty-seven are typing one material description. The T&M form itself costs ten."
+  },
+  "generic-send/byo": {
+    "clicks": 114,
+    "note": "First live capture 2026-09-07 (self-hosted flow-local, real Supabase), identical chromium and webkit. Breakdown: open 1 + Materials item (tap 1 + label 36 + price 3 + notes 11 + confirm 1) + Interior item (tap 1 + label 38 + price 4 + notes 16 + confirm 1) + send 1. 101 of the 114 are keystrokes in two item labels and their descriptions. The ratchet on this flow comes from the book filling those in, not from removing taps."
   }
 }

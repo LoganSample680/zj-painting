@@ -1111,7 +1111,7 @@ const _GEI_MODES={
     titleSuffix:'Build Your Own',
     gaugeOninput:"this.dataset.userSet='true';_byoUpdateRail();_byoAutosave()",
     depositOninput:'_byoUpdateRail();_byoAutosave();_geiRememberDeposit()',
-    actionOpts:{extraButtons:[{label:svgIcon('📋',{size:11})+' Option B',onclick:'_byoDuplicateBid()'}]},
+    actionOpts:{extraButtons:[{label:svgIcon('📋',{size:11})+' Add option',onclick:'_byoDuplicateBid()'}]},
   },
 };
 // Shared page chrome for both single-page estimate layouts: hide the legacy
@@ -1473,6 +1473,9 @@ function _byoNormItem(it){
   if(!it||typeof it!=='object')return it;
   const q=Number(it.qty);
   it.qty=(q>0)?q:1;
+  // 'ea' for a row that never had one. The trade's own unit is a DEFAULT for a
+  // NEW line in the modal, never a rewrite of something already stored: a
+  // roofer opening an old bid must not find its lines relabelled "square".
   it.unit=it.unit||'ea';
   if(!(Number(it.rate)>0)){
     // Pre-quantity item: its price WAS the whole line. Read it at one, and read
@@ -2232,7 +2235,7 @@ function _byoAddItem(sec){
     '<div id="_bya-book"></div>'+
     '<div class="f" style="margin-bottom:4px"><label>Title <span style="font-weight:400;color:var(--text3)">, the client sees this</span></label><input type="text" id="_bya-label" placeholder="e.g. Bedroom 3, walls only" autocomplete="off"></div>'+
     '<div id="_bya-sugg" style="margin-bottom:10px"></div>'+
-    _byaQtyRateHTML(1,'ea','')+
+    _byaQtyRateHTML(1,'','')+
     _byaDescFieldHTML('')+
     '<div style="display:flex;gap:10px;margin-top:14px">'+
       '<button onclick="document.getElementById(\'_byo-add-modal\')?.remove()" class="btn" style="flex:1" id="_bya-close">Cancel</button>'+
@@ -2330,16 +2333,50 @@ function _byaSuggest(sec){
 // The rate field keeps the id _bya-price. It is the same box it always was and
 // it still holds a per-line number at a quantity of one, so nothing that reads
 // it has to change and every existing test still finds it.
-const _BYA_UNITS=['ea','sq ft','lin ft','hr','day','lot','room','gal'];
+// EVERY TRADE PRICES IN ITS OWN UNIT, and a list that does not carry his is
+// the tool telling him it was not built for him. The pattern is all over the
+// review data: software that treats a roof replacement like a plumbing service
+// call loses roofing offices inside a few months. A roofer prices SQUARES, HVAC
+// prices TONS, concrete and landscaping price CUBIC YARDS.
+//
+// His trade's units come first, then the ones every trade uses. Nothing is
+// hidden: the full list is always there, because a plumber does occasionally
+// sell a square of roof and a hard filter would strand him.
+const _UNITS_COMMON=['ea','hr','day','lot','sq ft','lin ft'];
+const _UNITS_BY_TRADE={
+  roofing:    ['square','sq ft','lin ft','bundle'],
+  hvac:       ['ton','ea','system','CFM','lin ft'],
+  landscaping:['cu yd','sq ft','ea','ton','flat','plant'],
+  painting:   ['sq ft','room','gal','lin ft'],
+  plumbing:   ['ea','fixture','lin ft','hr'],
+  electrical: ['ea','circuit','fixture','lin ft'],
+  general:    ['ea','sq ft','lin ft','cu yd'],
+};
+const _UNITS_EXTRA=['gal','sq yd','cu yd','ton','square','bundle','fixture','circuit','system','plant','sheet','box','roll','week','month','%'];
+function _byaUnitList(trade){
+  const t=trade||_geiTrade||(typeof getActiveTrade==='function'?getActiveTrade():'general');
+  const seen=new Set(),out=[];
+  [...(_UNITS_BY_TRADE[t]||[]),..._UNITS_COMMON,..._UNITS_EXTRA].forEach(u=>{
+    const k=String(u).toLowerCase();
+    if(seen.has(k))return;
+    seen.add(k);out.push(u);
+  });
+  return out;
+}
 function _byaQtyRateHTML(qty,unit,rate){
   const q=(Number(qty)>0)?Number(qty):1;
+  const units=_byaUnitList();
+  const cur=unit||units[0]||'ea';
+  // A unit saved on an older line (or by a trade he has since switched away
+  // from) still has to appear, or editing that line would silently retitle it.
+  const list=units.includes(cur)?units:[cur,...units];
   return '<div class="f" style="margin-bottom:6px">'+
     '<label>How many, and what each</label>'+
     '<div style="display:flex;gap:8px;align-items:center">'+
       '<input type="text" inputmode="decimal" id="_bya-qty" value="'+q+'" oninput="_byaLineMath()" aria-label="Quantity" '+
         'style="width:72px;flex-shrink:0;text-align:center;font-weight:700">'+
-      '<select id="_bya-unit" onchange="_byaLineMath()" aria-label="Unit" style="width:96px;flex-shrink:0;font-family:inherit">'+
-        _BYA_UNITS.map(u=>'<option value="'+u+'"'+(u===(unit||'ea')?' selected':'')+'>'+u+'</option>').join('')+
+      '<select id="_bya-unit" onchange="_byaLineMath()" aria-label="Unit" style="width:104px;flex-shrink:0;font-family:inherit">'+
+        list.map(u=>'<option value="'+escHtml(u)+'"'+(u===cur?' selected':'')+'>'+escHtml(u)+'</option>').join('')+
       '</select>'+
       '<div class="input-prefix" style="flex:1;min-width:0"><span>$</span>'+
         '<input type="text" inputmode="numeric" id="_bya-price" value="'+(rate?Number(rate).toLocaleString('en-US'):'')+'" placeholder="0" oninput="_byaFormatPriceInput(this);_byaLineMath()" aria-label="Rate"></div>'+
@@ -2359,7 +2396,7 @@ function _byaLineMath(){
   el.textContent=q+' '+u+' × '+((typeof fmt==='function')?fmt(r):'$'+r)+' = '+((typeof fmt==='function')?fmt(t):'$'+t);
 }
 function _byaQtyValue(){const v=parseFloat((document.getElementById('_bya-qty')?.value||'').replace(/,/g,''));return (v>0)?v:1;}
-function _byaUnitValue(){return document.getElementById('_bya-unit')?.value||'ea';}
+function _byaUnitValue(){return document.getElementById('_bya-unit')?.value||_byaUnitList()[0]||'ea';}
 
 function _byaDescFieldHTML(val){
   return '<div class="f" style="margin-bottom:6px">'+
@@ -2516,6 +2553,52 @@ function _byoDeleteSection(sec){
   else doDelete();
 }
 function _byoPreviewClient(){_geiPreviewClient();}
+// ── Options on one job ──────────────────────────────────────────────────────
+//
+// Options were added for Zach's Bettis bids, and the shape they took is right:
+// two GENUINELY different proposals, each its own record, its own scope, its
+// own total, its own signed contract. That does not change.
+//
+// What was missing is the half the client lives in. He got two separate
+// documents and two links and was left to compare them himself, when every
+// HVAC and roofing tool ships options on ONE document because that is what
+// moves the conversation from "yes or no" to "which one".
+//
+// So the bids stay separate and gain a shared group id. The proposal prints
+// the whole group with its prices, whichever option the client opened, and
+// signing one retires the others. Nothing about the Bettis flow moves.
+function _optionGroupOf(b){return b?(b.optionGroup||null):null;}
+// Every proposal in one group, oldest first, so A stays A.
+function _optionSiblings(b){
+  const g=_optionGroupOf(b);
+  if(!g||typeof bids==='undefined')return [];
+  return bids.filter(x=>x&&x.optionGroup===g&&!x.cancelledAt)
+    .sort((x,y)=>String(x.optionLabel||'').localeCompare(String(y.optionLabel||''))||(x.id-y.id));
+}
+// A, B, C… The next free letter in the group, so a third option is not "B" again.
+function _optionNextLabel(sibs){
+  const used=new Set((sibs||[]).map(x=>String(x.optionLabel||'').toUpperCase()));
+  for(let i=0;i<26;i++){const L=String.fromCharCode(65+i);if(!used.has(L))return L;}
+  return 'X';
+}
+// One option signed means the rest were not chosen. lostReason is the field the
+// contractor's own "Mark Lost" already writes, so these land in the Declined
+// tab and the dashboard with no new UI anywhere.
+function _optionRetireSiblings(wonBid){
+  const sibs=_optionSiblings(wonBid);
+  if(sibs.length<2)return false;
+  let changed=false;
+  sibs.forEach(x=>{
+    if(x.id===wonBid.id)return;
+    if(x.status==='Closed Won'||x.status==='Closed Lost')return;
+    x.status='Closed Lost';x.draft=false;
+    x.lostReason='Client chose Option '+(wonBid.optionLabel||'another');
+    x.lostAt=wonBid.signedAt||new Date().toISOString();
+    changed=true;
+  });
+  return changed;
+}
+
 function _byoDuplicateBid(){
   if(!_geiEditBidId){showToast('Save your draft first, then duplicate','⚠️');return;}
   saveGenericEstimate(true);
@@ -2526,8 +2609,11 @@ function _byoDuplicateBid(){
   // descUserSet: the auto name must never write over it, and the client's
   // proposal must print it (the whole point of options is that the client can
   // tell them apart).
-  const baseName=(src.type||'Custom Proposal').replace(/\s*-\s*Option\s+[AB]$/i,'').trim();
-  if(!/option [ab]$/i.test(src.type||'')){
+  const baseName=(src.type||'Custom Proposal').replace(/[,\s-]*Option\s+[A-Z]$/i,'').trim();
+  // The group is the FIRST option's own id: stable, already unique, and it
+  // needs no new id space or migration.
+  if(!src.optionGroup){src.optionGroup=src.id;src.optionLabel='A';}
+  if(!/option [a-z]$/i.test(src.type||'')){
     src.type=baseName+', Option A';
     src.geiDesc=src.type;
     src.descUserSet=true;
@@ -2539,7 +2625,9 @@ function _byoDuplicateBid(){
   }
   const copy=JSON.parse(JSON.stringify(src));
   copy.id=_newBidId();
-  copy.type=baseName+', Option B';
+  copy.optionGroup=src.optionGroup;
+  copy.optionLabel=_optionNextLabel(_optionSiblings(src).concat([src]));
+  copy.type=baseName+', Option '+copy.optionLabel;
   copy.geiDesc=copy.type;
   copy.descUserSet=true;
   copy.status='Draft';copy.draft=true;
@@ -2552,7 +2640,7 @@ function _byoDuplicateBid(){
   // that actually switches which bid is open.
   const _dupC=(typeof clients!=='undefined')?clients.find(x=>x&&x.id===copy.client_id):null;
   openGenericEstimate(_dupC||{id:copy.client_id,name:copy.client_name||copy.name||''},copy.id,copy.trade_type||_geiTrade,{mode:'byo'});
-  showToast('Duplicated: edit Option B now','📋');
+  showToast('Duplicated: edit Option '+copy.optionLabel+' now','📋');
 }
 function _showProposalPreviewOverlay(proposalHtml){
   document.getElementById('_prop-preview-ov')?.remove();
@@ -4258,6 +4346,40 @@ async function sendGenericProposal(previewOnly,opts){
       _scopeBlocks.push(_rows);
     }
   }
+  // ── The other options, on this document ─────────────────────────────────
+  // Whichever option the client opened, they can see the whole choice and what
+  // each one costs. A price is only shown once that option has actually been
+  // sent: a half-written draft is not an offer and must never reach a client.
+  let _optionsSection='';
+  {
+    const _thisBid=_geiEditBidId?bids.find(x=>x.id===_geiEditBidId):null;
+    const _sibs=(typeof _optionSiblings==='function')?_optionSiblings(_thisBid):[];
+    const _offered=_sibs.filter(x=>x.id===(_thisBid&&_thisBid.id)||x.proposalSentDate||x.signingToken||x.status==='Pending'||x.status==='Closed Won');
+    if(_offered.length>1){
+      const _rows=_offered.map(x=>{
+        const _me=_thisBid&&x.id===_thisBid.id;
+        const _amt=_me?total:(Number(x.amount)||0);
+        // The LABEL names the option, not the stored title. The title of the
+        // one being sent has already been rewritten by the live editor (an
+        // unnamed proposal auto-names itself), so reading it back here printed
+        // "Custom Proposal" where the client needed to see "Option B".
+        const _nm=x.optionLabel?('Option '+x.optionLabel):String(x.type||'').replace(/^.*?,\s*(Option\s+[A-Z])$/i,'$1');
+        // A one-line headline of what that option IS, so the price has meaning.
+        // Suppressed on the one they are reading: this whole page is its
+        // description, and repeating a title above it is noise.
+        const _hd=_me?'':String(x.type||'').replace(/[,\s-]*Option\s+[A-Z]$/i,'').trim();
+        return `<div style="display:flex;justify-content:space-between;align-items:baseline;gap:12px;padding:9px 12px;border-radius:8px;margin-bottom:6px;background:${_me?'#EBF2FB':'#f8fafc'};border:1.5px solid ${_me?_pAccent:'#e2e8f0'}">
+          <div style="min-width:0">
+            <div style="font-size:12px;font-weight:800;color:${_me?_pAccent:'#4a5568'}">${escHtml(_nm)}${_me?' <span style="font-weight:700;font-size:10px;color:#718096">, this one</span>':''}</div>
+            ${_hd?`<div style="font-size:10.5px;color:#718096;margin-top:1px;overflow-wrap:anywhere">${escHtml(_hd)}</div>`:''}
+          </div>
+          <div style="font-size:14px;font-weight:800;color:#111;white-space:nowrap">${'$'+_amt.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})}</div>
+        </div>`;
+      }).join('');
+      _optionsSection=`<div style="padding:14px 18px;border-bottom:1px solid #e2e8f0;background:#fbfcfe"><div style="font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:.1em;color:${_pAccent};margin-bottom:10px">Your options</div>${_rows}<div style="font-size:10.5px;color:#718096;margin-top:4px">Sign the one you want. The others simply close out.</div></div>`;
+    }
+  }
+
   const _scopeSection=_scopeBlocks.length
     ?`<div style="padding:14px 18px 6px;border-bottom:1px solid #e2e8f0;background:#f8fafc"><div style="font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:.1em;color:${_pAccent};margin-bottom:10px">Scope of work</div>${_scopeBlocks.join('')}</div>`
     :'';
@@ -4311,7 +4433,7 @@ async function sendGenericProposal(previewOnly,opts){
   const _lineItemsSection=_geiIsFreeForm
     ?`<table style="width:100%;border-collapse:collapse"><tfoot>${_totalFooterRows}</tfoot></table>`
     :`<table style="width:100%;border-collapse:collapse;font-size:12px"><thead><tr style="background:#f1f5f9;border-bottom:2px solid #e2e8f0"><th colspan="2" style="padding:8px 18px;text-align:left;font-weight:800;text-transform:uppercase;color:#64748b;font-size:9px;letter-spacing:.08em">Description</th></tr></thead><tbody>${lineRows}</tbody><tfoot>${_totalFooterRows}</tfoot></table>`;
-  const proposalHtml=`<div style="background:#fff;color:#1a1a1a;border-radius:10px;overflow:hidden;border:1px solid #e2e8f0;box-shadow:0 4px 24px rgba(0,0,0,.10)"><div style="background:linear-gradient(135deg,${_pAccent} 0%,${_pAccent2} 100%);color:#fff;padding:24px 28px;display:flex;justify-content:space-between;align-items:flex-start;border-bottom:3px solid rgba(255,255,255,.1)">${_proposalBizHeader(_bnameRaw,_bphoneRaw,_blicRaw)}<div style="text-align:right;padding-top:4px"><div style="font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.12em;opacity:.9;margin-bottom:8px">${_hdrLabel}</div><div style="font-size:11px;opacity:.6;margin-bottom:2px"># ${estNum}</div><div style="font-size:11px;opacity:.6">Date: ${dateStr}</div></div></div><div style="display:grid;grid-template-columns:1fr 1fr;border-bottom:1px solid #e2e8f0"><div style="padding:14px 18px;border-right:1px solid #e2e8f0"><div style="font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:.1em;color:#94a3b8;margin-bottom:6px">Customer</div><div style="font-size:14px;font-weight:700;color:${_pAccent}">${clientName}</div>${clientAddr?`<div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#94a3b8;margin-top:7px">Address</div><div style="font-size:12px;color:#4a5568;margin-top:1px">${clientAddr}</div>`:''}${clientPhone?`<div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#94a3b8;margin-top:7px">Phone</div><div style="font-size:12px;color:#4a5568;margin-top:1px">${clientPhone}</div>`:''}</div><div style="padding:14px 18px"><div style="font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:.1em;color:#94a3b8;margin-bottom:6px">Project</div><div style="font-size:13px;font-weight:600;color:${_pAccent}">${jobDesc||tradeName+' service'}</div>${duration?`<div style="font-size:11px;color:#718096;margin-top:6px">Est. duration: ${duration}</div>`:''}<div style="font-size:11px;color:#718096;margin-top:3px">Valid until: ${_geiExpD}</div></div></div>${_scopeSection}${_rrpSection}${_scanPlanSection}${_lineItemsSection}${notesHtml}${_propPanelHtml}</div>`;
+  const proposalHtml=`<div style="background:#fff;color:#1a1a1a;border-radius:10px;overflow:hidden;border:1px solid #e2e8f0;box-shadow:0 4px 24px rgba(0,0,0,.10)"><div style="background:linear-gradient(135deg,${_pAccent} 0%,${_pAccent2} 100%);color:#fff;padding:24px 28px;display:flex;justify-content:space-between;align-items:flex-start;border-bottom:3px solid rgba(255,255,255,.1)">${_proposalBizHeader(_bnameRaw,_bphoneRaw,_blicRaw)}<div style="text-align:right;padding-top:4px"><div style="font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.12em;opacity:.9;margin-bottom:8px">${_hdrLabel}</div><div style="font-size:11px;opacity:.6;margin-bottom:2px"># ${estNum}</div><div style="font-size:11px;opacity:.6">Date: ${dateStr}</div></div></div><div style="display:grid;grid-template-columns:1fr 1fr;border-bottom:1px solid #e2e8f0"><div style="padding:14px 18px;border-right:1px solid #e2e8f0"><div style="font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:.1em;color:#94a3b8;margin-bottom:6px">Customer</div><div style="font-size:14px;font-weight:700;color:${_pAccent}">${clientName}</div>${clientAddr?`<div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#94a3b8;margin-top:7px">Address</div><div style="font-size:12px;color:#4a5568;margin-top:1px">${clientAddr}</div>`:''}${clientPhone?`<div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#94a3b8;margin-top:7px">Phone</div><div style="font-size:12px;color:#4a5568;margin-top:1px">${clientPhone}</div>`:''}</div><div style="padding:14px 18px"><div style="font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:.1em;color:#94a3b8;margin-bottom:6px">Project</div><div style="font-size:13px;font-weight:600;color:${_pAccent}">${jobDesc||tradeName+' service'}</div>${duration?`<div style="font-size:11px;color:#718096;margin-top:6px">Est. duration: ${duration}</div>`:''}<div style="font-size:11px;color:#718096;margin-top:3px">Valid until: ${_geiExpD}</div></div></div>${_optionsSection}${_scopeSection}${_rrpSection}${_scanPlanSection}${_lineItemsSection}${notesHtml}${_propPanelHtml}</div>`;
   // Terms & Conditions is NOT part of the document the client reviews first,
   // it only appears in the accordion under the signature on the actual sign
   // step (owner directive 2026-07-13). The preview mirrors that: it shows
@@ -4921,6 +5043,10 @@ async function _geiConfirmInPerson(){
   const ts=new Date().toISOString();
   bid.amount=total;bid.deposit=depAmt;bid.status='Closed Won';bid.draft=false;
   bid.signedAt=ts;bid.estStatus='signed';
+  // Same rule the remote path applies (cloud.js _applySigStatusToBid): the
+  // options he did not pick close out instead of sitting in Pending. AFTER
+  // signedAt is stamped, because that is the date the others are lost on.
+  _optionRetireSiblings(bid);
   // The exact document that was on screen when they signed, kept as the legal
   // record the same way the remote send keeps it (_finalizeProposalSend). An
   // in-person signature had no snapshot at all before this.

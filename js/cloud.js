@@ -634,7 +634,7 @@ const _supaMode=(()=>{try{return localStorage.getItem('zp3_supa_mode');}catch(_e
 // `let` so the supaInit auto-fallback can flip it to the proxy before the client is built.
 let SUPA_URL = (_supaMode==='proxy') ? _SUPA_PROXY_URL : _SUPA_DIRECT_URL;
 const SUPA_KEY = 'sb_publishable_kaahEa5tFydocUuYi8plHg_K78HPyvJ';
-const APP_VERSION='09.06.26.33';
+const APP_VERSION='09.07.26.1';
 let _supa=null,_supaUser=null,_syncTimer=null,_syncStatus='local',_supaCloudLoaded=false,_lastLocalSaveAt=0;
 let _syncBroadcastChannel=null,_realtimeSubscribed=false,_loadInProgress=false,_activeLoadPromise=null,_broadcastReloadTimer=null,_broadcastPending=false,_reconcileTimer=null,_writeCacheTimer=null,_rtRenderTimer=null;
 // True only for the window between an in-tab sign-in landing on the dashboard
@@ -7356,6 +7356,11 @@ function _applySigStatusToBid(bid,s){
     // Audit: the signer's IP + device, stamped server-side by the log-proposal-view
     // Edge Function at sign time. Feeds the exportable audit report.
     if(s.ip_address&&bid.signIp!==s.ip_address){bid.signIp=s.ip_address;bid.signUa=s.user_agent||null;changed=true;}
+    // Signing one option retires the rest. Options are separate bids on
+    // purpose (js/generic-estimate.js _optionSiblings), so without this the
+    // ones he did not pick sit in Pending forever, chasing a client who
+    // already decided.
+    if(typeof _optionRetireSiblings==='function'&&_optionRetireSiblings(bid))changed=true;
   }
   return changed;
 }

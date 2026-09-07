@@ -2124,7 +2124,10 @@ test.describe('generic-estimate.js: exhaustive coverage', () => {
       expect(r2.hasOptionB).toBe(false);
     });
 
-    test('_byoShowPage renders "Send proposal" with Option B in a 3-column action grid', async () => {
+    // Was "Option B". The button made a SECOND option and said so; a group can
+    // now hold A through Z (_optionNextLabel), so naming one letter was wrong
+    // the moment a third option existed. It adds an option now, and says that.
+    test('_byoShowPage renders "Send proposal" with Add option in a 3-column action grid', async () => {
       const r = await page.evaluate(() => {
         try { _byoShowPage(); return { ok: true }; }
         catch (e) { return { ok: false, err: e.message }; }
@@ -2132,10 +2135,13 @@ test.describe('generic-estimate.js: exhaustive coverage', () => {
       expect(r.ok).toBe(true);
       const r2 = await page.evaluate(() => {
         const html = document.getElementById('byo-actions-wrap')?.innerHTML || '';
-        return { hasSend: html.includes('Send proposal') && !html.includes('Send T&amp;M'), hasOptionB: html.includes('Option B') };
+        return { hasSend: html.includes('Send proposal') && !html.includes('Send T&amp;M'),
+                 hasAddOption: html.includes('Add option'),
+                 namesOneLetter: /Option [A-Z]\b/.test(html) };
       });
       expect(r2.hasSend).toBe(true);
-      expect(r2.hasOptionB).toBe(true);
+      expect(r2.hasAddOption).toBe(true);
+      expect(r2.namesOneLetter, 'the button cannot promise a letter when the next free one depends on the group').toBe(false);
     });
   });
 

@@ -188,6 +188,26 @@ test.describe('layout integrity, mobile', () => {
   // pixels wider; the actual defect was that a third action button squeezed the
   // column until overflow-wrap:anywhere broke a FOUR-LETTER word across two
   // lines. Measuring the title's own height catches that on any engine.
+  // Getting a proposal out in five minutes is the product thesis, and order is
+  // most of the flow. The exclusions preset list is tall; above the sections it
+  // pushed the actual work ~1,200px down a phone screen. Naming what a job does
+  // not cover is something he does once there IS a job on the page.
+  test('BYO: the work comes before the exclusions list, on both estimate types', async () => {
+    const r = await page.evaluate(() => {
+      const c = { id: 79104, name: 'Order Client', addr: '9 Order Rd' };
+      clients = clients.filter(x => x.id !== 79104).concat([c]);
+      const precedes = (a, b) => !!(a && b && (a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING));
+      openGenericEstimate(c, null, null, { mode: 'byo' }); goGeiStep(2);
+      const byo = precedes(document.getElementById('byo-sections'), document.getElementById('byo-excl-wrap'));
+      openGenericEstimate(c, null, null, { mode: 'tm' }); goGeiStep(2);
+      const tm = precedes(document.getElementById('tm-mat-list'), document.getElementById('tm-excl-wrap'));
+      return { byo, tm, bothExist: !!document.getElementById('tm-excl-wrap') && !!document.getElementById('byo-excl-wrap') };
+    });
+    expect(r.bothExist, 'both types get an exclusions card').toBe(true);
+    expect(r.byo, 'BYO: the items come first').toBe(true);
+    expect(r.tm, 'T&M: the material categories come first').toBe(true);
+  });
+
   test('BYO item row: a short title never breaks across lines, however wide the price and however many actions', async () => {
     const r = await page.evaluate(() => {
       const c = { id: 79103, name: 'Squeeze Client', addr: '1 Squeeze St' };

@@ -480,24 +480,44 @@ test.describe('BYO (Build Your Own) estimate functions', () => {
     if (!result.skip) expect(result.ok).toBe(true);
   });
 
-  test('_geiShowAllServices: shows all services without throwing', async () => {
-    const result = await page.evaluate(() => {
-      if (typeof _geiShowAllServices !== 'function') return { skip: true };
-      try { _geiShowAllServices(); return { ok: true }; }
-      catch (e) { return { ok: false, error: e.message }; }
-    });
-    if (!result.skip) expect(result.ok).toBe(true);
+  // The "Set up your services" gate and its bundle filter are DELETED (owner
+  // 2026-09-06). It asked every trade which of TEN ELECTRICAL categories they
+  // work in, and GEI_BUNDLES held only electrical job ids, so a plumber who
+  // answered it filtered his own service list down to nothing. Asserting the
+  // entry points are gone, not just that nothing calls them (7.1).
+  test('the electrical services gate is gone, for every trade', async () => {
+    const r = await page.evaluate(() => ({
+      gate: typeof window.showGeiOnboarding,
+      filter: typeof window._geiVisibleJobIds,
+      showAll: typeof window._geiShowAllServices,
+      bundles: typeof window.GEI_BUNDLES,
+      toggle: typeof window._geiOnboardToggle,
+      inDom: document.body.innerHTML.includes('Set up your services'),
+    }));
+    expect(r.gate).toBe('undefined');
+    expect(r.filter).toBe('undefined');
+    expect(r.showAll).toBe('undefined');
+    expect(r.bundles).toBe('undefined');
+    expect(r.toggle).toBe('undefined');
+    expect(r.inDom).toBe(false);
   });
 
-  test('showGeiOnboarding: shows onboarding without throwing', async () => {
-    const result = await page.evaluate(() => {
-      if (typeof showGeiOnboarding !== 'function') return { skip: true };
-      try {
-        showGeiOnboarding({ force: true });
-        return { ok: true };
-      } catch (e) { return { ok: false, error: e.message }; }
+  test('every trade sees its own full service list, unfiltered', async () => {
+    const r = await page.evaluate(() => {
+      const out = {};
+      ['plumbing', 'hvac', 'electrical', 'roofing', 'landscaping'].forEach(t => {
+        _geiTrade = t; _geiIsCommercial = false;
+        _geiRenderTemplates();
+        const el = document.getElementById('gei-templates');
+        out[t] = el ? el.querySelectorAll('button').length : -1;
+      });
+      return out;
     });
-    if (!result.skip) expect(result.ok).toBe(true);
+    // Every trade renders its own category tiles. Before, only electrical did:
+    // the others got a list filtered by electrical ids, which came back empty.
+    Object.entries(r).forEach(([trade, n]) => {
+      expect(n, trade + ' shows its own categories').toBeGreaterThan(0);
+    });
   });
 
   test('no console errors during BYO estimate tests', async () => {

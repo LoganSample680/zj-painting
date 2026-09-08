@@ -2597,6 +2597,139 @@ test.describe('settings.js: exhaustive coverage', () => {
 
   // ═══════════════════════════════════════════════════════════════════════════
   // No console errors
+  // ── Price book editor ───────────────────────────────────────────────────────
+  //
+  // The book fills itself from the estimates he writes, so the only thing this
+  // screen has to be is correctable: one wrong price repeated across ten
+  // proposals is worse than no book, and if he cannot fix it in ten seconds he
+  // stops trusting the whole thing.
+  test.describe('price book editor', () => {
+    const seed = () => page.evaluate(() => {
+      S.priceBook = { plumbing: [
+        { desc: 'Replace 40 gal water heater', rate: 1850, unit: 'ea', n: 4, last: '2026-09-01' },
+        { desc: 'Snake main line', rate: 350, unit: 'ea', n: 2, last: '2026-08-20' },
+        { desc: 'One off thing', rate: 90, unit: 'ea', n: 1, last: '2026-08-02' },
+      ], hvac: [
+        { desc: 'Condenser swap', rate: 4200, unit: 'ea', n: 3, last: '2026-08-30' },
+      ] };
+      window.__prompts = [];
+      window.zPrompt = (m, ok, opts) => { window.__prompts.push({ m, opts }); window.__lastOk = ok; };
+      window.zConfirm = (m, yes) => { window.__lastYes = yes; };
+      _pbTradeTab = null;
+      renderPriceBookSettings();
+    });
+
+    test('lists what he charges, most used first, and says which are not offered yet', async () => {
+      await seed();
+      const r = await page.evaluate(() => {
+        const txt = document.getElementById('pb-list').textContent;
+        const names = [...document.querySelectorAll('#pb-list button')].map(b => b.textContent);
+        return { txt, first: names[0], tabs: document.querySelectorAll('#pb-trade-tabs button').length };
+      });
+      expect(r.first).toBe('Replace 40 gal water heater');   // used 4x, top of the list
+      expect(r.txt).toContain('4x');
+      expect(r.txt).toContain('once, not offered yet');       // the n:1 row is honest about itself
+      expect(r.tabs).toBe(2);                                 // plumbing and hvac
+    });
+
+    test('repricing takes, and sticks', async () => {
+      await seed();
+      const r = await page.evaluate(() => {
+        // The price itself is the button: tap it, type the new one.
+        [...document.querySelectorAll('#pb-list button')].find(b => /1,850|1850/.test(b.textContent)).click();
+        const asked = window.__prompts.length;
+        window.__lastOk('$2,100');            // typed with the money noise a person types
+        return { asked, rate: S.priceBook.plumbing.find(x => /water heater/i.test(x.desc)).rate,
+                 shown: document.getElementById('pb-list').textContent };
+      });
+      expect(r.asked).toBe(1);
+      expect(r.rate).toBe(2100);
+      expect(r.shown).toContain('2,100');
+    });
+
+    test('a junk price changes nothing', async () => {
+      await seed();
+      const r = await page.evaluate(() => {
+        [...document.querySelectorAll('#pb-list button')].find(b => /1,850|1850/.test(b.textContent)).click();
+        window.__lastOk('banana');
+        window.__lastOk('');
+        window.__lastOk('-40');
+        return S.priceBook.plumbing.find(x => /water heater/i.test(x.desc)).rate;
+      });
+      expect(r).toBe(1850);
+    });
+
+    test('renaming takes, and an empty name changes nothing', async () => {
+      await seed();
+      const r = await page.evaluate(() => {
+        document.querySelectorAll('#pb-list button')[0].click();   // the name button
+        window.__lastOk('   ');
+        const unchanged = S.priceBook.plumbing[0].desc;
+        window.__lastOk('Water heater, 40 gallon');
+        return { unchanged, renamed: S.priceBook.plumbing[0].desc };
+      });
+      expect(r.unchanged).toBe('Replace 40 gal water heater');
+      expect(r.renamed).toBe('Water heater, 40 gallon');
+    });
+
+    test('removing takes one confirm, and removes the right row', async () => {
+      await seed();
+      const r = await page.evaluate(() => {
+        const before = S.priceBook.plumbing.length;
+        // The X on the second row (Snake main line).
+        [...document.querySelectorAll('#pb-list button')].filter(b => b.textContent === '\u00d7')[1].click();
+        window.__lastYes();
+        return { before, after: S.priceBook.plumbing.length, left: S.priceBook.plumbing.map(x => x.desc) };
+      });
+      expect(r.before).toBe(3);
+      expect(r.after).toBe(2);
+      expect(r.left).not.toContain('Snake main line');
+    });
+
+    test('an empty book explains itself instead of showing a blank screen', async () => {
+      const r = await page.evaluate(() => {
+        S.priceBook = {};
+        renderPriceBookSettings();
+        return { txt: document.getElementById('pb-list').textContent, tabs: document.getElementById('pb-trade-tabs').innerHTML };
+      });
+      expect(r.txt).toContain('Write an estimate');
+      expect(r.tabs).toBe('');
+    });
+
+    test('a corrupted book renders empty instead of throwing', async () => {
+      const r = await page.evaluate(() => {
+        const out = {};
+        try { S.priceBook = null; renderPriceBookSettings(); out.nul = 'ok'; } catch (e) { out.nul = 'threw'; }
+        try { S.priceBook = { plumbing: 'nope' }; renderPriceBookSettings(); out.bad = 'ok'; } catch (e) { out.bad = 'threw'; }
+        try { S.priceBook = 'not even an object'; renderPriceBookSettings(); out.str = 'ok'; } catch (e) { out.str = 'threw'; }
+        S.priceBook = {};
+        return out;
+      });
+      expect(r.nul).toBe('ok');
+      expect(r.bad).toBe('ok');
+      expect(r.str).toBe('ok');
+    });
+
+    test('the settings row counts only what is actually offered', async () => {
+      await seed();
+      const r = await page.evaluate(() => {
+        // Earlier tests in this suite rebuild parts of the settings index, so
+        // the meta node may not be in the DOM by the time this runs. The count
+        // is what is under test, not whether a sibling test left the node
+        // alone, so put it back before asking.
+        if (!document.getElementById('set-meta-pricebook')) {
+          const d = document.createElement('div');
+          d.id = 'set-meta-pricebook';
+          document.body.appendChild(d);
+        }
+        _renderSetIndex();
+        return document.getElementById('set-meta-pricebook').textContent;
+      });
+      // 2 plumbing at n>=2 plus 1 hvac. The n:1 row is not a price he has.
+      expect(r).toContain('3');
+    });
+  });
+
   // ═══════════════════════════════════════════════════════════════════════════
   test('no console errors, settings.js', async () => {
     assertNoErrors(page, 'settings.js');

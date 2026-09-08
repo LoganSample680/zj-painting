@@ -894,3 +894,129 @@ test.describe('sizing estimate', () => {
     assertNoErrors(page);
   });
 });
+
+// ── Which way the walls face ────────────────────────────────────────────────
+//
+// The residential load procedure resolves glass by compass direction, and
+// until now the geometry
+// pass collapsed every window in the house into one number. These tests pin
+// the two halves separately, because only one of them is knowable from the
+// code: which side of a wall is outdoors is geometry, and which direction that
+// is on Earth depends on a compass convention that has never been checked
+// against a real scan.
+
+test.describe('sizing estimate: orientation', () => {
+  let page;
+  test.beforeAll(async ({ browser }) => {
+    const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, bypassCSP: true });
+    page = await ctx.newPage();
+    await mockAllExternal(page);
+    await page.goto('/', { waitUntil: 'domcontentloaded', timeout: 20000 });
+    await waitForAppBoot(page);
+    if (!await page.evaluate(() => typeof window.loadcalcScanGeometry === 'function')) {
+      await page.addScriptTag({ url: '/js/loadcalc.js' });
+    }
+  });
+  test.afterAll(async () => { await page.context().close(); });
+
+  // A 4m x 4m box room, walls running clockwise, one window on each wall.
+  // Scene axes: +x right, -z "forward". With no compass heading, a wall whose
+  // outward normal points along -z is the zero bearing.
+  const BOX = (headingDeg) => ({
+    headingDeg: headingDeg,
+    rooms: [{
+      label: 'Box', story: 1, floorM2: 16, hM: 2.5, winM2: 4,
+      poly: [[0, 0], [4, 0], [4, 4], [0, 4]],
+      walls: [
+        { ax: 0, az: 0, bx: 4, bz: 0, len: 4, h: 2.5, windows: [{ area: 1 }], doors: [] },
+        { ax: 4, az: 0, bx: 4, bz: 4, len: 4, h: 2.5, windows: [{ area: 2 }], doors: [] },
+        { ax: 4, az: 4, bx: 0, bz: 4, len: 4, h: 2.5, windows: [{ area: 3 }], doors: [] },
+        { ax: 0, az: 4, bx: 0, bz: 0, len: 4, h: 2.5, windows: [{ area: 4 }], doors: [] }
+      ]
+    }]
+  });
+
+  test('every window lands on exactly one side and none go missing', async () => {
+    const r = await page.evaluate(b => loadcalcScanGeometry(b), BOX(0));
+    expect(r.ok).toBe(true);
+    const dirs = Object.keys(r.byOrientation);
+    expect(dirs.sort()).toEqual(['E', 'N', 'NE', 'NW', 'S', 'SE', 'SW', 'W']);
+    // 1 + 2 + 3 + 4 m2 of glass, and the split must conserve it.
+    const split = dirs.reduce((t, k) => t + r.byOrientation[k].windowSqFt, 0);
+    expect(Math.abs(split - r.windowSqFt)).toBeLessThanOrEqual(2);   // rounding only
+    // Four walls, four directions, each used once.
+    expect(dirs.filter(k => r.byOrientation[k].windowSqFt > 0).length).toBe(4);
+  });
+
+  test('opposite walls come out on opposite sides', async () => {
+    const r = await page.evaluate(b => loadcalcScanGeometry(b), BOX(0));
+    const at = area => Object.keys(r.byOrientation)
+      .find(k => Math.abs(r.byOrientation[k].windowSqFt - Math.round(area * 10.7639)) <= 1);
+    const opposite = { N: 'S', S: 'N', E: 'W', W: 'E', NE: 'SW', SW: 'NE', NW: 'SE', SE: 'NW' };
+    // The 1 m2 window and the 3 m2 window are on facing walls of the box.
+    expect(opposite[at(1)]).toBe(at(3));
+    expect(opposite[at(2)]).toBe(at(4));
+  });
+
+  test('the compass rotates the whole house, it does not reshuffle it', async () => {
+    const a = await page.evaluate(b => loadcalcScanGeometry(b), BOX(0));
+    const b = await page.evaluate(x => loadcalcScanGeometry(x), BOX(90));
+    // A quarter turn moves every side by exactly two octants, so the sorted
+    // list of areas is unchanged and only the labels move.
+    const areas = o => Object.keys(o.byOrientation).map(k => o.byOrientation[k].windowSqFt).sort((x, y) => x - y);
+    expect(areas(b)).toEqual(areas(a));
+    const ring = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
+    ring.forEach((k, i) => {
+      expect(b.byOrientation[ring[(i + 2) % 8]].windowSqFt).toBe(a.byOrientation[k].windowSqFt);
+    });
+  });
+
+  test('a scan with no compass says so instead of inventing north', async () => {
+    const r = await page.evaluate(b => loadcalcScanGeometry(b), BOX(undefined));
+    expect(r.hasCompass).toBe(false);
+    expect(r.notes.join(' ')).toMatch(/no compass heading/i);
+    // The split is still produced, because it is still useful relative to the
+    // scan; it just must not be read as north and south.
+    expect(r.byOrientation).toBeTruthy();
+  });
+
+  test('the compass mapping is flagged unverified until a real scan checks it', async () => {
+    const r = await page.evaluate(b => loadcalcScanGeometry(b), BOX(0));
+    // Getting the sign backwards puts south glass on the north side and halves
+    // a cooling load silently. It stays flagged until somebody scans a house
+    // whose facing they know.
+    expect(r.orientationUnverified).toBe(true);
+    expect(r.notes.join(' ')).toMatch(/not been checked against a real scan/i);
+  });
+
+  test('each room carries its own eight sides', async () => {
+    const r = await page.evaluate(b => loadcalcScanGeometry(b), BOX(0));
+    const room = r.rooms[0];
+    expect(Object.keys(room.byOrientation).sort()).toEqual(['E', 'N', 'NE', 'NW', 'S', 'SE', 'SW', 'W']);
+    // One room, so the room's split is the whole house's split.
+    Object.keys(r.byOrientation).forEach(k => {
+      expect(room.byOrientation[k].windowSqFt).toBe(r.byOrientation[k].windowSqFt);
+    });
+  });
+
+  test('a wall with no length is counted in the totals but not given a direction', async () => {
+    const bad = BOX(0);
+    bad.rooms[0].walls.push({ ax: 1, az: 1, bx: 1, bz: 1, len: 2, h: 2.5, windows: [{ area: 5 }], doors: [] });
+    const r = await page.evaluate(b => loadcalcScanGeometry(b), bad);
+    expect(r.ok).toBe(true);
+    expect(r.notes.join(' ')).toMatch(/no usable direction/i);
+    // It still contributes glass to the house total, so nothing is lost.
+    expect(r.windowSqFt).toBeGreaterThan(
+      Object.keys(r.byOrientation).reduce((t, k) => t + r.byOrientation[k].windowSqFt, 0));
+  });
+
+  test('rubbish geometry does not throw', async () => {
+    const r = await page.evaluate(() => {
+      const junk = { headingDeg: 'north', rooms: [{ label: 'x', poly: 'nope', walls: [
+        { ax: null, az: undefined, bx: 'a', bz: {}, len: 3, h: 2 }] }] };
+      try { return { threw: false, ok: loadcalcScanGeometry(junk).ok }; }
+      catch (e) { return { threw: true, msg: String(e) }; }
+    });
+    expect(r.threw).toBe(false);
+  });
+});

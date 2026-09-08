@@ -388,6 +388,111 @@ const _lcRound = function (n) { const v = Number(n); return isFinite(v) ? Math.r
 // overlap along their length. Everything left over faces out.
 //
 // Pure: takes the scan record, returns geometry. No lookups, no globals.
+// ── Which way a wall faces ───────────────────────────────────────────────────
+//
+// The industry's residential procedure resolves glass load by compass
+// direction, and so does the physics: south glass in July is a
+// different building from north glass, and collapsing both into one "window
+// square feet" number is the single largest avoidable error in a load
+// calculation done from good geometry. The scan already carries everything
+// needed and this is where it stops being thrown away.
+//
+// TWO PARTS, and only the first is certain.
+//
+// 1. WHICH WAY THE WALL FACES, in the scan's own frame. Certain. A wall run
+//    has two perpendiculars; the outward one is whichever points away from the
+//    room's own centre. No compass involved.
+//
+// 2. WHICH WAY THAT IS ON EARTH. NOT yet verified. `scan.headingDeg` is the
+//    compass reading captured with the scan, and the convention below takes it
+//    to be the bearing of the scene's -z axis, which is what the plan's north
+//    arrow (js/scan.js, "6. North arrow when the compass grabbed a heading")
+//    is drawn from. That is a reading of the code, not a measurement. Until it
+//    is checked against one real scan of a house whose facing is known, every
+//    result carries `orientationUnverified` and says so in `notes`.
+//
+//    Getting this backwards puts south glass on the north side and quietly
+//    halves a cooling load, so it is flagged rather than assumed correct. When
+//    it is confirmed, the fix is _LC_HEADING_SIGN and nothing else.
+const _LC_HEADING_SIGN = 1;
+
+const _LC_OCTANTS = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
+
+// The outward unit normal of a wall, in scene coordinates. `cx,cz` is a point
+// known to be inside the room.
+function _lcWallNormal(w, cx, cz) {
+  const dx = _lcNum(w.bx) - _lcNum(w.ax), dz = _lcNum(w.bz) - _lcNum(w.az);
+  const len = Math.hypot(dx, dz);
+  if (!len) return null;
+  const ux = dx / len, uz = dz / len;
+  // Midpoint, relative to the room's centre.
+  const mx = (_lcNum(w.ax) + _lcNum(w.bx)) / 2 - cx;
+  const mz = (_lcNum(w.az) + _lcNum(w.bz)) / 2 - cz;
+  // Of the two perpendiculars, the outward one leans away from the centre.
+  const nx = -uz, nz = ux;
+  return (nx * mx + nz * mz) >= 0 ? { x: nx, z: nz } : { x: -nx, z: -nz };
+}
+
+// Mean of a room's floor polygon, or of its wall endpoints when there is none.
+function _lcRoomCentre(r) {
+  const poly = (r && Array.isArray(r.poly)) ? r.poly : null;
+  let sx = 0, sz = 0, n = 0;
+  if (poly && poly.length) {
+    poly.forEach(function (p) {
+      if (!Array.isArray(p)) return;
+      sx += _lcNum(p[0]); sz += _lcNum(p[1]); n++;
+    });
+  }
+  if (!n) {
+    (Array.isArray(r && r.walls) ? r.walls : []).forEach(function (w) {
+      sx += _lcNum(w.ax) + _lcNum(w.bx); sz += _lcNum(w.az) + _lcNum(w.bz); n += 2;
+    });
+  }
+  return n ? { x: sx / n, z: sz / n } : { x: 0, z: 0 };
+}
+
+// Compass bearing of a scene-space normal, 0 = north, clockwise. headingDeg is
+// the scan's compass reading; without it the bearing is relative to the scan.
+function _lcBearing(n, headingDeg) {
+  // 0 degrees is the scene's -z axis, increasing clockwise toward +x.
+  let deg = Math.atan2(n.x, -n.z) * 180 / Math.PI;
+  const head = Number(headingDeg);
+  if (isFinite(head)) deg += _LC_HEADING_SIGN * head;
+  deg = deg % 360;
+  return deg < 0 ? deg + 360 : deg;
+}
+
+function _lcOctant(bearingDeg) {
+  const i = Math.round(_lcNum(bearingDeg) / 45) % 8;
+  return _LC_OCTANTS[(i + 8) % 8];
+}
+
+// An empty per-direction tally. Always all eight keys, so a caller never has
+// to guard for a missing side.
+function _lcOrientBucket() {
+  const o = {};
+  _LC_OCTANTS.forEach(function (k) { o[k] = { wallSqFt: 0, windowSqFt: 0, doorSqFt: 0 }; });
+  return o;
+}
+function _lcOrientAdd(bucket, oct, wallM2, glassM2, doorM2) {
+  const b = bucket[oct];
+  if (!b) return;
+  b.wallSqFt += wallM2 * _LC_FT2_PER_M2;
+  b.windowSqFt += glassM2 * _LC_FT2_PER_M2;
+  b.doorSqFt += doorM2 * _LC_FT2_PER_M2;
+}
+function _lcOrientRound(bucket) {
+  const o = {};
+  Object.keys(bucket).forEach(function (k) {
+    o[k] = {
+      wallSqFt: _lcRound(bucket[k].wallSqFt),
+      windowSqFt: _lcRound(bucket[k].windowSqFt),
+      doorSqFt: _lcRound(bucket[k].doorSqFt)
+    };
+  });
+  return o;
+}
+
 function loadcalcScanGeometry(scan, opts) {
   const o = opts || {};
   const rooms = (scan && Array.isArray(scan.rooms)) ? scan.rooms : [];
@@ -395,6 +500,10 @@ function loadcalcScanGeometry(scan, opts) {
   if (!rooms.length) return { ok: false, reason: 'no-rooms', notes: ['The scan has no rooms in it.'] };
 
   const storyOf = function (r) { return Math.max(1, _lcNum(r && r.story, 1)); };
+  // One centre per room, for deciding which side of a wall is outdoors.
+  const centres = rooms.map(_lcRoomCentre);
+  const headingDeg = Number(scan && scan.headingDeg);
+  const hasHeading = isFinite(headingDeg) && headingDeg >= 0;
   const stories = Array.from(new Set(rooms.map(storyOf))).sort(function (a, b) { return a - b; });
   const topStory = stories[stories.length - 1], botStory = stories[0];
 
@@ -432,6 +541,9 @@ function loadcalcScanGeometry(scan, opts) {
   };
 
   let extWallM2 = 0, extGlassM2 = 0, extDoorM2 = 0, intWallCount = 0, extWallCount = 0;
+  const byOrient = _lcOrientBucket();
+  const roomOrient = rooms.map(function () { return _lcOrientBucket(); });
+  let unfacedWalls = 0;
   all.forEach(function (a) {
     const interior = all.some(function (b) { return b.ri !== a.ri && b.story === a.story && shared(a, b); });
     if (interior) { intWallCount++; return; }
@@ -446,8 +558,17 @@ function loadcalcScanGeometry(scan, opts) {
       door += _lcPos(x && x.area);
     });
     const openings = Math.min(gross * 0.9, glass + door);   // an opening cannot eat the whole wall
-    extWallM2 += Math.max(0, gross - openings);
+    const net = Math.max(0, gross - openings);
+    extWallM2 += net;
     extGlassM2 += glass; extDoorM2 += door;
+
+    // Same wall, now filed by the direction it faces.
+    const c = centres[a.ri] || { x: 0, z: 0 };
+    const n = _lcWallNormal(a.w, c.x, c.z);
+    if (!n) { unfacedWalls++; return; }
+    const oct = _lcOctant(_lcBearing(n, hasHeading ? headingDeg : null));
+    _lcOrientAdd(byOrient, oct, net, glass, door);
+    _lcOrientAdd(roomOrient[a.ri], oct, net, glass, door);
   });
 
   let floorM2 = 0, volM3 = 0, ceilM2 = 0, exposedFloorM2 = 0;
@@ -462,6 +583,9 @@ function loadcalcScanGeometry(scan, opts) {
       sqFt: _lcRound(fm * _LC_FT2_PER_M2),
       volumeFt3: _lcRound(fm * hm * _LC_FT2_PER_M2 * _LC_M2FT),
       windowSqFt: _lcRound(_lcPos(r && r.winM2) * _LC_FT2_PER_M2),
+      // The procedure is per room and per direction, so a room carries its own
+      // eight sides rather than a single window number.
+      byOrientation: _lcOrientRound(roomOrient[ri] || _lcOrientBucket()),
       idx: ri
     });
   });
@@ -475,6 +599,14 @@ function loadcalcScanGeometry(scan, opts) {
   }
   if (!extWallCount) {
     notes.push('No exterior walls could be identified in this scan.');
+  }
+  if (!hasHeading) {
+    notes.push('This scan captured no compass heading, so the per-direction areas are angles within the scan itself, not north, south, east and west. Solar gain cannot be resolved by direction from it.');
+  } else {
+    notes.push('The compass mapping has not been checked against a real scan yet, so treat the per-direction split as provisional.');
+  }
+  if (unfacedWalls) {
+    notes.push(unfacedWalls + ' exterior wall(s) had no usable direction and are counted in the totals but not in the per-direction split.');
   }
   if (stories.length > 1) {
     notes.push('Scan spans ' + stories.length + ' floors: the ceiling area is floor ' + topStory + ' only and the exposed floor area is floor ' + botStory + ' only.');
@@ -499,6 +631,11 @@ function loadcalcScanGeometry(scan, opts) {
     exteriorWallCount: extWallCount,
     interiorWallCount: intWallCount,
     rooms: roomOut,
+    byOrientation: _lcOrientRound(byOrient),
+    // True when the eight directions are real compass directions rather than
+    // angles in the scan's own frame. See _LC_HEADING_SIGN.
+    orientationUnverified: true,
+    hasCompass: hasHeading,
     notes: notes
   };
 }

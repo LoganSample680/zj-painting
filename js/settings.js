@@ -1696,6 +1696,91 @@ function renderSettingsTrades(){
       '<div style="font-size:11px;color:var(--text3)">All trades active.</div>'
     );
 }
+// ── Code editions ───────────────────────────────────────────────────────────
+//
+// codeEval refuses with reason 'no-edition' until S.codeEditions names one per
+// family, because no public dataset knows which edition a given inspector
+// enforces: Kansas and four other states have no state adoption at all, the
+// city or county decides, and local amendments beat the state either way. So
+// the contractor tells us once, and this is where he does it.
+//
+// Nothing here decides anything. It writes S.codeEditions and saves.
+
+const _CODE_FAMILY_META = {
+  nec: { label: 'Electrical', book: 'National Electrical Code', trades: ['electrical'] },
+  ipc: { label: 'Plumbing (IPC)', book: 'International Plumbing Code', trades: ['plumbing'] },
+  upc: { label: 'Plumbing (UPC)', book: 'Uniform Plumbing Code', trades: ['plumbing'] }
+};
+
+// Only the families this account's trades actually use. A painter never sees
+// a plumbing code picker.
+function _codeFamiliesForAccount() {
+  const lines = (typeof _getTradeLines === 'function') ? _getTradeLines() : [];
+  return Object.keys(_CODE_FAMILY_META).filter(function (f) {
+    return _CODE_FAMILY_META[f].trades.some(function (t) { return lines.indexOf(t) >= 0; });
+  });
+}
+
+function setCodeEdition(family, edition) {
+  if (!S.codeEditions || typeof S.codeEditions !== 'object') S.codeEditions = {};
+  if (edition) S.codeEditions[family] = String(edition);
+  else delete S.codeEditions[family];
+  if (typeof _settingsChanged === 'function') _settingsChanged();
+  if (typeof supaSaveToCloud === 'function') supaSaveToCloud();
+  renderSettingsCodes();
+}
+
+function renderSettingsCodes() {
+  const el = document.getElementById('set-codes-content');
+  const sub = document.getElementById('set-idx-codes-sub');
+  if (!el) return;
+
+  const fams = _codeFamiliesForAccount();
+  const chosen = (S && S.codeEditions) || {};
+
+  if (sub) {
+    const named = fams.filter(function (f) { return chosen[f]; });
+    sub.textContent = !fams.length ? 'No trade here uses a code book yet'
+      : named.length ? named.map(function (f) { return f.toUpperCase() + ' ' + chosen[f]; }).join(', ')
+      : 'Not set, so code answers stay off';
+  }
+
+  if (!fams.length) {
+    el.innerHTML = '<div style="font-size:12px;color:var(--text2);line-height:1.6">' +
+      'None of your trades use a code book yet. Add electrical or plumbing under Your trades ' +
+      'and the edition picker appears here.</div>';
+    return;
+  }
+
+  el.innerHTML =
+    '<div style="font-size:12px;color:var(--text2);margin-bottom:14px;line-height:1.6">' +
+      'Your inspector enforces one edition, and it is often not the newest one. ' +
+      'Ask the building department if you are not sure. Until this is set, the app ' +
+      'will not answer a code question rather than answer it from the wrong book.' +
+    '</div>' +
+    fams.map(function (f) {
+      const meta = _CODE_FAMILY_META[f];
+      const eds = (typeof codeEditions === 'function') ? codeEditions(f) : [];
+      const cur = chosen[f] || '';
+      const opts = ['<option value="">Not set</option>'].concat(eds.map(function (e) {
+        return '<option value="' + escHtml(e) + '"' + (e === cur ? ' selected' : '') + '>' + escHtml(e) + '</option>';
+      })).join('');
+      return '<div style="padding:12px 0;border-bottom:1px solid var(--border)">' +
+        '<div style="font-size:13px;font-weight:700;color:var(--text)">' + escHtml(meta.label) + '</div>' +
+        '<div style="font-size:11px;color:var(--text3);margin-top:2px;margin-bottom:8px">' + escHtml(meta.book) + '</div>' +
+        (eds.length
+          ? '<select onchange="setCodeEdition(\'' + f + '\',this.value)" ' +
+              'style="width:100%;padding:9px 10px;border-radius:var(--r);border:1.5px solid var(--border2);' +
+              'background:var(--bg);color:var(--text);font-size:13px;font-family:inherit">' + opts + '</select>'
+          : '<div style="font-size:11px;color:var(--text3)">No edition of this book has been loaded into the app yet.</div>') +
+      '</div>';
+    }).join('') +
+    '<div style="font-size:11px;color:var(--text3);margin-top:14px;line-height:1.6">' +
+      'Editions never replace each other. An older one stays selectable forever, ' +
+      'because existing work is judged under the code it was permitted under.' +
+    '</div>';
+}
+
 async function addTradeFromSettings(trade){
   if(!_config?.account_id)return;
   const cur=_getTradeLines();
@@ -1706,7 +1791,7 @@ async function addTradeFromSettings(trade){
     if(error){showToast('SQL migration needed, see notes','⚠️');console.error(error);return;}
   }
   _config={..._config,trade_lines:lineStr};
-  renderSettingsTrades();_renderNavTradeSwitcher();_renderSettingsTradeSections();
+  renderSettingsTrades();renderSettingsCodes();_renderNavTradeSwitcher();_renderSettingsTradeSections();
   showToast('Added '+(TRADE_META[trade]?.label||trade),'✓');
 }
 async function removeTradeFromSettings(trade){
@@ -1721,7 +1806,7 @@ async function removeTradeFromSettings(trade){
   }
   _config={..._config,trade_lines:lineStr};
   if(_activeTrade===trade)_activeTrade=newLines[0];
-  renderSettingsTrades();_renderNavTradeSwitcher();_renderSettingsTradeSections();
+  renderSettingsTrades();renderSettingsCodes();_renderNavTradeSwitcher();_renderSettingsTradeSections();
   showToast('Removed '+(TRADE_META[trade]?.label||trade),'✓');
 }
 function _renderSettingsTradeSections(){

@@ -824,5 +824,11 @@
     window.codeIpcFamilies = function () { return FAMILIES.slice(); };
     window._plumbFixtureKey = _fixtureKey;
     window._plumbRulesFor = _plumbRules;
+    // Self-load when the engine is present, the same way js/code-nec.js does,
+    // so adding the script tag is the whole install. Guarded for tests that
+    // want to control registration themselves.
+    if (typeof codeRegister === 'function' && window.__plumbNoAutoLoad !== true) {
+      codeIpcBoot();
+    }
   }
 })();

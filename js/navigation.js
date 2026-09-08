@@ -70,7 +70,7 @@ function goPg(id){
     // setTimeout that runs after this synchronous block, so they still win.
     if(typeof _closeSetDetail==='function')_closeSetDetail();
     buildScopeDefaultsUI();
-    loadSettingsForm();updateLocationBtn();renderTeam();loadStripeConnectStatus();_renderSettingsTradeSections();_renderDevTradeCard();renderSettingsTrades();
+    loadSettingsForm();updateLocationBtn();renderTeam();loadStripeConnectStatus();_renderSettingsTradeSections();_renderDevTradeCard();renderSettingsTrades();renderSettingsCodes();
     if(window._scrollToVehicles){
       window._scrollToVehicles=false;
       // Vehicles now managed in Fleet & Team, redirect there

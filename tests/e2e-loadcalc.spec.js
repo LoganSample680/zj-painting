@@ -101,10 +101,13 @@ test.describe('sizing estimate', () => {
     await mockAllExternal(page);
     await page.goto('/', { waitUntil: 'domcontentloaded', timeout: 20000 });
     await waitForAppBoot(page);
-    // The module is not in index.html yet: it is loaded here from the same
-    // local server the app is served from, so the test exercises the real
-    // served file rather than a copy.
-    await page.addScriptTag({ url: '/js/loadcalc.js' });
+    // index.html loads this module now, so injecting it again redeclares its
+    // top-level consts and throws a SyntaxError into the page. Inject only when
+    // the app has not already provided it, the same guard the NEC spec carries
+    // for the same reason.
+    if (!await page.evaluate(() => typeof window.loadcalcEstimate === 'function')) {
+      await page.addScriptTag({ url: '/js/loadcalc.js' });
+    }
     await page.waitForFunction(() => typeof window.loadcalcEstimate === 'function');
   });
   test.afterAll(async () => { await page.context().close(); });

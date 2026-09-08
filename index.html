@@ -2958,6 +2958,14 @@ body.dark .cal-cell.other{background:var(--cream)}
           </div>
           <div class="set-idx-chev">›</div>
         </div>
+        <div class="set-idx-row" data-search="code editions nec electrical plumbing ipc upc inspector building department" onclick="_openSetDetail('codes')">
+          <div class="set-idx-icon"><span data-ico="📘" data-ico-size="18"></span></div>
+          <div class="set-idx-body">
+            <div class="set-idx-title">Code editions</div>
+            <div class="set-idx-sub" id="set-idx-codes-sub">Which code your inspector enforces</div>
+          </div>
+          <div class="set-idx-chev">›</div>
+        </div>
       </div>
     </div>
 
@@ -3441,6 +3449,18 @@ body.dark .cal-cell.other{background:var(--cream)}
     </div>
     <div style="padding:16px">
       <div id="set-trades-content" style="margin-top:4px"></div>
+    </div>
+  </div>
+
+  <!-- Code editions detail -->
+  <div class="set-detail" id="setd-codes">
+    <div class="set-detail-hd">
+      <button class="set-detail-back" onclick="_closeSetDetail()">‹</button>
+      <div class="set-idx-icon" style="flex-shrink:0"><span data-ico="📘" data-ico-size="18"></span></div>
+      <div style="flex:1"><div style="font-size:16px;font-weight:800;letter-spacing:-.2px">Code editions</div><div style="font-size:11px;color:var(--text3)">Which edition your inspector enforces</div></div>
+    </div>
+    <div style="padding:16px">
+      <div id="set-codes-content" style="margin-top:4px"></div>
     </div>
   </div>
 
@@ -4209,6 +4229,9 @@ document.querySelectorAll('[data-ico]').forEach(function(el){
 <!-- The code engine loads BEFORE any js/code-*.js module: those register their
      rule sets onto it at parse time, so the registry has to exist first. -->
 <script src="js/code-engine.js"></script>
+<script src="js/code-nec.js"></script>
+<script src="js/code-ipc.js"></script>
+<script src="js/loadcalc.js"></script>
 <script src="js/e2e.js"></script>
 <script src="js/pwa.js"></script>
 <script>
